@@ -130,7 +130,6 @@ func (c *EvtLiveCollector) subscribe() error {
 		0,
 		uintptr(unsafe.Pointer(channelPtr)),
 		uintptr(unsafe.Pointer(queryPtr)),
-		0,
 		uintptr(signalEvent),
 		0,
 		uintptr(bookmark),
