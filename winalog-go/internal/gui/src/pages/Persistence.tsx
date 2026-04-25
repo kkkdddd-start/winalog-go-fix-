@@ -203,6 +203,8 @@ function Persistence() {
         await persistenceAPI.updateWhitelist({
           name: editingRule.name,
           whitelist: editingRule.whitelist,
+          dll_whitelist: editingRule.builtin_dll_whitelist,
+          clsids_whitelist: editingRule.builtin_clsids_whitelist,
         })
       } else {
         await persistenceAPI.updateRule({
@@ -260,6 +262,48 @@ function Persistence() {
     if (!editingRule) return
     const newWhitelist = editingRule.whitelist.filter((_, i) => i !== index)
     setEditingRule({ ...editingRule, whitelist: newWhitelist })
+  }
+
+  const handleDllWhitelistChange = (index: number, value: string) => {
+    if (!editingRule || !editingRule.builtin_dll_whitelist) return
+    const newList = [...editingRule.builtin_dll_whitelist]
+    newList[index] = value
+    setEditingRule({ ...editingRule, builtin_dll_whitelist: newList })
+  }
+
+  const handleAddDllWhitelist = () => {
+    if (!editingRule) return
+    setEditingRule({
+      ...editingRule,
+      builtin_dll_whitelist: [...(editingRule.builtin_dll_whitelist || []), ''],
+    })
+  }
+
+  const handleRemoveDllWhitelist = (index: number) => {
+    if (!editingRule || !editingRule.builtin_dll_whitelist) return
+    const newList = editingRule.builtin_dll_whitelist.filter((_, i) => i !== index)
+    setEditingRule({ ...editingRule, builtin_dll_whitelist: newList })
+  }
+
+  const handleClsidsWhitelistChange = (index: number, value: string) => {
+    if (!editingRule || !editingRule.builtin_clsids_whitelist) return
+    const newList = [...editingRule.builtin_clsids_whitelist]
+    newList[index] = value
+    setEditingRule({ ...editingRule, builtin_clsids_whitelist: newList })
+  }
+
+  const handleAddClsidsWhitelist = () => {
+    if (!editingRule) return
+    setEditingRule({
+      ...editingRule,
+      builtin_clsids_whitelist: [...(editingRule.builtin_clsids_whitelist || []), ''],
+    })
+  }
+
+  const handleRemoveClsidsWhitelist = (index: number) => {
+    if (!editingRule || !editingRule.builtin_clsids_whitelist) return
+    const newList = editingRule.builtin_clsids_whitelist.filter((_, i) => i !== index)
+    setEditingRule({ ...editingRule, builtin_clsids_whitelist: newList })
   }
 
   const calculateStats = (dets: Detection[]): DetectionStats => {
@@ -856,6 +900,58 @@ function Persistence() {
                         + {t('persistence.addWhitelist')}
                       </button>
                     </div>
+                    {editingRule.builtin_dll_whitelist && (
+                      <>
+                        <h5>{t('persistence.userDllWhitelist') || 'User DLL Whitelist'}</h5>
+                        <div className="whitelist-list">
+                          {editingRule.builtin_dll_whitelist.map((entry, idx) => (
+                            <div key={idx} className="whitelist-item">
+                              <input
+                                type="text"
+                                value={entry}
+                                onChange={(e) => handleDllWhitelistChange(idx, e.target.value)}
+                                placeholder={t('persistence.whitelistPlaceholder')}
+                              />
+                              <button
+                                className="remove-btn"
+                                onClick={() => handleRemoveDllWhitelist(idx)}
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
+                          <button className="add-btn" onClick={handleAddDllWhitelist}>
+                            + {t('persistence.addWhitelist')}
+                          </button>
+                        </div>
+                      </>
+                    )}
+                    {editingRule.builtin_clsids_whitelist && (
+                      <>
+                        <h5>{t('persistence.userClsidsWhitelist') || 'User CLSIDs Whitelist'}</h5>
+                        <div className="whitelist-list">
+                          {editingRule.builtin_clsids_whitelist.map((entry, idx) => (
+                            <div key={idx} className="whitelist-item">
+                              <input
+                                type="text"
+                                value={entry}
+                                onChange={(e) => handleClsidsWhitelistChange(idx, e.target.value)}
+                                placeholder={t('persistence.whitelistPlaceholder')}
+                              />
+                              <button
+                                className="remove-btn"
+                                onClick={() => handleRemoveClsidsWhitelist(idx)}
+                              >
+                                ×
+                              </button>
+                            </div>
+                          ))}
+                          <button className="add-btn" onClick={handleAddClsidsWhitelist}>
+                            + {t('persistence.addWhitelist')}
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </>
               )}
