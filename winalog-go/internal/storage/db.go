@@ -152,6 +152,45 @@ func (d *DB) runMigrations() error {
 				return err
 			},
 		},
+		{
+			name: "create_persistence_detections_table",
+			check: func() (bool, error) {
+				var count int
+				err := d.conn.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='persistence_detections'").Scan(&count)
+				return count == 0, err
+			},
+			exec: func() error {
+				schema := `
+				CREATE TABLE IF NOT EXISTS persistence_detections (
+					id INTEGER PRIMARY KEY AUTOINCREMENT,
+					detection_id TEXT NOT NULL UNIQUE,
+					technique TEXT NOT NULL,
+					category TEXT NOT NULL,
+					severity TEXT NOT NULL,
+					title TEXT NOT NULL,
+					description TEXT,
+					evidence_type TEXT,
+					evidence_path TEXT,
+					evidence_key TEXT,
+					evidence_value TEXT,
+					evidence_file_path TEXT,
+					evidence_command TEXT,
+					mitre_ref TEXT,
+					recommended_action TEXT,
+					false_positive_risk TEXT,
+					detected_at TEXT NOT NULL,
+					is_true_positive INTEGER DEFAULT -1,
+					notes TEXT,
+					created_at TEXT DEFAULT CURRENT_TIMESTAMP
+				);
+				CREATE INDEX IF NOT EXISTS idx_persistence_detections_technique ON persistence_detections(technique);
+				CREATE INDEX IF NOT EXISTS idx_persistence_detections_severity ON persistence_detections(severity);
+				CREATE INDEX IF NOT EXISTS idx_persistence_detections_detected_at ON persistence_detections(detected_at);
+				`
+				_, err := d.conn.Exec(schema)
+				return err
+			},
+		},
 	}
 
 	for _, m := range migrations {
