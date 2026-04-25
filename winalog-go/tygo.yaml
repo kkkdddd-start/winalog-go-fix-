@@ -1,0 +1,28 @@
+# Tygo configuration for winalog-go
+# Generates TypeScript types from Go source files
+
+# Global type mappings apply to all packages
+type_mappings:
+  time.Time: "string /* RFC3339 */"
+  time.Duration: "number /* milliseconds */"
+  sql.NullString: "string | null"
+  sql.NullInt64: "number | null"
+  sql.NullBool: "boolean | null"
+
+packages:
+  # Core types - Event, Alert, Rule, etc.
+  - path: "github.com/kkkdddd-start/winalog-go/internal/types"
+    output_path: "internal/gui/src/api/types/core-types.ts"
+    exclude_files:
+      - "*_test.go"
+      - "types_test.go"
+
+  # API types - Request/Response structs
+  - path: "github.com/kkkdddd-start/winalog-go/internal/api"
+    output_path: "internal/gui/src/api/types/api-types.ts"
+    exclude_files:
+      - "*_test.go"
+      - "_statich/**"
+      - "server.go"
+      - "*_nowindows.go"
+      - "*_nows.go"

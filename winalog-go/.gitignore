@@ -1,0 +1,8 @@
+*.exe
+*.zip
+node_modules/
+build/
+dist/
+logs/
+vendor/
+.git/

@@ -1,0 +1,35 @@
+{
+  "name": "powershell_detection",
+  "description": "Detect PowerShell script execution by monitoring event ID 4103/4104 (PowerShell Script Block Logging)",
+  "enabled": false,
+  "severity": "high",
+  "score": 80,
+  "mitre_attack": "T1059.001",
+  "event_ids": [4103, 4104],
+  "levels": [2, 3],
+  "filter": {},
+  "message": "Suspicious PowerShell activity detected: {{script_content}}",
+  "tags": ["powershell", "scripting", "defense-evasion"],
+  "created_at": "2026-01-01T00:00:00Z",
+  "updated_at": "2026-01-01T00:00:00Z",
+  "is_template": true,
+  "template_id": "powershell_detection",
+  "parameters": [
+    {
+      "name": "script_content",
+      "description": "PowerShell script content pattern to detect",
+      "default": "encoded",
+      "required": false,
+      "type": "string",
+      "options": ["encoded", "invoke", "download", "malicious"]
+    },
+    {
+      "name": "event_id",
+      "description": "Event ID to monitor (4103 = Script Block, 4104 = Module)",
+      "default": "4103",
+      "required": false,
+      "type": "string",
+      "options": ["4103", "4104"]
+    }
+  ]
+}

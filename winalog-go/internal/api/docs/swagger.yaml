@@ -1,0 +1,4167 @@
+definitions:
+  api.ActionInfo:
+    properties:
+      parameters:
+        additionalProperties: true
+        type: object
+      type:
+        type: string
+    required:
+    - type
+    type: object
+  api.AlertSummary:
+    properties:
+      count:
+        type: integer
+      first_seen:
+        type: string
+      id:
+        type: integer
+      is_resolved:
+        type: boolean
+      last_seen:
+        type: string
+      message:
+        type: string
+      rule_name:
+        type: string
+      severity:
+        type: string
+    type: object
+  api.AlertWithDetails:
+    properties:
+      count:
+        type: integer
+      event_db_ids:
+        items:
+          type: integer
+        type: array
+      event_ids:
+        items:
+          type: integer
+        type: array
+      explanation:
+        type: string
+      false_positive:
+        type: boolean
+      first_seen:
+        type: string
+      id:
+        type: integer
+      keywords:
+        type: string
+      last_seen:
+        type: string
+      log_name:
+        type: string
+      matched_events:
+        items:
+          $ref: '#/definitions/types.Event'
+        type: array
+      message:
+        type: string
+      mitre_attack:
+        items:
+          type: string
+        type: array
+      notes:
+        type: string
+      real_case:
+        type: string
+      recommendation:
+        type: string
+      resolved:
+        type: boolean
+      resolved_time:
+        type: string
+      rule_name:
+        type: string
+      rule_score:
+        type: number
+      severity:
+        $ref: '#/definitions/github_com_kkkdddd-start_winalog-go_internal_types.Severity'
+    type: object
+  api.AnalyzeFinding:
+    properties:
+      description:
+        type: string
+      evidence:
+        items:
+          $ref: '#/definitions/api.EvidenceItem'
+        type: array
+      metadata:
+        additionalProperties: true
+        type: object
+      mitre_attack:
+        items:
+          type: string
+        type: array
+      rule_name:
+        type: string
+      score:
+        type: number
+      severity:
+        type: string
+    type: object
+  api.AnalyzeRequest:
+    properties:
+      end_time:
+        type: string
+      hours:
+        type: integer
+      limit:
+        type: integer
+      offset:
+        type: integer
+      start_time:
+        type: string
+      type:
+        type: string
+    type: object
+  api.AnalyzeResult:
+    properties:
+      findings:
+        items:
+          $ref: '#/definitions/api.AnalyzeFinding'
+        type: array
+      pagination:
+        $ref: '#/definitions/api.Pagination'
+      score:
+        type: number
+      severity:
+        type: string
+      summary:
+        type: string
+      timestamp:
+        type: integer
+      type:
+        type: string
+    type: object
+  api.AnalyzerRuleUpdate:
+    properties:
+      enabled:
+        type: boolean
+      event_ids:
+        items:
+          type: integer
+        type: array
+      name:
+        type: string
+      patterns:
+        items:
+          type: string
+        type: array
+      thresholds:
+        additionalProperties:
+          type: integer
+        type: object
+      whitelist:
+        items:
+          type: string
+        type: array
+    type: object
+  api.BatchAlertActionRequest:
+    properties:
+      action:
+        type: string
+      ids:
+        items:
+          type: integer
+        type: array
+      notes:
+        type: string
+      reason:
+        type: string
+    type: object
+  api.CollectRequest:
+    properties:
+      collect_amcache:
+        type: boolean
+      collect_logs:
+        type: boolean
+      collect_prefetch:
+        type: boolean
+      collect_registry:
+        type: boolean
+      collect_shimcache:
+        type: boolean
+      collect_tasks:
+        type: boolean
+      collect_userassist:
+        type: boolean
+      output_path:
+        type: string
+      type:
+        type: string
+    required:
+    - type
+    type: object
+  api.CollectResponse:
+    properties:
+      collected_at:
+        type: string
+      id:
+        type: string
+      message:
+        type: string
+      output_path:
+        type: string
+      status:
+        type: string
+      type:
+        type: string
+    type: object
+  api.CollectStatus:
+    properties:
+      duration:
+        type: string
+      files_count:
+        type: integer
+      message:
+        type: string
+      output_path:
+        type: string
+      progress:
+        type: integer
+      status:
+        type: string
+    type: object
+  api.CollectionStatsResponse:
+    properties:
+      last_import:
+        type: string
+      sources:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+      total_events:
+        type: integer
+      total_size:
+        type: string
+    type: object
+  api.ColumnInfo:
+    properties:
+      name:
+        type: string
+      not_null:
+        type: boolean
+      type:
+        type: string
+    type: object
+  api.ConditionInfo:
+    properties:
+      field:
+        type: string
+      operator:
+        type: string
+      value: {}
+    required:
+    - field
+    - operator
+    - value
+    type: object
+  api.CorrelationRequest:
+    properties:
+      rules:
+        items:
+          type: string
+        type: array
+      time_window:
+        type: string
+    type: object
+  api.CreateCustomPolicyRequest:
+    properties:
+      actions:
+        items:
+          $ref: '#/definitions/api.ActionInfo'
+        type: array
+      conditions:
+        items:
+          $ref: '#/definitions/api.ConditionInfo'
+        type: array
+      description:
+        type: string
+      enabled:
+        type: boolean
+      mitre_mapping:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      parameters:
+        items:
+          $ref: '#/definitions/api.ParameterInfo'
+        type: array
+      policy_type:
+        type: string
+      priority:
+        type: integer
+      time_window:
+        type: integer
+    required:
+    - name
+    - policy_type
+    type: object
+  api.CreateRuleRequest:
+    properties:
+      description:
+        type: string
+      enabled:
+        type: boolean
+      event_ids:
+        items:
+          type: integer
+        type: array
+      filter:
+        $ref: '#/definitions/api.FilterInfo'
+      levels:
+        items:
+          type: string
+        type: array
+      message:
+        type: string
+      mitre_attack:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      score:
+        type: number
+      severity:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+    required:
+    - name
+    - severity
+    type: object
+  api.CrossMachineActivity:
+    properties:
+      login_count:
+        type: integer
+      machine_count:
+        type: integer
+      machines:
+        items:
+          type: string
+        type: array
+      recommendation:
+        type: string
+      severity:
+        type: string
+      suspicious:
+        type: boolean
+      user:
+        type: string
+    type: object
+  api.DLLInfo:
+    properties:
+      is_signed:
+        type: boolean
+      name:
+        type: string
+      path:
+        type: string
+      process_id:
+        type: integer
+      process_name:
+        type: string
+      size:
+        type: integer
+      version:
+        type: string
+    type: object
+  api.DLLResponse:
+    properties:
+      modules:
+        items:
+          $ref: '#/definitions/api.DLLInfo'
+        type: array
+      total:
+        type: integer
+    type: object
+  api.DashboardOverview:
+    properties:
+      alert_trend:
+        items:
+          $ref: '#/definitions/api.TrendPoint'
+        type: array
+      alerts_last_24h:
+        type: integer
+      critical_alerts:
+        type: integer
+      database_size:
+        type: string
+      event_sources:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+      events_last_24h:
+        type: integer
+      high_alerts:
+        type: integer
+      low_alerts:
+        type: integer
+      medium_alerts:
+        type: integer
+      recent_events:
+        items:
+          $ref: '#/definitions/api.EventSummary'
+        type: array
+      resolved_alerts:
+        type: integer
+      risk_score:
+        type: number
+      top_alerts:
+        items:
+          $ref: '#/definitions/api.AlertSummary'
+        type: array
+      total_alerts:
+        type: integer
+      total_events:
+        type: integer
+      unresolved_alerts:
+        type: integer
+    type: object
+  api.DetectResponse:
+    properties:
+      cached:
+        type: boolean
+      detections:
+        items:
+          $ref: '#/definitions/api.EnrichedDetection'
+        type: array
+      duration:
+        type: string
+      summary:
+        additionalProperties: true
+        type: object
+      total_count:
+        type: integer
+    type: object
+  api.DetectorConfigUpdate:
+    properties:
+      detectors:
+        items:
+          properties:
+            enabled:
+              type: boolean
+            name:
+              type: string
+          type: object
+        type: array
+    type: object
+  api.DriverInfo:
+    properties:
+      description:
+        type: string
+      display_name:
+        type: string
+      name:
+        type: string
+      path:
+        type: string
+      status:
+        type: string
+    type: object
+  api.DriverResponse:
+    properties:
+      drivers:
+        items:
+          $ref: '#/definitions/api.DriverInfo'
+        type: array
+      total:
+        type: integer
+    type: object
+  api.EnrichedDetection:
+    properties:
+      category:
+        type: string
+      description:
+        type: string
+      evidence:
+        additionalProperties: true
+        type: object
+      explanation:
+        type: string
+      false_positive_risk:
+        type: string
+      id:
+        type: string
+      mitre_ref:
+        items:
+          type: string
+        type: array
+      real_case:
+        type: string
+      recommendation:
+        type: string
+      recommended_action:
+        type: string
+      severity:
+        type: string
+      technique:
+        type: string
+      time:
+        type: string
+      title:
+        type: string
+    type: object
+  api.EnvVar:
+    properties:
+      name:
+        type: string
+      type:
+        type: string
+      value:
+        type: string
+    type: object
+  api.EnvVarResponse:
+    properties:
+      total:
+        type: integer
+      variables:
+        items:
+          $ref: '#/definitions/api.EnvVar'
+        type: array
+    type: object
+  api.ErrorResponse:
+    properties:
+      code:
+        $ref: '#/definitions/types.ErrorCode'
+      details:
+        additionalProperties: {}
+        type: object
+      error:
+        type: string
+    type: object
+  api.EventSummary:
+    properties:
+      computer:
+        type: string
+      event_id:
+        type: integer
+      id:
+        type: integer
+      level:
+        type: string
+      message:
+        type: string
+      source:
+        type: string
+      timestamp:
+        type: string
+    type: object
+  api.EvidenceItem:
+    properties:
+      computer:
+        type: string
+      event_id:
+        type: integer
+      message:
+        type: string
+      timestamp:
+        type: string
+      user:
+        type: string
+    type: object
+  api.Evtx2CsvRequest:
+    properties:
+      calculate_hash:
+        type: boolean
+      file_paths:
+        items:
+          type: string
+        type: array
+      include_xml:
+        type: boolean
+      limit:
+        type: integer
+      output_dir:
+        type: string
+    required:
+    - file_paths
+    type: object
+  api.Evtx2CsvResponse:
+    properties:
+      errors:
+        items:
+          type: string
+        type: array
+      failed_files:
+        type: integer
+      results:
+        items:
+          $ref: '#/definitions/api.Result'
+        type: array
+      success:
+        type: boolean
+      total_events:
+        type: integer
+      total_files:
+        type: integer
+    type: object
+  api.ExportFilters:
+    properties:
+      computers:
+        items:
+          type: string
+        type: array
+      end_time:
+        type: string
+      event_ids:
+        items:
+          type: integer
+        type: array
+      keywords:
+        type: string
+      levels:
+        items:
+          type: integer
+        type: array
+      limit:
+        type: integer
+      log_names:
+        items:
+          type: string
+        type: array
+      start_time:
+        type: string
+      users:
+        items:
+          type: string
+        type: array
+    type: object
+  api.ExportRequest:
+    properties:
+      filters:
+        $ref: '#/definitions/api.ExportFilters'
+      format:
+        description: '"json" | "csv" | "excel"'
+        type: string
+    type: object
+  api.ExportResponse:
+    properties:
+      message:
+        type: string
+      success:
+        type: boolean
+      total:
+        type: integer
+    type: object
+  api.FilterInfo:
+    properties:
+      computers:
+        items:
+          type: string
+        type: array
+      event_ids:
+        items:
+          type: integer
+        type: array
+      exclude_computers:
+        items:
+          type: string
+        type: array
+      exclude_users:
+        items:
+          type: string
+        type: array
+      ip_address:
+        type: string
+      keywords:
+        items:
+          type: string
+        type: array
+      levels:
+        items:
+          type: string
+        type: array
+      log_names:
+        items:
+          type: string
+        type: array
+      sources:
+        items:
+          type: string
+        type: array
+      users:
+        items:
+          type: string
+        type: array
+    type: object
+  api.HashRequest:
+    properties:
+      path:
+        type: string
+    required:
+    - path
+    type: object
+  api.HashResponse:
+    properties:
+      error:
+        type: string
+      file_path:
+        type: string
+      md5:
+        type: string
+      sha1:
+        type: string
+      sha256:
+        type: string
+      size:
+        type: integer
+      status:
+        type: string
+    type: object
+  api.ImportRequest:
+    properties:
+      alert_on_import:
+        type: boolean
+      enabled_formats:
+        items:
+          type: string
+        type: array
+      files:
+        items:
+          type: string
+        type: array
+      skip_patterns:
+        items:
+          type: string
+        type: array
+    required:
+    - files
+    type: object
+  api.ImportRulesRequest:
+    properties:
+      rules:
+        items:
+          $ref: '#/definitions/api.RuleInfo'
+        type: array
+    type: object
+  api.ImportRulesResponse:
+    properties:
+      errors:
+        items:
+          type: string
+        type: array
+      failed:
+        type: integer
+      imported:
+        type: integer
+    type: object
+  api.InstantiateTemplateRequest:
+    properties:
+      name:
+        type: string
+      params:
+        additionalProperties:
+          type: string
+        type: object
+    required:
+    - name
+    type: object
+  api.LateralMovement:
+    properties:
+      description:
+        type: string
+      event_id:
+        type: integer
+      ip_address:
+        type: string
+      mitre_attack:
+        items:
+          type: string
+        type: array
+      severity:
+        type: string
+      source_machine:
+        type: string
+      target_machine:
+        type: string
+      timestamp:
+        type: string
+      user:
+        type: string
+    type: object
+  api.ListAlertsResponse:
+    properties:
+      alerts:
+        items:
+          $ref: '#/definitions/types.Alert'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  api.ListEventsResponse:
+    properties:
+      events:
+        items:
+          $ref: '#/definitions/types.Event'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  api.LiveEventMessage:
+    properties:
+      data: {}
+      type:
+        type: string
+    type: object
+  api.LiveStats:
+    properties:
+      alerts:
+        type: integer
+      events_per_sec:
+        type: number
+      timestamp:
+        type: string
+      total_events:
+        type: integer
+      uptime:
+        $ref: '#/definitions/api.duration'
+    type: object
+  api.LogCollectOptions:
+    properties:
+      calculate_hash:
+        type: boolean
+      compress:
+        type: boolean
+      include_amcache:
+        type: boolean
+      include_dlls:
+        type: boolean
+      include_drivers:
+        type: boolean
+      include_logs:
+        type: boolean
+      include_network:
+        type: boolean
+      include_prefetch:
+        type: boolean
+      include_processes:
+        type: boolean
+      include_registry:
+        type: boolean
+      include_shimcache:
+        type: boolean
+      include_system_info:
+        type: boolean
+      include_tasks:
+        type: boolean
+      include_userassist:
+        type: boolean
+      include_users:
+        type: boolean
+      include_usn_journal:
+        type: boolean
+      output_path:
+        type: string
+      workers:
+        type: integer
+    type: object
+  api.LogCollectRequest:
+    properties:
+      formats:
+        items:
+          type: string
+        type: array
+      options:
+        $ref: '#/definitions/api.LogCollectOptions'
+      sources:
+        items:
+          type: string
+        type: array
+    type: object
+  api.LogCollectResponse:
+    properties:
+      collected_items:
+        additionalProperties:
+          type: integer
+        type: object
+      duration:
+        type: string
+      errors:
+        items:
+          type: string
+        type: array
+      event_count:
+        type: integer
+      failed_count:
+        type: integer
+      hash:
+        type: string
+      message:
+        type: string
+      output_path:
+        type: string
+      status:
+        type: string
+      success_count:
+        type: integer
+    type: object
+  api.LogImportRequest:
+    properties:
+      alert_on_import:
+        type: boolean
+      files:
+        items:
+          type: string
+        type: array
+    required:
+    - files
+    type: object
+  api.MachineInfo:
+    properties:
+      domain:
+        type: string
+      id:
+        type: string
+      ip:
+        type: string
+      last_seen:
+        type: string
+      name:
+        type: string
+      os_version:
+        type: string
+      role:
+        type: string
+    type: object
+  api.MarkFalsePositiveRequest:
+    properties:
+      reason:
+        type: string
+    type: object
+  api.MetricsResponse:
+    properties:
+      alerts_per_hour:
+        type: number
+      cpu_count:
+        type: integer
+      events_per_minute:
+        type: number
+      go_version:
+        type: string
+      memory_usage_mb:
+        type: number
+      system_memory_free_mb:
+        type: number
+      system_memory_total_mb:
+        type: number
+      total_alerts:
+        type: integer
+      total_events:
+        type: integer
+      uptime_seconds:
+        type: integer
+    type: object
+  api.MultiAnalyzeResponse:
+    properties:
+      analysis_id:
+        type: string
+      cross_machine_activity:
+        items:
+          $ref: '#/definitions/api.CrossMachineActivity'
+        type: array
+      lateral_movement:
+        items:
+          $ref: '#/definitions/api.LateralMovement'
+        type: array
+      machines:
+        items:
+          $ref: '#/definitions/api.MachineInfo'
+        type: array
+      summary:
+        type: string
+      suspicious_count:
+        type: integer
+    type: object
+  api.NetworkConnInfo:
+    properties:
+      local_addr:
+        type: string
+      local_port:
+        type: integer
+      pid:
+        type: integer
+      process_name:
+        type: string
+      protocol:
+        type: string
+      remote_addr:
+        type: string
+      remote_port:
+        type: integer
+      state:
+        type: string
+    type: object
+  api.NetworkConnectionResponse:
+    properties:
+      connections:
+        items:
+          $ref: '#/definitions/api.NetworkConnInfo'
+        type: array
+      total:
+        type: integer
+    type: object
+  api.Pagination:
+    properties:
+      limit:
+        type: integer
+      offset:
+        type: integer
+      total:
+        type: integer
+    type: object
+  api.ParameterInfo:
+    properties:
+      default:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+      options:
+        items:
+          type: string
+        type: array
+      required:
+        type: boolean
+      type:
+        type: string
+    type: object
+  api.PersistenceRuleUpdate:
+    properties:
+      enabled:
+        type: boolean
+      event_ids:
+        items:
+          type: integer
+        type: array
+      name:
+        type: string
+      patterns:
+        items:
+          type: string
+        type: array
+      suspicious_indicators:
+        items:
+          type: string
+        type: array
+      whitelist:
+        items:
+          type: string
+        type: array
+    type: object
+  api.PolicyTemplateInfo:
+    properties:
+      description:
+        type: string
+      enabled:
+        type: boolean
+      mitre_mapping:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      parameters:
+        items:
+          $ref: '#/definitions/api.ParameterInfo'
+        type: array
+      policy_type:
+        type: string
+      priority:
+        type: integer
+      time_window:
+        type: string
+    type: object
+  api.PolicyTemplateRequest:
+    properties:
+      name:
+        type: string
+      params:
+        additionalProperties:
+          type: string
+        type: object
+    required:
+    - name
+    type: object
+  api.ProcessDLLResponse:
+    properties:
+      dlls:
+        items:
+          $ref: '#/definitions/api.DLLInfo'
+        type: array
+      process_id:
+        type: integer
+      process_name:
+        type: string
+      total:
+        type: integer
+    type: object
+  api.ProcessInfo:
+    properties:
+      args:
+        type: string
+      command_line:
+        type: string
+      exe:
+        type: string
+      is_signed:
+        type: boolean
+      name:
+        type: string
+      path:
+        type: string
+      pid:
+        type: integer
+      ppid:
+        type: integer
+      signature:
+        $ref: '#/definitions/api.SignatureInfo'
+      status:
+        type: string
+      user:
+        type: string
+    type: object
+  api.ProcessResponse:
+    properties:
+      processes:
+        items:
+          $ref: '#/definitions/api.ProcessInfo'
+        type: array
+      total:
+        type: integer
+    type: object
+  api.QueryRequest:
+    properties:
+      limit:
+        type: integer
+      offset:
+        type: integer
+      sql:
+        type: string
+    required:
+    - sql
+    type: object
+  api.QueryResponse:
+    properties:
+      columns:
+        items:
+          type: string
+        type: array
+      count:
+        type: integer
+      rows:
+        items:
+          additionalProperties: true
+          type: object
+        type: array
+      total:
+        type: integer
+    type: object
+  api.QuickQuery:
+    properties:
+      category:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+      sql:
+        type: string
+      table:
+        type: string
+    type: object
+  api.RegistryKeyInfo:
+    properties:
+      name:
+        type: string
+      path:
+        type: string
+      type:
+        type: string
+      value:
+        type: string
+    type: object
+  api.RegistryPersistenceResponse:
+    properties:
+      run_keys:
+        items:
+          $ref: '#/definitions/api.RegistryKeyInfo'
+        type: array
+      total:
+        type: integer
+    type: object
+  api.ReportInfo:
+    properties:
+      completed_at:
+        type: string
+      description:
+        type: string
+      error:
+        type: string
+      file_path:
+        type: string
+      file_size:
+        type: integer
+      format:
+        type: string
+      generated_at:
+        type: string
+      id:
+        type: string
+      status:
+        type: string
+      title:
+        type: string
+      type:
+        type: string
+    type: object
+  api.ReportRequest:
+    properties:
+      compression:
+        type: boolean
+      description:
+        type: string
+      end_time:
+        type: string
+      format:
+        type: string
+      include_ioc:
+        type: boolean
+      include_mitre:
+        type: boolean
+      include_raw:
+        type: boolean
+      language:
+        description: '"en" or "zh"'
+        type: string
+      start_time:
+        type: string
+      title:
+        type: string
+      type:
+        type: string
+    required:
+    - format
+    - type
+    type: object
+  api.ResolveAlertRequest:
+    properties:
+      notes:
+        type: string
+    type: object
+  api.Result:
+    properties:
+      error:
+        type: string
+      event_count:
+        type: integer
+      input_path:
+        type: string
+      output_path:
+        type: string
+    type: object
+  api.RuleInfo:
+    properties:
+      description:
+        type: string
+      enabled:
+        type: boolean
+      event_ids:
+        items:
+          type: integer
+        type: array
+      filter:
+        $ref: '#/definitions/api.FilterInfo'
+      id:
+        type: string
+      is_custom:
+        type: boolean
+      levels:
+        items:
+          type: string
+        type: array
+      message:
+        type: string
+      mitre_attack:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      score:
+        type: number
+      severity:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+    type: object
+  api.RulesListResponse:
+    properties:
+      enabled_count:
+        type: integer
+      page:
+        type: integer
+      page_size:
+        type: integer
+      rules:
+        items:
+          $ref: '#/definitions/api.RuleInfo'
+        type: array
+      total_count:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  api.RunAnalysisResponse:
+    properties:
+      alerts_created:
+        type: integer
+      duration:
+        type: string
+      errors:
+        items:
+          type: string
+        type: array
+      events_analyzed:
+        type: integer
+      rules_executed:
+        type: integer
+      success:
+        type: boolean
+    type: object
+  api.SearchEventsRequest:
+    properties:
+      computers:
+        items:
+          type: string
+        type: array
+      end_time:
+        type: string
+      event_ids:
+        items:
+          type: integer
+        type: array
+      highlight:
+        type: boolean
+      keyword_mode:
+        type: string
+      keywords:
+        type: string
+      levels:
+        items:
+          type: integer
+        type: array
+      log_names:
+        items:
+          type: string
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      regex:
+        type: boolean
+      sort_by:
+        type: string
+      sort_order:
+        type: string
+      sources:
+        items:
+          type: string
+        type: array
+      start_time:
+        type: string
+      users:
+        items:
+          type: string
+        type: array
+    type: object
+  api.Settings:
+    properties:
+      api_host:
+        type: string
+      api_port:
+        type: integer
+      cors_enabled:
+        type: boolean
+      database_path:
+        type: string
+      enable_alerting:
+        type: boolean
+      enable_auto_update:
+        type: boolean
+      enable_live_collection:
+        type: boolean
+      export_directory:
+        type: string
+      log_level:
+        type: string
+      max_events:
+        type: integer
+      max_import_file_size:
+        type: integer
+      memory_limit:
+        type: integer
+      parser_workers:
+        type: integer
+      request_timeout:
+        type: integer
+      retention_days:
+        type: integer
+    type: object
+  api.SignatureInfo:
+    properties:
+      issuer:
+        type: string
+      status:
+        type: string
+      subject:
+        type: string
+      thumbprint:
+        type: string
+      valid_from:
+        type: string
+      valid_to:
+        type: string
+    type: object
+  api.SignatureResponse:
+    properties:
+      error:
+        type: string
+      issuer:
+        type: string
+      not_after:
+        type: string
+      not_before:
+        type: string
+      signed:
+        type: boolean
+      signer:
+        type: string
+      status:
+        type: string
+      thumbprint:
+        type: string
+    type: object
+  api.SuccessResponse:
+    properties:
+      data: {}
+      message:
+        type: string
+    type: object
+  api.SuppressConditionReq:
+    properties:
+      field:
+        type: string
+      operator:
+        type: string
+      value: {}
+    required:
+    - field
+    - operator
+    - value
+    type: object
+  api.SuppressRuleRequest:
+    properties:
+      conditions:
+        items:
+          $ref: '#/definitions/api.SuppressConditionReq'
+        type: array
+      duration:
+        type: integer
+      enabled:
+        type: boolean
+      expires_at:
+        type: string
+      name:
+        type: string
+      scope:
+        type: string
+    required:
+    - name
+    type: object
+  api.SuppressRuleResponse:
+    properties:
+      conditions:
+        items:
+          $ref: '#/definitions/types.SuppressCondition'
+        type: array
+      created_at:
+        type: string
+      duration:
+        type: integer
+      enabled:
+        type: boolean
+      expires_at:
+        type: string
+      id:
+        type: integer
+      name:
+        type: string
+      scope:
+        type: string
+    type: object
+  api.SystemInfo:
+    properties:
+      architecture:
+        type: string
+      cpu_count:
+        type: integer
+      domain:
+        type: string
+      go_memory_usage_mb:
+        type: number
+      go_version:
+        type: string
+      hostname:
+        type: string
+      is_admin:
+        type: boolean
+      local_time:
+        type: string
+      memory_free_gb:
+        type: number
+      memory_total_gb:
+        type: number
+      os_name:
+        type: string
+      os_version:
+        type: string
+      system_memory_free_gb:
+        type: number
+      system_memory_total_gb:
+        type: number
+      timezone:
+        type: string
+      uptime_seconds:
+        type: integer
+    type: object
+  api.TableInfo:
+    properties:
+      columns:
+        items:
+          $ref: '#/definitions/api.ColumnInfo'
+        type: array
+      count:
+        type: integer
+      name:
+        type: string
+    type: object
+  api.TaskInfo:
+    properties:
+      name:
+        type: string
+      path:
+        type: string
+      state:
+        type: string
+    type: object
+  api.TaskResponse:
+    properties:
+      tasks:
+        items:
+          $ref: '#/definitions/api.TaskInfo'
+        type: array
+      total:
+        type: integer
+    type: object
+  api.TemplateInfo:
+    properties:
+      description:
+        type: string
+      is_template:
+        type: boolean
+      name:
+        type: string
+      parameters:
+        items:
+          $ref: '#/definitions/api.TemplateParamInfo'
+        type: array
+    type: object
+  api.TemplateParamInfo:
+    properties:
+      default:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+      options:
+        items:
+          type: string
+        type: array
+      required:
+        type: boolean
+      type:
+        type: string
+    type: object
+  api.TemplateRequest:
+    properties:
+      content:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+    required:
+    - content
+    - name
+    type: object
+  api.TimelineEntry:
+    properties:
+      alert_id:
+        type: integer
+      computer:
+        type: string
+      event_db_ids:
+        items:
+          type: integer
+        type: array
+      event_id:
+        type: integer
+      id:
+        type: integer
+      level:
+        type: string
+      log_name:
+        type: string
+      message:
+        type: string
+      mitre_attack:
+        items:
+          type: string
+        type: array
+      rule_name:
+        type: string
+      severity:
+        type: string
+      source:
+        type: string
+      timestamp:
+        type: string
+      type:
+        description: '"event" or "alert"'
+        type: string
+    type: object
+  api.TimelineResponse:
+    properties:
+      alert_count:
+        type: integer
+      entries:
+        items:
+          $ref: '#/definitions/api.TimelineEntry'
+        type: array
+      event_count:
+        type: integer
+      has_more:
+        type: boolean
+      next_offset:
+        type: integer
+      total_count:
+        type: integer
+    type: object
+  api.TimelineStats:
+    properties:
+      attack_chains:
+        type: integer
+      by_category:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+      by_level:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+      by_source:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+      time_range:
+        type: string
+      top_event_ids:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+      total_alerts:
+        type: integer
+      total_events:
+        type: integer
+    type: object
+  api.TrendPoint:
+    properties:
+      count:
+        type: integer
+      date:
+        type: string
+    type: object
+  api.UEBARequest:
+    properties:
+      end_time:
+        type: string
+      hours:
+        type: integer
+      start_time:
+        type: string
+    type: object
+  api.UEBAResult:
+    properties:
+      anomalies:
+        items:
+          $ref: '#/definitions/ueba.AnomalyResult'
+        type: array
+      duration:
+        type: string
+      high_risk_count:
+        type: integer
+      medium_risk_count:
+        type: integer
+      total_anomaly:
+        type: integer
+      type:
+        type: string
+    type: object
+  api.UpdateRuleRequest:
+    properties:
+      description:
+        type: string
+      enabled:
+        type: boolean
+      event_ids:
+        items:
+          type: integer
+        type: array
+      filter:
+        $ref: '#/definitions/api.FilterInfo'
+      levels:
+        items:
+          type: string
+        type: array
+      message:
+        type: string
+      mitre_attack:
+        items:
+          type: string
+        type: array
+      score:
+        type: number
+      severity:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+    type: object
+  api.UserInfo:
+    properties:
+      enabled:
+        type: boolean
+      full_name:
+        type: string
+      home_dir:
+        type: string
+      name:
+        type: string
+      sid:
+        type: string
+      type:
+        type: string
+    type: object
+  api.UserResponse:
+    properties:
+      total:
+        type: integer
+      users:
+        items:
+          $ref: '#/definitions/api.UserInfo'
+        type: array
+    type: object
+  api.ValidateRuleRequest:
+    properties:
+      content:
+        type: string
+      rule:
+        $ref: '#/definitions/api.RuleInfo'
+    type: object
+  api.ValidateRuleResponse:
+    properties:
+      errors:
+        items:
+          type: string
+        type: array
+      valid:
+        type: boolean
+      warnings:
+        items:
+          type: string
+        type: array
+    type: object
+  api.duration:
+    enum:
+    - -9223372036854775808
+    - 9223372036854775807
+    - 1
+    - 1000
+    - 1000000
+    - 1000000000
+    - 60000000000
+    - 3600000000000
+    format: int64
+    type: integer
+    x-enum-varnames:
+    - minDuration
+    - maxDuration
+    - Nanosecond
+    - Microsecond
+    - Millisecond
+    - Second
+    - Minute
+    - Hour
+  github_com_kkkdddd-start_winalog-go_internal_types.Severity:
+    enum:
+    - critical
+    - high
+    - medium
+    - low
+    - info
+    type: string
+    x-enum-varnames:
+    - SeverityCritical
+    - SeverityHigh
+    - SeverityMedium
+    - SeverityLow
+    - SeverityInfo
+  types.Alert:
+    properties:
+      count:
+        type: integer
+      event_db_ids:
+        items:
+          type: integer
+        type: array
+      event_ids:
+        items:
+          type: integer
+        type: array
+      false_positive:
+        type: boolean
+      first_seen:
+        type: string
+      id:
+        type: integer
+      last_seen:
+        type: string
+      log_name:
+        type: string
+      message:
+        type: string
+      mitre_attack:
+        items:
+          type: string
+        type: array
+      notes:
+        type: string
+      resolved:
+        type: boolean
+      resolved_time:
+        type: string
+      rule_name:
+        type: string
+      rule_score:
+        type: number
+      severity:
+        $ref: '#/definitions/github_com_kkkdddd-start_winalog-go_internal_types.Severity'
+    type: object
+  types.AlertStats:
+    properties:
+      avg_per_day:
+        type: number
+      by_rule:
+        items:
+          $ref: '#/definitions/types.RuleCount'
+        type: array
+      by_severity:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+      by_status:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+      rule_score_avg:
+        type: number
+      total:
+        type: integer
+      trend:
+        items:
+          $ref: '#/definitions/types.TrendPoint'
+        type: array
+    type: object
+  types.AlertTrend:
+    properties:
+      by_day_of_week:
+        items:
+          $ref: '#/definitions/types.TrendPoint'
+        type: array
+      by_hour:
+        items:
+          $ref: '#/definitions/types.TrendPoint'
+        type: array
+      daily:
+        items:
+          $ref: '#/definitions/types.TrendPoint'
+        type: array
+      weekly:
+        items:
+          $ref: '#/definitions/types.TrendPoint'
+        type: array
+    type: object
+  types.ErrorCode:
+    enum:
+    - SUCCESS
+    - INTERNAL_ERROR
+    - INVALID_PARAM
+    - INVALID_REQUEST
+    - INVALID_QUERY
+    - NOT_FOUND
+    - EVENT_NOT_FOUND
+    - ALERT_NOT_FOUND
+    - ALERT_ALREADY_RESOLVED
+    - UNAUTHORIZED
+    - PARSE_FAILED
+    - IMPORT_FAILED
+    - FILE_NOT_FOUND
+    - FILE_LOCKED
+    - INVALID_FORMAT
+    - DB_ERROR
+    - DB_READ_ONLY
+    - RULE_INVALID
+    - RULE_NOT_FOUND
+    - RULE_DISABLED
+    - SEARCH_FAILED
+    - RESULT_TOO_LARGE
+    - HASH_MISMATCH
+    - SIGNATURE_INVALID
+    - NOT_SUPPORTED
+    type: string
+    x-enum-varnames:
+    - ErrCodeSuccess
+    - ErrCodeInternalError
+    - ErrCodeInvalidParam
+    - ErrCodeInvalidRequest
+    - ErrCodeInvalidQuery
+    - ErrCodeNotFound
+    - ErrCodeEventNotFound
+    - ErrCodeAlertNotFound
+    - ErrCodeAlertAlreadyResolved
+    - ErrCodeUnauthorized
+    - ErrCodeParseFailed
+    - ErrCodeImportFailed
+    - ErrCodeFileNotFound
+    - ErrCodeFileLocked
+    - ErrCodeInvalidFormat
+    - ErrCodeDBError
+    - ErrCodeDBReadOnly
+    - ErrCodeRuleInvalid
+    - ErrCodeRuleNotFound
+    - ErrCodeRuleDisabled
+    - ErrCodeSearchFailed
+    - ErrCodeResultTooLarge
+    - ErrCodeHashMismatch
+    - ErrCodeSignatureInvalid
+    - ErrCodeNotSupported
+  types.Event:
+    properties:
+      computer:
+        type: string
+      event_id:
+        type: integer
+      extracted_fields:
+        additionalProperties: true
+        type: object
+      id:
+        type: integer
+      import_id:
+        type: integer
+      import_time:
+        type: string
+      ip_address:
+        type: string
+      level:
+        $ref: '#/definitions/types.EventLevel'
+      log_name:
+        type: string
+      message:
+        type: string
+      raw_xml:
+        type: string
+      session_id:
+        type: string
+      source:
+        type: string
+      timestamp:
+        type: string
+      user:
+        type: string
+      user_sid:
+        type: string
+    type: object
+  types.EventLevel:
+    enum:
+    - Critical
+    - Error
+    - Warning
+    - Info
+    - Verbose
+    type: string
+    x-enum-varnames:
+    - EventLevelCritical
+    - EventLevelError
+    - EventLevelWarning
+    - EventLevelInfo
+    - EventLevelVerbose
+  types.RuleCount:
+    properties:
+      count:
+        type: integer
+      percentage:
+        type: number
+      rule_name:
+        type: string
+    type: object
+  types.SearchResponse:
+    properties:
+      events:
+        items:
+          $ref: '#/definitions/types.Event'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      query_time_ms:
+        type: integer
+      total:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  types.SuppressCondition:
+    properties:
+      field:
+        type: string
+      operator:
+        type: string
+      value: {}
+    type: object
+  types.TrendPoint:
+    properties:
+      count:
+        type: integer
+      date:
+        type: string
+    type: object
+  ueba.AnomalyResult:
+    properties:
+      description:
+        type: string
+      details:
+        additionalProperties: true
+        type: object
+      end_time:
+        type: string
+      entity:
+        type: string
+      event_ids:
+        items:
+          type: integer
+        type: array
+      score:
+        type: number
+      severity:
+        type: string
+      start_time:
+        type: string
+      type:
+        $ref: '#/definitions/ueba.AnomalyType'
+      user:
+        type: string
+    type: object
+  ueba.AnomalyType:
+    enum:
+    - impossible_travel
+    - abnormal_behavior
+    - abnormal_hours
+    - unusual_hours
+    - new_location
+    - privilege_escalation
+    - brute_force
+    - data_exfiltration
+    type: string
+    x-enum-varnames:
+    - AnomalyTypeImpossibleTravel
+    - AnomalyTypeAbnormalBehavior
+    - AnomalyTypeAbnormalHours
+    - AnomalyTypeUnusualHours
+    - AnomalyTypeNewLocation
+    - AnomalyTypePrivilegeEscalation
+    - AnomalyTypeBruteForce
+    - AnomalyTypeDataExfiltration
+info:
+  contact: {}
+paths:
+  /api/alerts:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of alerts with optional filtering
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 100
+        description: Page size
+        in: query
+        name: page_size
+        type: integer
+      - description: Filter by severity (critical/high/medium/low)
+        in: query
+        name: severity
+        type: string
+      - description: Filter by resolved status
+        in: query
+        name: resolved
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.ListAlertsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: List alerts
+      tags:
+      - alerts
+  /api/alerts/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an alert by ID
+      parameters:
+      - description: Alert ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Delete an alert
+      tags:
+      - alerts
+    get:
+      consumes:
+      - application/json
+      description: Get a single alert with explanation, recommendation, and matched
+        events
+      parameters:
+      - description: Alert ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.AlertWithDetails'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Get alert by ID
+      tags:
+      - alerts
+  /api/alerts/{id}/false-positive:
+    post:
+      consumes:
+      - application/json
+      description: Mark an alert as a false positive with a reason
+      parameters:
+      - description: Alert ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: False positive request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.MarkFalsePositiveRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Mark alert as false positive
+      tags:
+      - alerts
+  /api/alerts/{id}/resolve:
+    post:
+      consumes:
+      - application/json
+      description: Mark an alert as resolved with optional notes
+      parameters:
+      - description: Alert ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Resolve request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.ResolveAlertRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Resolve an alert
+      tags:
+      - alerts
+  /api/alerts/batch:
+    post:
+      consumes:
+      - application/json
+      description: Perform an action (resolve, false-positive, delete) on multiple
+        alerts
+      parameters:
+      - description: Batch action request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.BatchAlertActionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Batch alert action
+      tags:
+      - alerts
+  /api/alerts/export:
+    get:
+      consumes:
+      - application/json
+      description: Export alerts in json or csv format
+      parameters:
+      - default: json
+        description: Export format (json/csv)
+        in: query
+        name: format
+        type: string
+      - description: Filter by severity
+        in: query
+        name: severity
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Export alerts
+      tags:
+      - alerts
+  /api/alerts/run-analysis:
+    post:
+      consumes:
+      - application/json
+      description: Run the alert analysis engine on all stored events
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.RunAnalysisResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Run alert analysis
+      tags:
+      - alerts
+  /api/alerts/stats:
+    get:
+      consumes:
+      - application/json
+      description: Get aggregated alert statistics including counts by severity, status,
+        and top rules
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.AlertStats'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Get alert statistics
+      tags:
+      - alerts
+  /api/alerts/trend:
+    get:
+      consumes:
+      - application/json
+      description: Get alert trend data over a specified number of days
+      parameters:
+      - default: 7
+        description: Number of days for trend data
+        in: query
+        name: days
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.AlertTrend'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Get alert trend
+      tags:
+      - alerts
+  /api/analyze/{type}:
+    post:
+      consumes:
+      - application/json
+      description: Run a specific analyzer on stored events
+      parameters:
+      - description: Analyzer type (brute-force, login, kerberos, etc.)
+        in: path
+        name: type
+        required: true
+        type: string
+      - description: Analysis parameters
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/api.AnalyzeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.AnalyzeResult'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Run analysis
+      tags:
+      - analyze
+  /api/analyzer-rules:
+    get:
+      consumes:
+      - application/json
+      description: Get a list of all analyzer rule configurations
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SuccessResponse'
+      summary: List analyzer rules
+      tags:
+      - analyze
+  /api/analyzer-rules/{type}:
+    get:
+      consumes:
+      - application/json
+      description: Get configuration for a specific analyzer rule
+      parameters:
+      - description: Rule type
+        in: path
+        name: type
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Get analyzer rule
+      tags:
+      - analyze
+    put:
+      consumes:
+      - application/json
+      description: Update configuration for a specific analyzer rule
+      parameters:
+      - description: Rule type
+        in: path
+        name: type
+        required: true
+        type: string
+      - description: Rule configuration
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.AnalyzerRuleUpdate'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Update analyzer rule
+      tags:
+      - analyze
+  /api/analyzers:
+    get:
+      consumes:
+      - application/json
+      description: Get a list of all available analyzer types
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SuccessResponse'
+      summary: List available analyzers
+      tags:
+      - analyze
+  /api/analyzers/{type}:
+    get:
+      consumes:
+      - application/json
+      description: Get information about a specific analyzer
+      parameters:
+      - description: Analyzer type
+        in: path
+        name: type
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SuccessResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Get analyzer info
+      tags:
+      - analyze
+  /api/collect:
+    post:
+      consumes:
+      - application/json
+      description: 在Windows上执行一键日志收集，收集系统信息、注册表、Prefetch、ShimCache等
+      parameters:
+      - description: 收集请求参数
+        in: body
+        name: request
+        schema:
+          $ref: '#/definitions/api.LogCollectRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.LogCollectResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: 开始日志收集
+      tags:
+      - collect
+  /api/collect/channels:
+    get:
+      description: 返回所有注册的Windows事件日志通道，包括分类和文件路径
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'channels": []LogChannel, "total": int'
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 获取可用的日志通道列表
+      tags:
+      - collect
+  /api/collect/evtx2csv:
+    post:
+      consumes:
+      - application/json
+      description: 解析EVTX事件日志文件并导出为CSV格式
+      parameters:
+      - description: EVTX转换请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.Evtx2CsvRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.Evtx2CsvResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: 将EVTX文件转换为CSV格式
+      tags:
+      - collect
+  /api/collect/import:
+    post:
+      consumes:
+      - application/json
+      description: 从指定路径导入EVTX、ETL等日志文件到数据库
+      parameters:
+      - description: 导入请求，包含文件路径列表
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.LogImportRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: 导入日志文件
+      tags:
+      - collect
+  /api/collect/status:
+    get:
+      description: 返回当前日志收集服务的状态
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.CollectStatus'
+      summary: 获取收集状态
+      tags:
+      - collect
+  /api/collect/upload:
+    post:
+      consumes:
+      - multipart/form-data
+      description: 通过multipart/form-data上传日志文件到临时目录
+      parameters:
+      - description: 要上传的文件
+        in: formData
+        name: file
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'success": bool, "filename": string, "path": string, "size":
+            int64'
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: 上传日志文件
+      tags:
+      - collect
+  /api/correlation:
+    get:
+      description: 配置关联分析相关的API路由
+      responses: {}
+      summary: 设置关联分析路由
+      tags:
+      - correlation
+  /api/correlation/analyze:
+    post:
+      description: 配置关联分析相关的API路由
+      responses: {}
+      summary: 设置关联分析路由
+      tags:
+      - correlation
+  /api/dashboard:
+    get:
+      description: 初始化DashboardHandler
+      parameters:
+      - description: 数据库实例
+        in: query
+        name: db
+        required: true
+        type: string
+      responses: {}
+      summary: 创建仪表板处理器
+      tags:
+      - dashboard
+  /api/dashboard/log-names:
+    get:
+      description: 返回数据库中所有不重复的日志名称
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'log_names": []string'
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: 获取日志名称列表
+      tags:
+      - dashboard
+  /api/dashboard/stats:
+    get:
+      description: 返回事件收集的统计数据，包括总数、大小、数据源等
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.CollectionStatsResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: 获取收集统计信息
+      tags:
+      - dashboard
+  /api/events:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of events with optional filtering
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 100
+        description: Page size
+        in: query
+        name: page_size
+        type: integer
+      - collectionFormat: csv
+        description: Filter by event levels
+        in: query
+        items:
+          type: integer
+        name: levels
+        type: array
+      - collectionFormat: csv
+        description: Filter by event IDs
+        in: query
+        items:
+          format: int32
+          type: integer
+        name: event_ids
+        type: array
+      - collectionFormat: csv
+        description: Filter by log names
+        in: query
+        items:
+          type: string
+        name: log_names
+        type: array
+      - collectionFormat: csv
+        description: Filter by sources
+        in: query
+        items:
+          type: string
+        name: sources
+        type: array
+      - collectionFormat: csv
+        description: Filter by users
+        in: query
+        items:
+          type: string
+        name: users
+        type: array
+      - collectionFormat: csv
+        description: Filter by computers
+        in: query
+        items:
+          type: string
+        name: computers
+        type: array
+      - description: Start time (RFC3339 format)
+        in: query
+        name: start_time
+        type: string
+      - description: End time (RFC3339 format)
+        in: query
+        name: end_time
+        type: string
+      - description: Sort field
+        in: query
+        name: sort_by
+        type: string
+      - description: Sort order (asc/desc)
+        in: query
+        name: sort_order
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.ListEventsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: List events
+      tags:
+      - events
+  /api/events/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Get a single event by its database ID
+      parameters:
+      - description: Event ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.Event'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Get event by ID
+      tags:
+      - events
+  /api/events/export:
+    post:
+      consumes:
+      - application/json
+      description: Export events in various formats (json, csv, excel)
+      parameters:
+      - description: Export parameters
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.ExportRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.ExportResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Export events
+      tags:
+      - events
+  /api/events/search:
+    post:
+      consumes:
+      - application/json
+      description: Search events with full-text search and advanced filters
+      parameters:
+      - description: Search parameters
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.SearchEventsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.SearchResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Search events
+      tags:
+      - events
+  /api/forensics:
+    get:
+      description: 初始化ForensicsHandler
+      parameters:
+      - description: 数据库实例
+        in: query
+        name: db
+        required: true
+        type: string
+      responses: {}
+      summary: 创建取证处理器
+      tags:
+      - forensics
+  /api/forensics/chain-of-custody:
+    get:
+      description: 配置取证分析相关的API路由
+      responses: {}
+      summary: 设置取证路由
+      tags:
+      - forensics
+  /api/forensics/collect:
+    post:
+      description: 配置取证分析相关的API路由
+      responses: {}
+      summary: 设置取证路由
+      tags:
+      - forensics
+  /api/forensics/evidence:
+    get:
+      description: 配置取证分析相关的API路由
+      responses: {}
+      summary: 设置取证路由
+      tags:
+      - forensics
+  /api/forensics/evidence/{id}:
+    get:
+      description: 配置取证分析相关的API路由
+      responses: {}
+      summary: 设置取证路由
+      tags:
+      - forensics
+  /api/forensics/hash:
+    post:
+      description: 配置取证分析相关的API路由
+      responses: {}
+      summary: 设置取证路由
+      tags:
+      - forensics
+  /api/forensics/is-signed:
+    get:
+      description: 配置取证分析相关的API路由
+      responses: {}
+      summary: 设置取证路由
+      tags:
+      - forensics
+  /api/forensics/manifest:
+    post:
+      description: 配置取证分析相关的API路由
+      responses: {}
+      summary: 设置取证路由
+      tags:
+      - forensics
+  /api/forensics/memory-dump:
+    get:
+      description: 配置取证分析相关的API路由
+      responses: {}
+      summary: 设置取证路由
+      tags:
+      - forensics
+  /api/forensics/signature:
+    get:
+      description: 配置取证分析相关的API路由
+      responses: {}
+      summary: 设置取证路由
+      tags:
+      - forensics
+  /api/forensics/verify-hash:
+    get:
+      description: 配置取证分析相关的API路由
+      responses: {}
+      summary: 设置取证路由
+      tags:
+      - forensics
+  /api/import/logs:
+    post:
+      consumes:
+      - application/json
+      description: Import Windows event log files (evtx, csv, etc.) for analysis
+      parameters:
+      - description: Import request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.ImportRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Import log files
+      tags:
+      - import
+  /api/import/status:
+    get:
+      consumes:
+      - application/json
+      description: Get the status of a log file import operation
+      parameters:
+      - description: File path to check import status
+        in: query
+        name: path
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Get import status
+      tags:
+      - import
+  /api/live:
+    get:
+      description: 初始化LiveHandler
+      parameters:
+      - description: 数据库实例
+        in: query
+        name: db
+        required: true
+        type: string
+      responses: {}
+      summary: 创建实时事件处理器
+      tags:
+      - live
+  /api/live/stats:
+    get:
+      description: 返回当前实时事件的统计数据
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.LiveStats'
+      summary: 获取实时统计信息
+      tags:
+      - live
+  /api/live/stream:
+    get:
+      description: 通过Server-Sent Events(SSE)推送实时事件数据
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.LiveEventMessage'
+      summary: 建立实时事件流
+      tags:
+      - live
+  /api/logs:
+    get:
+      description: 配置日志相关的API路由
+      responses: {}
+      summary: 设置日志路由
+      tags:
+      - logs
+  /api/logs/files:
+    get:
+      description: 配置日志相关的API路由
+      responses: {}
+      summary: 设置日志路由
+      tags:
+      - logs
+  /api/logs/files/{filename}:
+    get:
+      description: 配置日志相关的API路由
+      responses: {}
+      summary: 设置日志路由
+      tags:
+      - logs
+  /api/multi:
+    get:
+      description: 配置多机关联分析相关的API路由
+      responses: {}
+      summary: 设置多机分析路由
+      tags:
+      - multi
+  /api/multi/analyze:
+    post:
+      description: 配置多机关联分析相关的API路由
+      responses: {}
+      summary: 设置多机分析路由
+      tags:
+      - multi
+  /api/multi/lateral:
+    get:
+      description: 配置多机关联分析相关的API路由
+      responses: {}
+      summary: 设置多机分析路由
+      tags:
+      - multi
+  /api/persistence:
+    get:
+      description: 初始化PersistenceHandler，注册所有持久化检测器
+      responses: {}
+      summary: 创建持久化检测处理器
+      tags:
+      - persistence
+  /api/persistence/categories:
+    get:
+      description: 配置持久化检测相关的API路由
+      responses: {}
+      summary: 设置持久化检测路由
+      tags:
+      - persistence
+  /api/persistence/detect:
+    get:
+      description: 配置持久化检测相关的API路由
+      responses: {}
+      summary: 设置持久化检测路由
+      tags:
+      - persistence
+  /api/persistence/detect/stream:
+    get:
+      description: 通过Server-Sent Events推送检测结果
+      produces:
+      - text/event-stream
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 建立持久化检测流
+      tags:
+      - persistence
+  /api/persistence/detectors:
+    get:
+      description: 配置持久化检测相关的API路由
+      responses: {}
+      summary: 设置持久化检测路由
+      tags:
+      - persistence
+  /api/persistence/detectors/config:
+    post:
+      description: 配置持久化检测相关的API路由
+      responses: {}
+      summary: 设置持久化检测路由
+      tags:
+      - persistence
+  /api/persistence/rules:
+    get:
+      description: 配置持久化检测相关的API路由
+      responses: {}
+      summary: 设置持久化检测路由
+      tags:
+      - persistence
+    put:
+      description: 配置持久化检测相关的API路由
+      responses: {}
+      summary: 设置持久化检测路由
+      tags:
+      - persistence
+  /api/persistence/rules/{name}:
+    get:
+      description: 配置持久化检测相关的API路由
+      responses: {}
+      summary: 设置持久化检测路由
+      tags:
+      - persistence
+  /api/persistence/techniques:
+    get:
+      description: 配置持久化检测相关的API路由
+      responses: {}
+      summary: 设置持久化检测路由
+      tags:
+      - persistence
+  /api/policies:
+    post:
+      description: 配置策略管理相关的API路由
+      responses: {}
+      summary: 设置策略路由
+      tags:
+      - policy
+  /api/policies/{name}:
+    delete:
+      description: 配置策略管理相关的API路由
+      responses: {}
+      summary: 设置策略路由
+      tags:
+      - policy
+  /api/policy:
+    get:
+      description: 初始化PolicyHandler
+      parameters:
+      - description: 告警引擎实例
+        in: query
+        name: engine
+        required: true
+        type: string
+      responses: {}
+      summary: 创建策略处理器
+      tags:
+      - policy
+  /api/policy-instances:
+    get:
+      description: 配置策略管理相关的API路由
+      responses: {}
+      summary: 设置策略路由
+      tags:
+      - policy
+  /api/policy-instances/{key}:
+    delete:
+      description: 配置策略管理相关的API路由
+      responses: {}
+      summary: 设置策略路由
+      tags:
+      - policy
+  /api/policy-templates:
+    get:
+      description: 配置策略管理相关的API路由
+      responses: {}
+      summary: 设置策略路由
+      tags:
+      - policy
+    post:
+      description: 配置策略管理相关的API路由
+      responses: {}
+      summary: 设置策略路由
+      tags:
+      - policy
+  /api/policy-templates/{name}:
+    delete:
+      description: 配置策略管理相关的API路由
+      responses: {}
+      summary: 设置策略路由
+      tags:
+      - policy
+    get:
+      description: 配置策略管理相关的API路由
+      responses: {}
+      summary: 设置策略路由
+      tags:
+      - policy
+  /api/policy-templates/apply:
+    post:
+      description: 配置策略管理相关的API路由
+      responses: {}
+      summary: 设置策略路由
+      tags:
+      - policy
+  /api/query:
+    post:
+      description: 初始化QueryHandler
+      parameters:
+      - description: 数据库实例
+        in: query
+        name: db
+        required: true
+        type: string
+      responses: {}
+      summary: 创建查询处理器
+      tags:
+      - query
+  /api/query/execute:
+    post:
+      description: 配置SQL查询相关的API路由
+      responses: {}
+      summary: 设置查询路由
+      tags:
+      - query
+  /api/query/quick-queries:
+    get:
+      description: 返回所有预定义的快速查询语句
+      parameters:
+      - description: 按分类过滤
+        in: query
+        name: category
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/api.QuickQuery'
+            type: array
+      summary: 列出快速查询
+      tags:
+      - query
+  /api/query/quick-query/{name}:
+    get:
+      description: 返回指定快速查询的详细信息
+      parameters:
+      - description: 查询名称
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.QuickQuery'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: 获取快速查询详情
+      tags:
+      - query
+  /api/query/tables:
+    get:
+      description: 返回数据库中所有可查询的表及其结构信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/api.TableInfo'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: 列出数据表
+      tags:
+      - query
+  /api/report-templates:
+    get:
+      description: 配置报表相关的API路由
+      responses: {}
+      summary: 设置报表路由
+      tags:
+      - reports
+    post:
+      description: 配置报表相关的API路由
+      responses: {}
+      summary: 设置报表路由
+      tags:
+      - reports
+  /api/report-templates/{name}:
+    delete:
+      description: 配置报表相关的API路由
+      responses: {}
+      summary: 设置报表路由
+      tags:
+      - reports
+    get:
+      description: 配置报表相关的API路由
+      responses: {}
+      summary: 设置报表路由
+      tags:
+      - reports
+    put:
+      description: 配置报表相关的API路由
+      responses: {}
+      summary: 设置报表路由
+      tags:
+      - reports
+  /api/reports:
+    get:
+      description: 配置报表相关的API路由
+      responses: {}
+      summary: 设置报表路由
+      tags:
+      - reports
+    post:
+      description: 配置报表相关的API路由
+      responses: {}
+      summary: 设置报表路由
+      tags:
+      - reports
+  /api/reports/{id}:
+    get:
+      description: 配置报表相关的API路由
+      responses: {}
+      summary: 设置报表路由
+      tags:
+      - reports
+  /api/reports/{id}/download:
+    get:
+      description: 配置报表相关的API路由
+      responses: {}
+      summary: 设置报表路由
+      tags:
+      - reports
+  /api/reports/export:
+    get:
+      description: 配置报表相关的API路由
+      responses: {}
+      summary: 设置报表路由
+      tags:
+      - reports
+  /api/rules:
+    get:
+      description: 配置规则管理相关的API路由
+      responses: {}
+      summary: 设置规则路由
+      tags:
+      - rules
+    post:
+      description: 配置规则管理相关的API路由
+      responses: {}
+      summary: 设置规则路由
+      tags:
+      - rules
+  /api/rules/{name}:
+    delete:
+      description: 配置规则管理相关的API路由
+      responses: {}
+      summary: 设置规则路由
+      tags:
+      - rules
+    get:
+      description: 配置规则管理相关的API路由
+      responses: {}
+      summary: 设置规则路由
+      tags:
+      - rules
+    put:
+      description: 配置规则管理相关的API路由
+      responses: {}
+      summary: 设置规则路由
+      tags:
+      - rules
+  /api/rules/{name}/toggle:
+    post:
+      description: 配置规则管理相关的API路由
+      responses: {}
+      summary: 设置规则路由
+      tags:
+      - rules
+  /api/rules/export:
+    get:
+      description: 配置规则管理相关的API路由
+      responses: {}
+      summary: 设置规则路由
+      tags:
+      - rules
+  /api/rules/import:
+    post:
+      description: 配置规则管理相关的API路由
+      responses: {}
+      summary: 设置规则路由
+      tags:
+      - rules
+  /api/rules/templates:
+    get:
+      description: 返回所有可用的规则模板
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'templates": []TemplateInfo, "total": int'
+          schema:
+            additionalProperties: true
+            type: object
+      summary: 列出规则模板
+      tags:
+      - rules
+  /api/rules/templates/{name}:
+    get:
+      description: 返回指定规则模板的详细信息
+      parameters:
+      - description: 模板名称
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.TemplateInfo'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: 获取规则模板详情
+      tags:
+      - rules
+  /api/rules/templates/{name}/instantiate:
+    post:
+      consumes:
+      - application/json
+      description: 从模板创建规则实例
+      parameters:
+      - description: 模板名称
+        in: path
+        name: name
+        required: true
+        type: string
+      - description: 模板实例化请求
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.InstantiateTemplateRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: 实例化规则模板
+      tags:
+      - rules
+  /api/rules/validate:
+    post:
+      description: 配置规则管理相关的API路由
+      responses: {}
+      summary: 设置规则路由
+      tags:
+      - rules
+  /api/settings:
+    get:
+      description: 配置系统设置相关的API路由
+      responses: {}
+      summary: 设置设置路由
+      tags:
+      - settings
+    post:
+      description: 配置系统设置相关的API路由
+      responses: {}
+      summary: 设置设置路由
+      tags:
+      - settings
+  /api/settings/reset:
+    post:
+      description: 配置系统设置相关的API路由
+      responses: {}
+      summary: 设置设置路由
+      tags:
+      - settings
+  /api/suppress:
+    get:
+      description: 配置告警抑制相关的API路由
+      responses: {}
+      summary: 设置抑制路由
+      tags:
+      - suppress
+    post:
+      description: 配置告警抑制相关的API路由
+      responses: {}
+      summary: 设置抑制路由
+      tags:
+      - suppress
+  /api/suppress/{id}:
+    delete:
+      description: 配置告警抑制相关的API路由
+      responses: {}
+      summary: 设置抑制路由
+      tags:
+      - suppress
+    get:
+      description: 配置告警抑制相关的API路由
+      responses: {}
+      summary: 设置抑制路由
+      tags:
+      - suppress
+    put:
+      description: 配置告警抑制相关的API路由
+      responses: {}
+      summary: 设置抑制路由
+      tags:
+      - suppress
+  /api/suppress/{id}/toggle:
+    post:
+      description: 配置告警抑制相关的API路由
+      responses: {}
+      summary: 设置抑制路由
+      tags:
+      - suppress
+  /api/system:
+    get:
+      description: 初始化SystemHandler
+      parameters:
+      - description: 数据库实例
+        in: query
+        name: db
+        required: true
+        type: string
+      responses: {}
+      summary: 创建系统处理器
+      tags:
+      - system
+  /api/system/dlls:
+    get:
+      description: 返回系统加载的动态链接库列表
+      parameters:
+      - default: "true"
+        description: 是否启用
+        in: query
+        name: enabled
+        type: string
+      - default: 100
+        description: 返回数量限制
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.DLLResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: 获取加载的DLL
+      tags:
+      - system
+  /api/system/drivers:
+    get:
+      description: 返回系统驱动程序列表
+      parameters:
+      - default: "true"
+        description: 是否启用
+        in: query
+        name: enabled
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.DriverResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: 获取驱动程序
+      tags:
+      - system
+  /api/system/env:
+    get:
+      description: 返回系统环境变量列表
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.EnvVarResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: 获取环境变量
+      tags:
+      - system
+  /api/system/info:
+    get:
+      description: 配置系统信息相关的API路由
+      responses: {}
+      summary: 设置系统路由
+      tags:
+      - system
+  /api/system/metrics:
+    get:
+      description: 配置系统信息相关的API路由
+      responses: {}
+      summary: 设置系统路由
+      tags:
+      - system
+  /api/system/network:
+    get:
+      description: 配置系统信息相关的API路由
+      responses: {}
+      summary: 设置系统路由
+      tags:
+      - system
+  /api/system/process/{pid}/dlls:
+    get:
+      description: 返回指定进程加载的DLL列表
+      parameters:
+      - description: 进程ID
+        in: path
+        name: pid
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.ProcessDLLResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: 获取进程DLL列表
+      tags:
+      - system
+  /api/system/processes:
+    get:
+      description: 返回系统进程列表(Windows)
+      parameters:
+      - default: "true"
+        description: 是否启用
+        in: query
+        name: enabled
+        type: string
+      - default: 100
+        description: 返回数量限制
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.ProcessResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: 获取进程列表
+      tags:
+      - system
+  /api/system/prometheus:
+    get:
+      description: 返回Prometheus格式的系统指标
+      produces:
+      - text/plain
+      responses:
+        "200":
+          description: Prometheus格式指标
+          schema:
+            type: string
+      summary: 获取Prometheus格式指标
+      tags:
+      - system
+  /api/system/registry:
+    get:
+      description: 返回系统中的注册表持久化项目
+      parameters:
+      - default: "true"
+        description: 是否启用
+        in: query
+        name: enabled
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.RegistryPersistenceResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: 获取注册表持久化项
+      tags:
+      - system
+  /api/system/tasks:
+    get:
+      description: 返回系统计划任务列表(Windows)
+      parameters:
+      - default: "true"
+        description: 是否启用
+        in: query
+        name: enabled
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.TaskResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: 获取计划任务列表
+      tags:
+      - system
+  /api/system/users:
+    get:
+      description: 返回系统本地用户列表(Windows)
+      parameters:
+      - default: "true"
+        description: 是否启用
+        in: query
+        name: enabled
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.UserResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: 获取用户列表
+      tags:
+      - system
+  /api/timeline:
+    get:
+      consumes:
+      - application/json
+      description: Get a timeline of events and alerts with pagination
+      parameters:
+      - default: 200
+        description: Number of entries to return
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset for pagination
+        in: query
+        name: offset
+        type: integer
+      - description: Start time (RFC3339 format)
+        in: query
+        name: start_time
+        type: string
+      - description: End time (RFC3339 format)
+        in: query
+        name: end_time
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.TimelineResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Get timeline
+      tags:
+      - timeline
+  /api/timeline/alerts/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an alert from the timeline by ID
+      parameters:
+      - description: Alert ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Delete alert from timeline
+      tags:
+      - timeline
+  /api/timeline/chains:
+    get:
+      consumes:
+      - application/json
+      description: Detect and return attack chains from events
+      parameters:
+      - description: Start time (RFC3339 format)
+        in: query
+        name: start_time
+        type: string
+      - description: End time (RFC3339 format)
+        in: query
+        name: end_time
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SuccessResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Get attack chains
+      tags:
+      - timeline
+  /api/timeline/export:
+    get:
+      consumes:
+      - application/json
+      description: Export timeline events in various formats (json, csv, html)
+      parameters:
+      - default: json
+        description: Export format (json/csv/html)
+        in: query
+        name: format
+        type: string
+      - description: Start time (RFC3339 format)
+        in: query
+        name: start_time
+        type: string
+      - description: End time (RFC3339 format)
+        in: query
+        name: end_time
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.SuccessResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Export timeline
+      tags:
+      - timeline
+  /api/timeline/stats:
+    get:
+      consumes:
+      - application/json
+      description: Get aggregated statistics for the timeline
+      parameters:
+      - description: Start time (RFC3339 format)
+        in: query
+        name: start_time
+        type: string
+      - description: End time (RFC3339 format)
+        in: query
+        name: end_time
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.TimelineStats'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Get timeline statistics
+      tags:
+      - timeline
+  /api/ueba:
+    get:
+      description: 配置UEBA分析相关的API路由
+      responses: {}
+      summary: 设置UEBA路由
+      tags:
+      - ueba
+  /api/ueba/analyze:
+    post:
+      description: 配置UEBA分析相关的API路由
+      responses: {}
+      summary: 设置UEBA路由
+      tags:
+      - ueba
+  /api/ueba/anomaly/{type}:
+    get:
+      description: 配置UEBA分析相关的API路由
+      responses: {}
+      summary: 设置UEBA路由
+      tags:
+      - ueba
+  /api/ueba/baseline:
+    delete:
+      description: 配置UEBA分析相关的API路由
+      responses: {}
+      summary: 设置UEBA路由
+      tags:
+      - ueba
+    get:
+      description: 配置UEBA分析相关的API路由
+      responses: {}
+      summary: 设置UEBA路由
+      tags:
+      - ueba
+  /api/ueba/baseline/learn:
+    post:
+      description: 配置UEBA分析相关的API路由
+      responses: {}
+      summary: 设置UEBA路由
+      tags:
+      - ueba
+  /api/ueba/profiles:
+    get:
+      description: 配置UEBA分析相关的API路由
+      responses: {}
+      summary: 设置UEBA路由
+      tags:
+      - ueba
+  /api/ui:
+    get:
+      description: 初始化UIHandler
+      parameters:
+      - description: 数据库实例
+        in: query
+        name: db
+        required: true
+        type: string
+      responses: {}
+      summary: 创建UI处理器
+      tags:
+      - ui
+  /api/ui/alerts/groups:
+    get:
+      description: 配置UI仪表板相关的API路由
+      responses: {}
+      summary: 设置UI路由
+      tags:
+      - ui
+  /api/ui/dashboard:
+    get:
+      description: 配置UI仪表板相关的API路由
+      responses: {}
+      summary: 设置UI路由
+      tags:
+      - ui
+  /api/ui/events/distribution:
+    get:
+      description: 配置UI仪表板相关的API路由
+      responses: {}
+      summary: 设置UI路由
+      tags:
+      - ui
+  /api/ui/metrics:
+    get:
+      description: 配置UI仪表板相关的API路由
+      responses: {}
+      summary: 设置UI路由
+      tags:
+      - ui
+swagger: "2.0"

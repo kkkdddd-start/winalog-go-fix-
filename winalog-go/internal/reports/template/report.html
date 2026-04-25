@@ -1,0 +1,861 @@
+{{define "report"}}
+<!DOCTYPE html>
+<html lang="{{.Language}}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Title}} - WinLogAnalyzer Report</title>
+    {{if eq .Language "zh"}}
+    <title>{{.Title}} - WinLogAnalyzer 安全报告</title>
+    {{end}}
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        body { background-color: #f8f9fa; }
+        .card { box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075); margin-bottom: 1.5rem; }
+        .card-header { background-color: #2c3e50; color: white; font-weight: 600; }
+        .severity-critical { color: #dc3545; font-weight: bold; }
+        .severity-high { color: #fd7e14; font-weight: bold; }
+        .severity-medium { color: #ffc107; font-weight: bold; }
+        .severity-low { color: #0dcaf0; font-weight: bold; }
+        .severity-info { color: #6c757d; }
+        .badge-critical { background-color: #dc3545; }
+        .badge-high { background-color: #fd7e14; }
+        .badge-medium { background-color: #ffc107; color: #000; }
+        .badge-low { background-color: #0dcaf0; color: #000; }
+        .stat-card { border-left: 4px solid #3498db; }
+        .stat-card-alerts { border-left-color: #e74c3c; }
+        .table-responsive { font-size: 0.875rem; }
+        pre { background-color: #f5f5f5; padding: 1rem; border-radius: 0.25rem; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark bg-dark">
+        <div class="container-fluid">
+            <span class="navbar-brand mb-0 h1">{{if eq .Language "zh"}}WinLogAnalyzer 安全报告{{else}}WinLogAnalyzer Security Report{{end}}</span>
+            <span class="navbar-text text-white-50">
+                {{if eq .Language "zh"}}生成时间{{else}}Generated{{end}}: {{.GeneratedAtStr}}
+            </span>
+        </div>
+    </nav>
+
+    <div class="container-fluid py-4">
+        <h4 class="mb-4">{{.Title}}</h4>
+        
+        <!-- Summary Cards -->
+        <div class="row">
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <h6 class="card-title text-muted">{{if eq .Language "zh"}}事件总数{{else}}Total Events{{end}}</h6>
+                        <h2 class="mb-0">{{.Summary.TotalEvents}}</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card stat-card-alerts">
+                    <div class="card-body">
+                        <h6 class="card-title text-muted">{{if eq .Language "zh"}}告警总数{{else}}Total Alerts{{end}}</h6>
+                        <h2 class="mb-0">{{.Summary.TotalAlerts}}</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card" style="border-left-color: #dc3545;">
+                    <div class="card-body">
+                        <h6 class="card-title text-muted">{{if eq .Language "zh"}}严重事件{{else}}Critical Events{{end}}</h6>
+                        <h2 class="mb-0">{{.Summary.CriticalEvents}}</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card" style="border-left-color: #fd7e14;">
+                    <div class="card-body">
+                        <h6 class="card-title text-muted">{{if eq .Language "zh"}}高危告警{{else}}High Alerts{{end}}</h6>
+                        <h2 class="mb-0">{{.Summary.HighAlerts}}</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Time Range -->
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <strong>{{if eq .Language "zh"}}分析时间段{{else}}Analysis Period{{end}}:</strong> 
+                        {{.StartTimeStr}} {{if eq .Language "zh"}}至{{else}}to{{end}} {{.EndTimeStr}}
+                        ({{printf "%.1f" .Summary.TimeRangeDays}} {{if eq .Language "zh"}}天{{else}}days{{end}})
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {{if .SystemSnapshot}}
+        <!-- System Snapshot -->
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">System Information</div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <p><strong>Hostname:</strong> {{.SystemSnapshot.Hostname}}</p>
+                                <p><strong>Domain:</strong> {{.SystemSnapshot.Domain}}</p>
+                            </div>
+                            <div class="col-md-3">
+                                <p><strong>OS:</strong> {{.SystemSnapshot.OSName}} {{.SystemSnapshot.OSVersion}}</p>
+                                <p><strong>Architecture:</strong> {{.SystemSnapshot.Architecture}}</p>
+                            </div>
+                            <div class="col-md-3">
+                                <p><strong>CPU Cores:</strong> {{.SystemSnapshot.CPUCount}}</p>
+                                <p><strong>Admin:</strong> {{if .SystemSnapshot.IsAdmin}}Yes{{else}}No{{end}}</p>
+                            </div>
+                            <div class="col-md-3">
+                                <p><strong>Memory Total:</strong> {{printf "%.2f" .SystemSnapshot.MemoryTotalGB}} GB</p>
+                                <p><strong>Memory Free:</strong> {{printf "%.2f" .SystemSnapshot.MemoryFreeGB}} GB</p>
+                            </div>
+                        </div>
+                        <div class="row mt-2">
+                            <div class="col-md-4">
+                                <p><strong>Timezone:</strong> {{.SystemSnapshot.Timezone}}</p>
+                            </div>
+                            <div class="col-md-4">
+                                <p><strong>Local Time:</strong> {{.SystemSnapshot.LocalTime}}</p>
+                            </div>
+                            <div class="col-md-4">
+                                <p><strong>Uptime:</strong> {{.SystemSnapshot.UptimeSeconds}} seconds</p>
+                            </div>
+                        </div>
+                        {{if .SystemSnapshot.TopProcesses}}
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <h6>Top Processes</h6>
+                                <table class="table table-sm table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>PID</th>
+                                            <th>Name</th>
+                                            <th>User</th>
+                                            <th>Signed</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {{range .SystemSnapshot.TopProcesses}}
+                                        <tr>
+                                            <td>{{.PID}}</td>
+                                            <td>{{.Name}}</td>
+                                            <td>{{.User}}</td>
+                                            <td>{{if .IsSigned}}Yes{{else}}No{{end}}</td>
+                                        </tr>
+                                        {{end}}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        {{end}}
+                        {{if .SystemSnapshot.NetworkConns}}
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <h6>Network Connections</h6>
+                                <table class="table table-sm table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Protocol</th>
+                                            <th>Local Address</th>
+                                            <th>Remote Address</th>
+                                            <th>State</th>
+                                            <th>Process</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {{range .SystemSnapshot.NetworkConns}}
+                                        <tr>
+                                            <td>{{.Protocol}}</td>
+                                            <td>{{.LocalAddr}}:{{.LocalPort}}</td>
+                                            <td>{{.RemoteAddr}}:{{.RemotePort}}</td>
+                                            <td>{{.State}}</td>
+                                            <td>{{.ProcessName}}</td>
+                                        </tr>
+                                        {{end}}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        {{end}}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{end}}
+
+        {{if .PersistenceReport}}
+        <!-- Persistence Detections -->
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">Persistence Detections</div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <div class="stat-card text-center">
+                                    <h3>{{.PersistenceReport.TotalDetections}}</h3>
+                                    <p class="text-muted mb-0">Total Detections</p>
+                                </div>
+                            </div>
+                            {{range $severity, $count := .PersistenceReport.BySeverity}}
+                            <div class="col-md-3">
+                                <div class="stat-card text-center">
+                                    <h3>{{$count}}</h3>
+                                    <p class="text-muted mb-0 text-capitalize">{{$severity}}</p>
+                                </div>
+                            </div>
+                            {{end}}
+                        </div>
+                        
+                        {{if .PersistenceReport.ByCategory}}
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <h6>By Category</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>Category</th>
+                                                <th>Count</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {{range $category, $count := .PersistenceReport.ByCategory}}
+                                            <tr>
+                                                <td>{{$category}}</td>
+                                                <td>{{$count}}</td>
+                                            </tr>
+                                            {{end}}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        {{end}}
+                        
+                        {{if .PersistenceReport.ByTechnique}}
+                        <div class="row mb-3">
+                            <div class="col-12">
+                                <h6>By Technique</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-sm">
+                                        <thead>
+                                            <tr>
+                                                <th>Technique</th>
+                                                <th>Count</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {{range $technique, $count := .PersistenceReport.ByTechnique}}
+                                            <tr>
+                                                <td>{{$technique}}</td>
+                                                <td>{{$count}}</td>
+                                            </tr>
+                                            {{end}}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        {{end}}
+                        
+                        {{if .PersistenceReport.Detections}}
+                        <div class="row">
+                            <div class="col-12">
+                                <h6>Detection Details</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Time</th>
+                                                <th>Technique</th>
+                                                <th>Category</th>
+                                                <th>Severity</th>
+                                                <th>Title</th>
+                                                <th>Description</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {{range .PersistenceReport.Detections}}
+                                            <tr>
+                                                <td>{{.Time}}</td>
+                                                <td><code>{{.Technique}}</code></td>
+                                                <td>{{.Category}}</td>
+                                                <td><span class="badge badge-{{.Severity}}">{{.Severity}}</span></td>
+                                                <td>{{.Title}}</td>
+                                                <td>{{.Description}}</td>
+                                            </tr>
+                                            {{end}}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                        {{end}}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{end}}
+
+        {{if .Stats}}
+        <!-- Event Distribution -->
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">Events by Level</div>
+                    <div class="card-body">
+                        <canvas id="levelChart" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">Events by Log Name</div>
+                    <div class="card-body">
+                        <canvas id="logNameChart" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Top Event IDs -->
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">Top Event IDs</div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Event ID</th>
+                                        <th>Count</th>
+                                        <th>Percentage</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {{range .Stats.TopEventIDs}}
+                                    <tr>
+                                        <td>{{.EventID}}</td>
+                                        <td>{{.Count}}</td>
+                                        <td>{{printf "%.1f" (percentage .Count $.Stats.TotalEvents)}}%</td>
+                                    </tr>
+                                    {{end}}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{end}}
+
+        <!-- Login Statistics -->
+        {{if .Stats.LoginStats}}
+        <div class="row mt-3">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">Login Statistics</div>
+                    <div class="card-body">
+                        <table class="table table-sm">
+                            <tr><td>Successful Logins</td><td class="text-success">{{.Stats.LoginStats.Successful}}</td></tr>
+                            <tr><td>Failed Logins</td><td class="text-danger">{{.Stats.LoginStats.Failed}}</td></tr>
+                            <tr><td>Total Login Events</td><td>{{.Stats.LoginStats.Total}}</td></tr>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{end}}
+
+        <!-- Top Alerts -->
+        {{if .TopAlerts}}
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">Top Alerts</div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>Rule</th>
+                                        <th>Severity</th>
+                                        <th>Message</th>
+                                        <th>Count</th>
+                                        <th>Last Seen</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {{range .TopAlerts}}
+                                    <tr>
+                                        <td>{{.ID}}</td>
+                                        <td>{{.RuleName}}</td>
+                                        <td><span class="badge badge-{{.Severity}}">{{.Severity}}</span></td>
+                                        <td>{{.Message}}</td>
+                                        <td>{{.Count}}</td>
+                                        <td>{{.LastSeen.Format "2006-01-02 15:04"}}</td>
+                                    </tr>
+                                    {{end}}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{end}}
+
+        <!-- IOCs -->
+        {{if .IOCs}}
+        <div class="row mt-3">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">IP Addresses</div>
+                    <div class="card-body">
+                        <ul class="list-unstyled">
+                            {{range .IOCs.IPAddresses}}<li><code>{{.}}</code></li>{{end}}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">Users</div>
+                    <div class="card-body">
+                        <ul class="list-unstyled">
+                            {{range .IOCs.Users}}<li><code>{{.}}</code></li>{{end}}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">Computers</div>
+                    <div class="card-body">
+                        <ul class="list-unstyled">
+                            {{range .IOCs.Computers}}<li><code>{{.}}</code></li>{{end}}
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{end}}
+
+        <!-- MITRE ATT&CK -->
+        {{if .MITREDist}}
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">MITRE ATT&CK by Tactic</div>
+                    <div class="card-body">
+                        <table class="table table-sm">
+                            <thead><tr><th>Tactic</th><th>Count</th></tr></thead>
+                            <tbody>
+                                {{range $tactic, $count := .MITREDist.ByTactic}}
+                                <tr><td>{{$tactic}}</td><td>{{$count}}</td></tr>
+                                {{end}}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">MITRE ATT&CK by Technique</div>
+                    <div class="card-body">
+                        <table class="table table-sm">
+                            <thead><tr><th>Technique</th><th>Count</th></tr></thead>
+                            <tbody>
+                                {{range $tech, $count := .MITREDist.ByTechnique}}
+                                <tr><td><code>{{$tech}}</code></td><td>{{$count}}</td></tr>
+                                {{end}}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{end}}
+
+        <!-- Executive Summary -->
+        {{if .ExecutiveSummary}}
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">Executive Summary</div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="stat-card text-center">
+                                    <h2>{{.ExecutiveSummary.RiskScore}}</h2>
+                                    <p class="text-muted mb-0">Risk Score</p>
+                                    <span class="badge badge-{{toLower .ExecutiveSummary.RiskLevel}}">{{.ExecutiveSummary.RiskLevel}}</span>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-card text-center">
+                                    <h2>{{.ExecutiveSummary.TotalAlerts}}</h2>
+                                    <p class="text-muted mb-0">Total Alerts</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-card text-center">
+                                    <h2>{{.ExecutiveSummary.ResolvedAlerts}}</h2>
+                                    <p class="text-muted mb-0">Resolved</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-card text-center">
+                                    <h2>{{.ExecutiveSummary.UnresolvedAlerts}}</h2>
+                                    <p class="text-muted mb-0">Unresolved</p>
+                                </div>
+                            </div>
+                        </div>
+                        {{if .ExecutiveSummary.TopThreat}}
+                        <div class="mt-3">
+                            <h6>Top Threat</h6>
+                            <p class="text-danger">{{.ExecutiveSummary.TopThreat}}</p>
+                        </div>
+                        {{end}}
+                        {{if .ExecutiveSummary.KeyFindings}}
+                        <div class="mt-3">
+                            <h6>Key Findings</h6>
+                            <ul>
+                                {{range .ExecutiveSummary.KeyFindings}}
+                                <li>{{.}}</li>
+                                {{end}}
+                            </ul>
+                        </div>
+                        {{end}}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{end}}
+
+        <!-- Timeline Analysis -->
+        {{if .TimelineAnalysis}}
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">Peak Activity</div>
+                    <div class="card-body">
+                        <p><strong>Peak Hour:</strong> {{.TimelineAnalysis.PeakActivityHour}}:00</p>
+                        <p><strong>Peak Day:</strong> {{.TimelineAnalysis.PeakActivityDay}}</p>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-header">Activity Distribution</div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead><tr><th>Metric</th><th>Count</th></tr></thead>
+                                <tbody>
+                                    <tr><td>Events by Hour</td><td>{{len .TimelineAnalysis.EventsByHour}}</td></tr>
+                                    <tr><td>Events by Day</td><td>{{len .TimelineAnalysis.EventsByDay}}</td></tr>
+                                    <tr><td>Alerts by Hour</td><td>{{len .TimelineAnalysis.AlertsByHour}}</td></tr>
+                                    <tr><td>Alerts by Day</td><td>{{len .TimelineAnalysis.AlertsByDay}}</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{end}}
+
+        <!-- Threat Landscape -->
+        {{if .ThreatLandscape}}
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">Threat Landscape</div>
+                    <div class="card-body">
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <div class="stat-card text-center" style="border-left-color: #dc3545;">
+                                    <h3>{{.ThreatLandscape.CriticalThreats}}</h3>
+                                    <p class="text-muted mb-0">Critical</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-card text-center" style="border-left-color: #fd7e14;">
+                                    <h3>{{.ThreatLandscape.HighThreats}}</h3>
+                                    <p class="text-muted mb-0">High</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-card text-center" style="border-left-color: #ffc107;">
+                                    <h3>{{.ThreatLandscape.MediumThreats}}</h3>
+                                    <p class="text-muted mb-0">Medium</p>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="stat-card text-center" style="border-left-color: #0dcaf0;">
+                                    <h3>{{.ThreatLandscape.LowThreats}}</h3>
+                                    <p class="text-muted mb-0">Low</p>
+                                </div>
+                            </div>
+                        </div>
+                        {{if .ThreatLandscape.TopAttackVectors}}
+                        <div class="mt-3">
+                            <h6>Top Attack Vectors</h6>
+                            <div class="table-responsive">
+                                <table class="table table-sm">
+                                    <thead><tr><th>Vector</th><th>Count</th><th>Percentage</th></tr></thead>
+                                    <tbody>
+                                        {{range .ThreatLandscape.TopAttackVectors}}
+                                        <tr>
+                                            <td>{{.Name}}</td>
+                                            <td>{{.Count}}</td>
+                                            <td>{{printf "%.1f" .Percentage}}%</td>
+                                        </tr>
+                                        {{end}}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        {{end}}
+                        {{if .ThreatLandscape.AffectedSystems}}
+                        <div class="mt-3">
+                            <h6>Affected Systems</h6>
+                            <ul class="list-inline">
+                                {{range .ThreatLandscape.AffectedSystems}}
+                                <li class="list-inline-item"><span class="badge bg-danger">{{.}}</span></li>
+                                {{end}}
+                            </ul>
+                        </div>
+                        {{end}}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{end}}
+
+        <!-- Attack Patterns -->
+        {{if .AttackPatterns}}
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">Attack Patterns (MITRE ATT&CK)</div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-striped">
+                                <thead>
+                                    <tr>
+                                        <th>Technique</th>
+                                        <th>Name</th>
+                                        <th>Count</th>
+                                        <th>Severity</th>
+                                        <th>Indicators</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {{range .AttackPatterns}}
+                                    <tr>
+                                        <td><code>{{.TechniqueID}}</code></td>
+                                        <td>{{.Name}}</td>
+                                        <td>{{.Count}}</td>
+                                        <td><span class="badge badge-{{toLower .Severity}}">{{.Severity}}</span></td>
+                                        <td>{{range .Indicators}}<code>{{.}}</code> {{end}}</td>
+                                    </tr>
+                                    {{end}}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{end}}
+
+        <!-- Recommendations -->
+        {{if .Recommendations}}
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">Recommendations</div>
+                    <div class="card-body">
+                        <div class="accordion" id="recommendationsAccordion">
+                            {{range $i, $rec := .Recommendations}}
+                            <div class="accordion-item">
+                                <h2 class="accordion-header" id="heading{{$i}}">
+                                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{$i}}">
+                                        <span class="badge bg-{{toLower $rec.Priority}} me-2">{{$rec.Priority}}</span>
+                                        <strong>{{$rec.Title}}</strong>
+                                    </button>
+                                </h2>
+                                <div id="collapse{{$i}}" class="accordion-collapse collapse" data-bs-parent="#recommendationsAccordion">
+                                    <div class="accordion-body">
+                                        <p><strong>Category:</strong> {{$rec.Category}}</p>
+                                        <p><strong>Description:</strong> {{$rec.Description}}</p>
+                                        {{if $rec.Actionable}}
+                                        <p><strong>Actionable Steps:</strong> {{$rec.Actionable}}</p>
+                                        {{end}}
+                                    </div>
+                                </div>
+                            </div>
+                            {{end}}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{end}}
+
+        <!-- Compliance Status -->
+        {{if .ComplianceStatus}}
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">
+                        Compliance Status
+                        <span class="badge bg-{{if eq .ComplianceStatus.OverallStatus "PASS"}}success{{else}}danger{{end}} ms-2">{{.ComplianceStatus.OverallStatus}}</span>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-4">
+                                <div class="card bg-success text-white">
+                                    <div class="card-body">
+                                        <h3>{{len .ComplianceStatus.PassedChecks}}</h3>
+                                        <p class="mb-0">Passed Checks</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card bg-danger text-white">
+                                    <div class="card-body">
+                                        <h3>{{len .ComplianceStatus.FailedChecks}}</h3>
+                                        <p class="mb-0">Failed Checks</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card bg-warning text-dark">
+                                    <div class="card-body">
+                                        <h3>{{len .ComplianceStatus.Warnings}}</h3>
+                                        <p class="mb-0">Warnings</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {{if .ComplianceStatus.FailedChecks}}
+                        <div class="mt-3">
+                            <h6>Failed Checks</h6>
+                            <ul class="list-group">
+                                {{range .ComplianceStatus.FailedChecks}}
+                                <li class="list-group-item list-group-item-danger">{{.}}</li>
+                                {{end}}
+                            </ul>
+                        </div>
+                        {{end}}
+                        {{if .ComplianceStatus.Warnings}}
+                        <div class="mt-3">
+                            <h6>Warnings</h6>
+                            <ul class="list-group">
+                                {{range .ComplianceStatus.Warnings}}
+                                <li class="list-group-item list-group-item-warning">{{.}}</li>
+                                {{end}}
+                            </ul>
+                        </div>
+                        {{end}}
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{end}}
+
+        <!-- Timeline -->
+        {{if .Timeline}}
+        <div class="row mt-3">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header">Event Timeline</div>
+                    <div class="card-body">
+                        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table table-sm table-striped">
+                                <thead class="sticky-top bg-light">
+                                    <tr>
+                                        <th>Timestamp</th>
+                                        <th>Type</th>
+                                        <th>Source</th>
+                                        <th>Message</th>
+                                        <th>Severity</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {{range .Timeline}}
+                                    <tr>
+                                        <td>{{.Timestamp.Format "2006-01-02 15:04:05"}}</td>
+                                        <td><span class="badge bg-secondary">{{.Type}}</span></td>
+                                        <td>{{.Source}}</td>
+                                        <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">{{.Message}}</td>
+                                        <td>{{if .Severity}}<span class="badge badge-{{toLower .Severity}}">{{.Severity}}</span>{{end}}</td>
+                                    </tr>
+                                    {{end}}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {{end}}
+
+        <!-- Footer -->
+        <footer class="mt-5 text-center text-muted">
+            <p>WinLogAnalyzer v{{.Version}} | Windows Security Log Analysis Report</p>
+        </footer>
+    </div>
+
+    {{if .Stats}}
+    <script>
+        // Level Distribution Chart
+        const levelCtx = document.getElementById('levelChart').getContext('2d');
+        new Chart(levelCtx, {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys({{.Stats.EventDistribution.ByLevel}}),
+                datasets: [{
+                    data: Object.values({{.Stats.EventDistribution.ByLevel}}),
+                    backgroundColor: ['#dc3545', '#fd7e14', '#ffc107', '#0dcaf0', '#6c757d']
+                }]
+            }
+        });
+
+        // Log Name Distribution Chart
+        const logCtx = document.getElementById('logNameChart').getContext('2d');
+        const logNames = Object.keys({{.Stats.EventDistribution.ByLogName}});
+        const logCounts = Object.values({{.Stats.EventDistribution.ByLogName}});
+        new Chart(logCtx, {
+            type: 'bar',
+            data: {
+                labels: logNames.slice(0, 10),
+                datasets: [{
+                    label: 'Events',
+                    data: logCounts.slice(0, 10),
+                    backgroundColor: '#3498db'
+                }]
+            },
+            options: {
+                indexAxis: 'y',
+                responsive: true,
+                plugins: { legend: { display: false } }
+            }
+        });
+    </script>
+    {{end}}
+</body>
+</html>
+{{end}}

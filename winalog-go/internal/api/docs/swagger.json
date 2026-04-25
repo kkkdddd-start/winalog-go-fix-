@@ -1,0 +1,6213 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "contact": {}
+    },
+    "paths": {
+        "/api/alerts": {
+            "get": {
+                "description": "Get a paginated list of alerts with optional filtering",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "List alerts",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 100,
+                        "description": "Page size",
+                        "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by severity (critical/high/medium/low)",
+                        "name": "severity",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Filter by resolved status",
+                        "name": "resolved",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.ListAlertsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/alerts/batch": {
+            "post": {
+                "description": "Perform an action (resolve, false-positive, delete) on multiple alerts",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "Batch alert action",
+                "parameters": [
+                    {
+                        "description": "Batch action request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.BatchAlertActionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/alerts/export": {
+            "get": {
+                "description": "Export alerts in json or csv format",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "Export alerts",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "default": "json",
+                        "description": "Export format (json/csv)",
+                        "name": "format",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by severity",
+                        "name": "severity",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/alerts/run-analysis": {
+            "post": {
+                "description": "Run the alert analysis engine on all stored events",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "Run alert analysis",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.RunAnalysisResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/alerts/stats": {
+            "get": {
+                "description": "Get aggregated alert statistics including counts by severity, status, and top rules",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "Get alert statistics",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/types.AlertStats"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/alerts/trend": {
+            "get": {
+                "description": "Get alert trend data over a specified number of days",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "Get alert trend",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 7,
+                        "description": "Number of days for trend data",
+                        "name": "days",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/types.AlertTrend"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/alerts/{id}": {
+            "get": {
+                "description": "Get a single alert with explanation, recommendation, and matched events",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "Get alert by ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Alert ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.AlertWithDetails"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete an alert by ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "Delete an alert",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Alert ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/alerts/{id}/false-positive": {
+            "post": {
+                "description": "Mark an alert as a false positive with a reason",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "Mark alert as false positive",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Alert ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "False positive request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.MarkFalsePositiveRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/alerts/{id}/resolve": {
+            "post": {
+                "description": "Mark an alert as resolved with optional notes",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "alerts"
+                ],
+                "summary": "Resolve an alert",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Alert ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Resolve request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.ResolveAlertRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/analyze/{type}": {
+            "post": {
+                "description": "Run a specific analyzer on stored events",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analyze"
+                ],
+                "summary": "Run analysis",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Analyzer type (brute-force, login, kerberos, etc.)",
+                        "name": "type",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Analysis parameters",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/api.AnalyzeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.AnalyzeResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/analyzer-rules": {
+            "get": {
+                "description": "Get a list of all analyzer rule configurations",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analyze"
+                ],
+                "summary": "List analyzer rules",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.SuccessResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/analyzer-rules/{type}": {
+            "get": {
+                "description": "Get configuration for a specific analyzer rule",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analyze"
+                ],
+                "summary": "Get analyzer rule",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Rule type",
+                        "name": "type",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Update configuration for a specific analyzer rule",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analyze"
+                ],
+                "summary": "Update analyzer rule",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Rule type",
+                        "name": "type",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Rule configuration",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.AnalyzerRuleUpdate"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/analyzers": {
+            "get": {
+                "description": "Get a list of all available analyzer types",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analyze"
+                ],
+                "summary": "List available analyzers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.SuccessResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/analyzers/{type}": {
+            "get": {
+                "description": "Get information about a specific analyzer",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "analyze"
+                ],
+                "summary": "Get analyzer info",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Analyzer type",
+                        "name": "type",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.SuccessResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/collect": {
+            "post": {
+                "description": "在Windows上执行一键日志收集，收集系统信息、注册表、Prefetch、ShimCache等",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "collect"
+                ],
+                "summary": "开始日志收集",
+                "parameters": [
+                    {
+                        "description": "收集请求参数",
+                        "name": "request",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/api.LogCollectRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.LogCollectResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/collect/channels": {
+            "get": {
+                "description": "返回所有注册的Windows事件日志通道，包括分类和文件路径",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "collect"
+                ],
+                "summary": "获取可用的日志通道列表",
+                "responses": {
+                    "200": {
+                        "description": "channels\": []LogChannel, \"total\": int",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/collect/evtx2csv": {
+            "post": {
+                "description": "解析EVTX事件日志文件并导出为CSV格式",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "collect"
+                ],
+                "summary": "将EVTX文件转换为CSV格式",
+                "parameters": [
+                    {
+                        "description": "EVTX转换请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.Evtx2CsvRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.Evtx2CsvResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/collect/import": {
+            "post": {
+                "description": "从指定路径导入EVTX、ETL等日志文件到数据库",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "collect"
+                ],
+                "summary": "导入日志文件",
+                "parameters": [
+                    {
+                        "description": "导入请求，包含文件路径列表",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.LogImportRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/collect/status": {
+            "get": {
+                "description": "返回当前日志收集服务的状态",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "collect"
+                ],
+                "summary": "获取收集状态",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.CollectStatus"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/collect/upload": {
+            "post": {
+                "description": "通过multipart/form-data上传日志文件到临时目录",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "collect"
+                ],
+                "summary": "上传日志文件",
+                "parameters": [
+                    {
+                        "type": "file",
+                        "description": "要上传的文件",
+                        "name": "file",
+                        "in": "formData",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "success\": bool, \"filename\": string, \"path\": string, \"size\": int64",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/correlation": {
+            "get": {
+                "description": "配置关联分析相关的API路由",
+                "tags": [
+                    "correlation"
+                ],
+                "summary": "设置关联分析路由",
+                "responses": {}
+            }
+        },
+        "/api/correlation/analyze": {
+            "post": {
+                "description": "配置关联分析相关的API路由",
+                "tags": [
+                    "correlation"
+                ],
+                "summary": "设置关联分析路由",
+                "responses": {}
+            }
+        },
+        "/api/dashboard": {
+            "get": {
+                "description": "初始化DashboardHandler",
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "创建仪表板处理器",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "数据库实例",
+                        "name": "db",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/api/dashboard/log-names": {
+            "get": {
+                "description": "返回数据库中所有不重复的日志名称",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "获取日志名称列表",
+                "responses": {
+                    "200": {
+                        "description": "log_names\": []string",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/dashboard/stats": {
+            "get": {
+                "description": "返回事件收集的统计数据，包括总数、大小、数据源等",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "dashboard"
+                ],
+                "summary": "获取收集统计信息",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.CollectionStatsResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/events": {
+            "get": {
+                "description": "Get a paginated list of events with optional filtering",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "List events",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 100,
+                        "description": "Page size",
+                        "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "integer"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Filter by event levels",
+                        "name": "levels",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "integer",
+                            "format": "int32"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Filter by event IDs",
+                        "name": "event_ids",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Filter by log names",
+                        "name": "log_names",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Filter by sources",
+                        "name": "sources",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Filter by users",
+                        "name": "users",
+                        "in": "query"
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "collectionFormat": "csv",
+                        "description": "Filter by computers",
+                        "name": "computers",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start time (RFC3339 format)",
+                        "name": "start_time",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End time (RFC3339 format)",
+                        "name": "end_time",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort field",
+                        "name": "sort_by",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Sort order (asc/desc)",
+                        "name": "sort_order",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.ListEventsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/events/export": {
+            "post": {
+                "description": "Export events in various formats (json, csv, excel)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Export events",
+                "parameters": [
+                    {
+                        "description": "Export parameters",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.ExportRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.ExportResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/events/search": {
+            "post": {
+                "description": "Search events with full-text search and advanced filters",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Search events",
+                "parameters": [
+                    {
+                        "description": "Search parameters",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.SearchEventsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/types.SearchResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/events/{id}": {
+            "get": {
+                "description": "Get a single event by its database ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "events"
+                ],
+                "summary": "Get event by ID",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Event ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/types.Event"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/forensics": {
+            "get": {
+                "description": "初始化ForensicsHandler",
+                "tags": [
+                    "forensics"
+                ],
+                "summary": "创建取证处理器",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "数据库实例",
+                        "name": "db",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/api/forensics/chain-of-custody": {
+            "get": {
+                "description": "配置取证分析相关的API路由",
+                "tags": [
+                    "forensics"
+                ],
+                "summary": "设置取证路由",
+                "responses": {}
+            }
+        },
+        "/api/forensics/collect": {
+            "post": {
+                "description": "配置取证分析相关的API路由",
+                "tags": [
+                    "forensics"
+                ],
+                "summary": "设置取证路由",
+                "responses": {}
+            }
+        },
+        "/api/forensics/evidence": {
+            "get": {
+                "description": "配置取证分析相关的API路由",
+                "tags": [
+                    "forensics"
+                ],
+                "summary": "设置取证路由",
+                "responses": {}
+            }
+        },
+        "/api/forensics/evidence/{id}": {
+            "get": {
+                "description": "配置取证分析相关的API路由",
+                "tags": [
+                    "forensics"
+                ],
+                "summary": "设置取证路由",
+                "responses": {}
+            }
+        },
+        "/api/forensics/hash": {
+            "post": {
+                "description": "配置取证分析相关的API路由",
+                "tags": [
+                    "forensics"
+                ],
+                "summary": "设置取证路由",
+                "responses": {}
+            }
+        },
+        "/api/forensics/is-signed": {
+            "get": {
+                "description": "配置取证分析相关的API路由",
+                "tags": [
+                    "forensics"
+                ],
+                "summary": "设置取证路由",
+                "responses": {}
+            }
+        },
+        "/api/forensics/manifest": {
+            "post": {
+                "description": "配置取证分析相关的API路由",
+                "tags": [
+                    "forensics"
+                ],
+                "summary": "设置取证路由",
+                "responses": {}
+            }
+        },
+        "/api/forensics/memory-dump": {
+            "get": {
+                "description": "配置取证分析相关的API路由",
+                "tags": [
+                    "forensics"
+                ],
+                "summary": "设置取证路由",
+                "responses": {}
+            }
+        },
+        "/api/forensics/signature": {
+            "get": {
+                "description": "配置取证分析相关的API路由",
+                "tags": [
+                    "forensics"
+                ],
+                "summary": "设置取证路由",
+                "responses": {}
+            }
+        },
+        "/api/forensics/verify-hash": {
+            "get": {
+                "description": "配置取证分析相关的API路由",
+                "tags": [
+                    "forensics"
+                ],
+                "summary": "设置取证路由",
+                "responses": {}
+            }
+        },
+        "/api/import/logs": {
+            "post": {
+                "description": "Import Windows event log files (evtx, csv, etc.) for analysis",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "import"
+                ],
+                "summary": "Import log files",
+                "parameters": [
+                    {
+                        "description": "Import request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.ImportRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/import/status": {
+            "get": {
+                "description": "Get the status of a log file import operation",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "import"
+                ],
+                "summary": "Get import status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "File path to check import status",
+                        "name": "path",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/live": {
+            "get": {
+                "description": "初始化LiveHandler",
+                "tags": [
+                    "live"
+                ],
+                "summary": "创建实时事件处理器",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "数据库实例",
+                        "name": "db",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/api/live/stats": {
+            "get": {
+                "description": "返回当前实时事件的统计数据",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "live"
+                ],
+                "summary": "获取实时统计信息",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.LiveStats"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/live/stream": {
+            "get": {
+                "description": "通过Server-Sent Events(SSE)推送实时事件数据",
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "live"
+                ],
+                "summary": "建立实时事件流",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.LiveEventMessage"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/logs": {
+            "get": {
+                "description": "配置日志相关的API路由",
+                "tags": [
+                    "logs"
+                ],
+                "summary": "设置日志路由",
+                "responses": {}
+            }
+        },
+        "/api/logs/files": {
+            "get": {
+                "description": "配置日志相关的API路由",
+                "tags": [
+                    "logs"
+                ],
+                "summary": "设置日志路由",
+                "responses": {}
+            }
+        },
+        "/api/logs/files/{filename}": {
+            "get": {
+                "description": "配置日志相关的API路由",
+                "tags": [
+                    "logs"
+                ],
+                "summary": "设置日志路由",
+                "responses": {}
+            }
+        },
+        "/api/multi": {
+            "get": {
+                "description": "配置多机关联分析相关的API路由",
+                "tags": [
+                    "multi"
+                ],
+                "summary": "设置多机分析路由",
+                "responses": {}
+            }
+        },
+        "/api/multi/analyze": {
+            "post": {
+                "description": "配置多机关联分析相关的API路由",
+                "tags": [
+                    "multi"
+                ],
+                "summary": "设置多机分析路由",
+                "responses": {}
+            }
+        },
+        "/api/multi/lateral": {
+            "get": {
+                "description": "配置多机关联分析相关的API路由",
+                "tags": [
+                    "multi"
+                ],
+                "summary": "设置多机分析路由",
+                "responses": {}
+            }
+        },
+        "/api/persistence": {
+            "get": {
+                "description": "初始化PersistenceHandler，注册所有持久化检测器",
+                "tags": [
+                    "persistence"
+                ],
+                "summary": "创建持久化检测处理器",
+                "responses": {}
+            }
+        },
+        "/api/persistence/categories": {
+            "get": {
+                "description": "配置持久化检测相关的API路由",
+                "tags": [
+                    "persistence"
+                ],
+                "summary": "设置持久化检测路由",
+                "responses": {}
+            }
+        },
+        "/api/persistence/detect": {
+            "get": {
+                "description": "配置持久化检测相关的API路由",
+                "tags": [
+                    "persistence"
+                ],
+                "summary": "设置持久化检测路由",
+                "responses": {}
+            }
+        },
+        "/api/persistence/detect/stream": {
+            "get": {
+                "description": "通过Server-Sent Events推送检测结果",
+                "produces": [
+                    "text/event-stream"
+                ],
+                "tags": [
+                    "persistence"
+                ],
+                "summary": "建立持久化检测流",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/persistence/detectors": {
+            "get": {
+                "description": "配置持久化检测相关的API路由",
+                "tags": [
+                    "persistence"
+                ],
+                "summary": "设置持久化检测路由",
+                "responses": {}
+            }
+        },
+        "/api/persistence/detectors/config": {
+            "post": {
+                "description": "配置持久化检测相关的API路由",
+                "tags": [
+                    "persistence"
+                ],
+                "summary": "设置持久化检测路由",
+                "responses": {}
+            }
+        },
+        "/api/persistence/rules": {
+            "get": {
+                "description": "配置持久化检测相关的API路由",
+                "tags": [
+                    "persistence"
+                ],
+                "summary": "设置持久化检测路由",
+                "responses": {}
+            },
+            "put": {
+                "description": "配置持久化检测相关的API路由",
+                "tags": [
+                    "persistence"
+                ],
+                "summary": "设置持久化检测路由",
+                "responses": {}
+            }
+        },
+        "/api/persistence/rules/{name}": {
+            "get": {
+                "description": "配置持久化检测相关的API路由",
+                "tags": [
+                    "persistence"
+                ],
+                "summary": "设置持久化检测路由",
+                "responses": {}
+            }
+        },
+        "/api/persistence/techniques": {
+            "get": {
+                "description": "配置持久化检测相关的API路由",
+                "tags": [
+                    "persistence"
+                ],
+                "summary": "设置持久化检测路由",
+                "responses": {}
+            }
+        },
+        "/api/policies": {
+            "post": {
+                "description": "配置策略管理相关的API路由",
+                "tags": [
+                    "policy"
+                ],
+                "summary": "设置策略路由",
+                "responses": {}
+            }
+        },
+        "/api/policies/{name}": {
+            "delete": {
+                "description": "配置策略管理相关的API路由",
+                "tags": [
+                    "policy"
+                ],
+                "summary": "设置策略路由",
+                "responses": {}
+            }
+        },
+        "/api/policy": {
+            "get": {
+                "description": "初始化PolicyHandler",
+                "tags": [
+                    "policy"
+                ],
+                "summary": "创建策略处理器",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "告警引擎实例",
+                        "name": "engine",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/api/policy-instances": {
+            "get": {
+                "description": "配置策略管理相关的API路由",
+                "tags": [
+                    "policy"
+                ],
+                "summary": "设置策略路由",
+                "responses": {}
+            }
+        },
+        "/api/policy-instances/{key}": {
+            "delete": {
+                "description": "配置策略管理相关的API路由",
+                "tags": [
+                    "policy"
+                ],
+                "summary": "设置策略路由",
+                "responses": {}
+            }
+        },
+        "/api/policy-templates": {
+            "get": {
+                "description": "配置策略管理相关的API路由",
+                "tags": [
+                    "policy"
+                ],
+                "summary": "设置策略路由",
+                "responses": {}
+            },
+            "post": {
+                "description": "配置策略管理相关的API路由",
+                "tags": [
+                    "policy"
+                ],
+                "summary": "设置策略路由",
+                "responses": {}
+            }
+        },
+        "/api/policy-templates/apply": {
+            "post": {
+                "description": "配置策略管理相关的API路由",
+                "tags": [
+                    "policy"
+                ],
+                "summary": "设置策略路由",
+                "responses": {}
+            }
+        },
+        "/api/policy-templates/{name}": {
+            "get": {
+                "description": "配置策略管理相关的API路由",
+                "tags": [
+                    "policy"
+                ],
+                "summary": "设置策略路由",
+                "responses": {}
+            },
+            "delete": {
+                "description": "配置策略管理相关的API路由",
+                "tags": [
+                    "policy"
+                ],
+                "summary": "设置策略路由",
+                "responses": {}
+            }
+        },
+        "/api/query": {
+            "post": {
+                "description": "初始化QueryHandler",
+                "tags": [
+                    "query"
+                ],
+                "summary": "创建查询处理器",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "数据库实例",
+                        "name": "db",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/api/query/execute": {
+            "post": {
+                "description": "配置SQL查询相关的API路由",
+                "tags": [
+                    "query"
+                ],
+                "summary": "设置查询路由",
+                "responses": {}
+            }
+        },
+        "/api/query/quick-queries": {
+            "get": {
+                "description": "返回所有预定义的快速查询语句",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "query"
+                ],
+                "summary": "列出快速查询",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "按分类过滤",
+                        "name": "category",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/api.QuickQuery"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/query/quick-query/{name}": {
+            "get": {
+                "description": "返回指定快速查询的详细信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "query"
+                ],
+                "summary": "获取快速查询详情",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "查询名称",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.QuickQuery"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/query/tables": {
+            "get": {
+                "description": "返回数据库中所有可查询的表及其结构信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "query"
+                ],
+                "summary": "列出数据表",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/api.TableInfo"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/report-templates": {
+            "get": {
+                "description": "配置报表相关的API路由",
+                "tags": [
+                    "reports"
+                ],
+                "summary": "设置报表路由",
+                "responses": {}
+            },
+            "post": {
+                "description": "配置报表相关的API路由",
+                "tags": [
+                    "reports"
+                ],
+                "summary": "设置报表路由",
+                "responses": {}
+            }
+        },
+        "/api/report-templates/{name}": {
+            "get": {
+                "description": "配置报表相关的API路由",
+                "tags": [
+                    "reports"
+                ],
+                "summary": "设置报表路由",
+                "responses": {}
+            },
+            "put": {
+                "description": "配置报表相关的API路由",
+                "tags": [
+                    "reports"
+                ],
+                "summary": "设置报表路由",
+                "responses": {}
+            },
+            "delete": {
+                "description": "配置报表相关的API路由",
+                "tags": [
+                    "reports"
+                ],
+                "summary": "设置报表路由",
+                "responses": {}
+            }
+        },
+        "/api/reports": {
+            "get": {
+                "description": "配置报表相关的API路由",
+                "tags": [
+                    "reports"
+                ],
+                "summary": "设置报表路由",
+                "responses": {}
+            },
+            "post": {
+                "description": "配置报表相关的API路由",
+                "tags": [
+                    "reports"
+                ],
+                "summary": "设置报表路由",
+                "responses": {}
+            }
+        },
+        "/api/reports/export": {
+            "get": {
+                "description": "配置报表相关的API路由",
+                "tags": [
+                    "reports"
+                ],
+                "summary": "设置报表路由",
+                "responses": {}
+            }
+        },
+        "/api/reports/{id}": {
+            "get": {
+                "description": "配置报表相关的API路由",
+                "tags": [
+                    "reports"
+                ],
+                "summary": "设置报表路由",
+                "responses": {}
+            }
+        },
+        "/api/reports/{id}/download": {
+            "get": {
+                "description": "配置报表相关的API路由",
+                "tags": [
+                    "reports"
+                ],
+                "summary": "设置报表路由",
+                "responses": {}
+            }
+        },
+        "/api/rules": {
+            "get": {
+                "description": "配置规则管理相关的API路由",
+                "tags": [
+                    "rules"
+                ],
+                "summary": "设置规则路由",
+                "responses": {}
+            },
+            "post": {
+                "description": "配置规则管理相关的API路由",
+                "tags": [
+                    "rules"
+                ],
+                "summary": "设置规则路由",
+                "responses": {}
+            }
+        },
+        "/api/rules/export": {
+            "get": {
+                "description": "配置规则管理相关的API路由",
+                "tags": [
+                    "rules"
+                ],
+                "summary": "设置规则路由",
+                "responses": {}
+            }
+        },
+        "/api/rules/import": {
+            "post": {
+                "description": "配置规则管理相关的API路由",
+                "tags": [
+                    "rules"
+                ],
+                "summary": "设置规则路由",
+                "responses": {}
+            }
+        },
+        "/api/rules/templates": {
+            "get": {
+                "description": "返回所有可用的规则模板",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rules"
+                ],
+                "summary": "列出规则模板",
+                "responses": {
+                    "200": {
+                        "description": "templates\": []TemplateInfo, \"total\": int",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/api/rules/templates/{name}": {
+            "get": {
+                "description": "返回指定规则模板的详细信息",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rules"
+                ],
+                "summary": "获取规则模板详情",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "模板名称",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.TemplateInfo"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/rules/templates/{name}/instantiate": {
+            "post": {
+                "description": "从模板创建规则实例",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "rules"
+                ],
+                "summary": "实例化规则模板",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "模板名称",
+                        "name": "name",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "模板实例化请求",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.InstantiateTemplateRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/rules/validate": {
+            "post": {
+                "description": "配置规则管理相关的API路由",
+                "tags": [
+                    "rules"
+                ],
+                "summary": "设置规则路由",
+                "responses": {}
+            }
+        },
+        "/api/rules/{name}": {
+            "get": {
+                "description": "配置规则管理相关的API路由",
+                "tags": [
+                    "rules"
+                ],
+                "summary": "设置规则路由",
+                "responses": {}
+            },
+            "put": {
+                "description": "配置规则管理相关的API路由",
+                "tags": [
+                    "rules"
+                ],
+                "summary": "设置规则路由",
+                "responses": {}
+            },
+            "delete": {
+                "description": "配置规则管理相关的API路由",
+                "tags": [
+                    "rules"
+                ],
+                "summary": "设置规则路由",
+                "responses": {}
+            }
+        },
+        "/api/rules/{name}/toggle": {
+            "post": {
+                "description": "配置规则管理相关的API路由",
+                "tags": [
+                    "rules"
+                ],
+                "summary": "设置规则路由",
+                "responses": {}
+            }
+        },
+        "/api/settings": {
+            "get": {
+                "description": "配置系统设置相关的API路由",
+                "tags": [
+                    "settings"
+                ],
+                "summary": "设置设置路由",
+                "responses": {}
+            },
+            "post": {
+                "description": "配置系统设置相关的API路由",
+                "tags": [
+                    "settings"
+                ],
+                "summary": "设置设置路由",
+                "responses": {}
+            }
+        },
+        "/api/settings/reset": {
+            "post": {
+                "description": "配置系统设置相关的API路由",
+                "tags": [
+                    "settings"
+                ],
+                "summary": "设置设置路由",
+                "responses": {}
+            }
+        },
+        "/api/suppress": {
+            "get": {
+                "description": "配置告警抑制相关的API路由",
+                "tags": [
+                    "suppress"
+                ],
+                "summary": "设置抑制路由",
+                "responses": {}
+            },
+            "post": {
+                "description": "配置告警抑制相关的API路由",
+                "tags": [
+                    "suppress"
+                ],
+                "summary": "设置抑制路由",
+                "responses": {}
+            }
+        },
+        "/api/suppress/{id}": {
+            "get": {
+                "description": "配置告警抑制相关的API路由",
+                "tags": [
+                    "suppress"
+                ],
+                "summary": "设置抑制路由",
+                "responses": {}
+            },
+            "put": {
+                "description": "配置告警抑制相关的API路由",
+                "tags": [
+                    "suppress"
+                ],
+                "summary": "设置抑制路由",
+                "responses": {}
+            },
+            "delete": {
+                "description": "配置告警抑制相关的API路由",
+                "tags": [
+                    "suppress"
+                ],
+                "summary": "设置抑制路由",
+                "responses": {}
+            }
+        },
+        "/api/suppress/{id}/toggle": {
+            "post": {
+                "description": "配置告警抑制相关的API路由",
+                "tags": [
+                    "suppress"
+                ],
+                "summary": "设置抑制路由",
+                "responses": {}
+            }
+        },
+        "/api/system": {
+            "get": {
+                "description": "初始化SystemHandler",
+                "tags": [
+                    "system"
+                ],
+                "summary": "创建系统处理器",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "数据库实例",
+                        "name": "db",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/api/system/dlls": {
+            "get": {
+                "description": "返回系统加载的动态链接库列表",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "获取加载的DLL",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "default": "true",
+                        "description": "是否启用",
+                        "name": "enabled",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 100,
+                        "description": "返回数量限制",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.DLLResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/system/drivers": {
+            "get": {
+                "description": "返回系统驱动程序列表",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "获取驱动程序",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "default": "true",
+                        "description": "是否启用",
+                        "name": "enabled",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.DriverResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/system/env": {
+            "get": {
+                "description": "返回系统环境变量列表",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "获取环境变量",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.EnvVarResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/system/info": {
+            "get": {
+                "description": "配置系统信息相关的API路由",
+                "tags": [
+                    "system"
+                ],
+                "summary": "设置系统路由",
+                "responses": {}
+            }
+        },
+        "/api/system/metrics": {
+            "get": {
+                "description": "配置系统信息相关的API路由",
+                "tags": [
+                    "system"
+                ],
+                "summary": "设置系统路由",
+                "responses": {}
+            }
+        },
+        "/api/system/network": {
+            "get": {
+                "description": "配置系统信息相关的API路由",
+                "tags": [
+                    "system"
+                ],
+                "summary": "设置系统路由",
+                "responses": {}
+            }
+        },
+        "/api/system/process/{pid}/dlls": {
+            "get": {
+                "description": "返回指定进程加载的DLL列表",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "获取进程DLL列表",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "进程ID",
+                        "name": "pid",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.ProcessDLLResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/system/processes": {
+            "get": {
+                "description": "返回系统进程列表(Windows)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "获取进程列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "default": "true",
+                        "description": "是否启用",
+                        "name": "enabled",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 100,
+                        "description": "返回数量限制",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.ProcessResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/system/prometheus": {
+            "get": {
+                "description": "返回Prometheus格式的系统指标",
+                "produces": [
+                    "text/plain"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "获取Prometheus格式指标",
+                "responses": {
+                    "200": {
+                        "description": "Prometheus格式指标",
+                        "schema": {
+                            "type": "string"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/system/registry": {
+            "get": {
+                "description": "返回系统中的注册表持久化项目",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "获取注册表持久化项",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "default": "true",
+                        "description": "是否启用",
+                        "name": "enabled",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.RegistryPersistenceResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/system/tasks": {
+            "get": {
+                "description": "返回系统计划任务列表(Windows)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "获取计划任务列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "default": "true",
+                        "description": "是否启用",
+                        "name": "enabled",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.TaskResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/system/users": {
+            "get": {
+                "description": "返回系统本地用户列表(Windows)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "system"
+                ],
+                "summary": "获取用户列表",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "default": "true",
+                        "description": "是否启用",
+                        "name": "enabled",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.UserResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/timeline": {
+            "get": {
+                "description": "Get a timeline of events and alerts with pagination",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "timeline"
+                ],
+                "summary": "Get timeline",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 200,
+                        "description": "Number of entries to return",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Offset for pagination",
+                        "name": "offset",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start time (RFC3339 format)",
+                        "name": "start_time",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End time (RFC3339 format)",
+                        "name": "end_time",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.TimelineResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/timeline/alerts/{id}": {
+            "delete": {
+                "description": "Delete an alert from the timeline by ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "timeline"
+                ],
+                "summary": "Delete alert from timeline",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Alert ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/timeline/chains": {
+            "get": {
+                "description": "Detect and return attack chains from events",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "timeline"
+                ],
+                "summary": "Get attack chains",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Start time (RFC3339 format)",
+                        "name": "start_time",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End time (RFC3339 format)",
+                        "name": "end_time",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.SuccessResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/timeline/export": {
+            "get": {
+                "description": "Export timeline events in various formats (json, csv, html)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "timeline"
+                ],
+                "summary": "Export timeline",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "default": "json",
+                        "description": "Export format (json/csv/html)",
+                        "name": "format",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Start time (RFC3339 format)",
+                        "name": "start_time",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End time (RFC3339 format)",
+                        "name": "end_time",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.SuccessResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/timeline/stats": {
+            "get": {
+                "description": "Get aggregated statistics for the timeline",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "timeline"
+                ],
+                "summary": "Get timeline statistics",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Start time (RFC3339 format)",
+                        "name": "start_time",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "End time (RFC3339 format)",
+                        "name": "end_time",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.TimelineStats"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/ueba": {
+            "get": {
+                "description": "配置UEBA分析相关的API路由",
+                "tags": [
+                    "ueba"
+                ],
+                "summary": "设置UEBA路由",
+                "responses": {}
+            }
+        },
+        "/api/ueba/analyze": {
+            "post": {
+                "description": "配置UEBA分析相关的API路由",
+                "tags": [
+                    "ueba"
+                ],
+                "summary": "设置UEBA路由",
+                "responses": {}
+            }
+        },
+        "/api/ueba/anomaly/{type}": {
+            "get": {
+                "description": "配置UEBA分析相关的API路由",
+                "tags": [
+                    "ueba"
+                ],
+                "summary": "设置UEBA路由",
+                "responses": {}
+            }
+        },
+        "/api/ueba/baseline": {
+            "get": {
+                "description": "配置UEBA分析相关的API路由",
+                "tags": [
+                    "ueba"
+                ],
+                "summary": "设置UEBA路由",
+                "responses": {}
+            },
+            "delete": {
+                "description": "配置UEBA分析相关的API路由",
+                "tags": [
+                    "ueba"
+                ],
+                "summary": "设置UEBA路由",
+                "responses": {}
+            }
+        },
+        "/api/ueba/baseline/learn": {
+            "post": {
+                "description": "配置UEBA分析相关的API路由",
+                "tags": [
+                    "ueba"
+                ],
+                "summary": "设置UEBA路由",
+                "responses": {}
+            }
+        },
+        "/api/ueba/profiles": {
+            "get": {
+                "description": "配置UEBA分析相关的API路由",
+                "tags": [
+                    "ueba"
+                ],
+                "summary": "设置UEBA路由",
+                "responses": {}
+            }
+        },
+        "/api/ui": {
+            "get": {
+                "description": "初始化UIHandler",
+                "tags": [
+                    "ui"
+                ],
+                "summary": "创建UI处理器",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "数据库实例",
+                        "name": "db",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {}
+            }
+        },
+        "/api/ui/alerts/groups": {
+            "get": {
+                "description": "配置UI仪表板相关的API路由",
+                "tags": [
+                    "ui"
+                ],
+                "summary": "设置UI路由",
+                "responses": {}
+            }
+        },
+        "/api/ui/dashboard": {
+            "get": {
+                "description": "配置UI仪表板相关的API路由",
+                "tags": [
+                    "ui"
+                ],
+                "summary": "设置UI路由",
+                "responses": {}
+            }
+        },
+        "/api/ui/events/distribution": {
+            "get": {
+                "description": "配置UI仪表板相关的API路由",
+                "tags": [
+                    "ui"
+                ],
+                "summary": "设置UI路由",
+                "responses": {}
+            }
+        },
+        "/api/ui/metrics": {
+            "get": {
+                "description": "配置UI仪表板相关的API路由",
+                "tags": [
+                    "ui"
+                ],
+                "summary": "设置UI路由",
+                "responses": {}
+            }
+        }
+    },
+    "definitions": {
+        "api.ActionInfo": {
+            "type": "object",
+            "required": [
+                "type"
+            ],
+            "properties": {
+                "parameters": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.AlertSummary": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "first_seen": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_resolved": {
+                    "type": "boolean"
+                },
+                "last_seen": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "rule_name": {
+                    "type": "string"
+                },
+                "severity": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.AlertWithDetails": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "event_db_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "event_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "explanation": {
+                    "type": "string"
+                },
+                "false_positive": {
+                    "type": "boolean"
+                },
+                "first_seen": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "keywords": {
+                    "type": "string"
+                },
+                "last_seen": {
+                    "type": "string"
+                },
+                "log_name": {
+                    "type": "string"
+                },
+                "matched_events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.Event"
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "mitre_attack": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "real_case": {
+                    "type": "string"
+                },
+                "recommendation": {
+                    "type": "string"
+                },
+                "resolved": {
+                    "type": "boolean"
+                },
+                "resolved_time": {
+                    "type": "string"
+                },
+                "rule_name": {
+                    "type": "string"
+                },
+                "rule_score": {
+                    "type": "number"
+                },
+                "severity": {
+                    "$ref": "#/definitions/github_com_kkkdddd-start_winalog-go_internal_types.Severity"
+                }
+            }
+        },
+        "api.AnalyzeFinding": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "evidence": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.EvidenceItem"
+                    }
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "mitre_attack": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "rule_name": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "number"
+                },
+                "severity": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.AnalyzeRequest": {
+            "type": "object",
+            "properties": {
+                "end_time": {
+                    "type": "string"
+                },
+                "hours": {
+                    "type": "integer"
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "offset": {
+                    "type": "integer"
+                },
+                "start_time": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.AnalyzeResult": {
+            "type": "object",
+            "properties": {
+                "findings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.AnalyzeFinding"
+                    }
+                },
+                "pagination": {
+                    "$ref": "#/definitions/api.Pagination"
+                },
+                "score": {
+                    "type": "number"
+                },
+                "severity": {
+                    "type": "string"
+                },
+                "summary": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.AnalyzerRuleUpdate": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "event_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "patterns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "thresholds": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "whitelist": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.BatchAlertActionRequest": {
+            "type": "object",
+            "properties": {
+                "action": {
+                    "type": "string"
+                },
+                "ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.CollectRequest": {
+            "type": "object",
+            "required": [
+                "type"
+            ],
+            "properties": {
+                "collect_amcache": {
+                    "type": "boolean"
+                },
+                "collect_logs": {
+                    "type": "boolean"
+                },
+                "collect_prefetch": {
+                    "type": "boolean"
+                },
+                "collect_registry": {
+                    "type": "boolean"
+                },
+                "collect_shimcache": {
+                    "type": "boolean"
+                },
+                "collect_tasks": {
+                    "type": "boolean"
+                },
+                "collect_userassist": {
+                    "type": "boolean"
+                },
+                "output_path": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.CollectResponse": {
+            "type": "object",
+            "properties": {
+                "collected_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "output_path": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.CollectStatus": {
+            "type": "object",
+            "properties": {
+                "duration": {
+                    "type": "string"
+                },
+                "files_count": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "output_path": {
+                    "type": "string"
+                },
+                "progress": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.CollectionStatsResponse": {
+            "type": "object",
+            "properties": {
+                "last_import": {
+                    "type": "string"
+                },
+                "sources": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "total_events": {
+                    "type": "integer"
+                },
+                "total_size": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.ColumnInfo": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "not_null": {
+                    "type": "boolean"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.ConditionInfo": {
+            "type": "object",
+            "required": [
+                "field",
+                "operator",
+                "value"
+            ],
+            "properties": {
+                "field": {
+                    "type": "string"
+                },
+                "operator": {
+                    "type": "string"
+                },
+                "value": {}
+            }
+        },
+        "api.CorrelationRequest": {
+            "type": "object",
+            "properties": {
+                "rules": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "time_window": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.CreateCustomPolicyRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "policy_type"
+            ],
+            "properties": {
+                "actions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.ActionInfo"
+                    }
+                },
+                "conditions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.ConditionInfo"
+                    }
+                },
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "mitre_mapping": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "parameters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.ParameterInfo"
+                    }
+                },
+                "policy_type": {
+                    "type": "string"
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "time_window": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.CreateRuleRequest": {
+            "type": "object",
+            "required": [
+                "name",
+                "severity"
+            ],
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "event_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "filter": {
+                    "$ref": "#/definitions/api.FilterInfo"
+                },
+                "levels": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "mitre_attack": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "number"
+                },
+                "severity": {
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.CrossMachineActivity": {
+            "type": "object",
+            "properties": {
+                "login_count": {
+                    "type": "integer"
+                },
+                "machine_count": {
+                    "type": "integer"
+                },
+                "machines": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "recommendation": {
+                    "type": "string"
+                },
+                "severity": {
+                    "type": "string"
+                },
+                "suspicious": {
+                    "type": "boolean"
+                },
+                "user": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.DLLInfo": {
+            "type": "object",
+            "properties": {
+                "is_signed": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "process_id": {
+                    "type": "integer"
+                },
+                "process_name": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.DLLResponse": {
+            "type": "object",
+            "properties": {
+                "modules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.DLLInfo"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.DashboardOverview": {
+            "type": "object",
+            "properties": {
+                "alert_trend": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.TrendPoint"
+                    }
+                },
+                "alerts_last_24h": {
+                    "type": "integer"
+                },
+                "critical_alerts": {
+                    "type": "integer"
+                },
+                "database_size": {
+                    "type": "string"
+                },
+                "event_sources": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "events_last_24h": {
+                    "type": "integer"
+                },
+                "high_alerts": {
+                    "type": "integer"
+                },
+                "low_alerts": {
+                    "type": "integer"
+                },
+                "medium_alerts": {
+                    "type": "integer"
+                },
+                "recent_events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.EventSummary"
+                    }
+                },
+                "resolved_alerts": {
+                    "type": "integer"
+                },
+                "risk_score": {
+                    "type": "number"
+                },
+                "top_alerts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.AlertSummary"
+                    }
+                },
+                "total_alerts": {
+                    "type": "integer"
+                },
+                "total_events": {
+                    "type": "integer"
+                },
+                "unresolved_alerts": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.DetectResponse": {
+            "type": "object",
+            "properties": {
+                "cached": {
+                    "type": "boolean"
+                },
+                "detections": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.EnrichedDetection"
+                    }
+                },
+                "duration": {
+                    "type": "string"
+                },
+                "summary": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "total_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.DetectorConfigUpdate": {
+            "type": "object",
+            "properties": {
+                "detectors": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "enabled": {
+                                "type": "boolean"
+                            },
+                            "name": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "api.DriverInfo": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.DriverResponse": {
+            "type": "object",
+            "properties": {
+                "drivers": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.DriverInfo"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.EnrichedDetection": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "evidence": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "explanation": {
+                    "type": "string"
+                },
+                "false_positive_risk": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "mitre_ref": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "real_case": {
+                    "type": "string"
+                },
+                "recommendation": {
+                    "type": "string"
+                },
+                "recommended_action": {
+                    "type": "string"
+                },
+                "severity": {
+                    "type": "string"
+                },
+                "technique": {
+                    "type": "string"
+                },
+                "time": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.EnvVar": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.EnvVarResponse": {
+            "type": "object",
+            "properties": {
+                "total": {
+                    "type": "integer"
+                },
+                "variables": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.EnvVar"
+                    }
+                }
+            }
+        },
+        "api.ErrorResponse": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "$ref": "#/definitions/types.ErrorCode"
+                },
+                "details": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "error": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.EventSummary": {
+            "type": "object",
+            "properties": {
+                "computer": {
+                    "type": "string"
+                },
+                "event_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "level": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.EvidenceItem": {
+            "type": "object",
+            "properties": {
+                "computer": {
+                    "type": "string"
+                },
+                "event_id": {
+                    "type": "integer"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                },
+                "user": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.Evtx2CsvRequest": {
+            "type": "object",
+            "required": [
+                "file_paths"
+            ],
+            "properties": {
+                "calculate_hash": {
+                    "type": "boolean"
+                },
+                "file_paths": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "include_xml": {
+                    "type": "boolean"
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "output_dir": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.Evtx2CsvResponse": {
+            "type": "object",
+            "properties": {
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "failed_files": {
+                    "type": "integer"
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.Result"
+                    }
+                },
+                "success": {
+                    "type": "boolean"
+                },
+                "total_events": {
+                    "type": "integer"
+                },
+                "total_files": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.ExportFilters": {
+            "type": "object",
+            "properties": {
+                "computers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "end_time": {
+                    "type": "string"
+                },
+                "event_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "keywords": {
+                    "type": "string"
+                },
+                "levels": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "limit": {
+                    "type": "integer"
+                },
+                "log_names": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "start_time": {
+                    "type": "string"
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.ExportRequest": {
+            "type": "object",
+            "properties": {
+                "filters": {
+                    "$ref": "#/definitions/api.ExportFilters"
+                },
+                "format": {
+                    "description": "\"json\" | \"csv\" | \"excel\"",
+                    "type": "string"
+                }
+            }
+        },
+        "api.ExportResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "success": {
+                    "type": "boolean"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.FilterInfo": {
+            "type": "object",
+            "properties": {
+                "computers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "event_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "exclude_computers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "exclude_users": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "ip_address": {
+                    "type": "string"
+                },
+                "keywords": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "levels": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "log_names": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "sources": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.HashRequest": {
+            "type": "object",
+            "required": [
+                "path"
+            ],
+            "properties": {
+                "path": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.HashResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "file_path": {
+                    "type": "string"
+                },
+                "md5": {
+                    "type": "string"
+                },
+                "sha1": {
+                    "type": "string"
+                },
+                "sha256": {
+                    "type": "string"
+                },
+                "size": {
+                    "type": "integer"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.ImportRequest": {
+            "type": "object",
+            "required": [
+                "files"
+            ],
+            "properties": {
+                "alert_on_import": {
+                    "type": "boolean"
+                },
+                "enabled_formats": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "files": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "skip_patterns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.ImportRulesRequest": {
+            "type": "object",
+            "properties": {
+                "rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.RuleInfo"
+                    }
+                }
+            }
+        },
+        "api.ImportRulesResponse": {
+            "type": "object",
+            "properties": {
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "failed": {
+                    "type": "integer"
+                },
+                "imported": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.InstantiateTemplateRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "params": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.LateralMovement": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "event_id": {
+                    "type": "integer"
+                },
+                "ip_address": {
+                    "type": "string"
+                },
+                "mitre_attack": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "severity": {
+                    "type": "string"
+                },
+                "source_machine": {
+                    "type": "string"
+                },
+                "target_machine": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                },
+                "user": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.ListAlertsResponse": {
+            "type": "object",
+            "properties": {
+                "alerts": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.Alert"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.ListEventsResponse": {
+            "type": "object",
+            "properties": {
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.Event"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.LiveEventMessage": {
+            "type": "object",
+            "properties": {
+                "data": {},
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.LiveStats": {
+            "type": "object",
+            "properties": {
+                "alerts": {
+                    "type": "integer"
+                },
+                "events_per_sec": {
+                    "type": "number"
+                },
+                "timestamp": {
+                    "type": "string"
+                },
+                "total_events": {
+                    "type": "integer"
+                },
+                "uptime": {
+                    "$ref": "#/definitions/api.duration"
+                }
+            }
+        },
+        "api.LogCollectOptions": {
+            "type": "object",
+            "properties": {
+                "calculate_hash": {
+                    "type": "boolean"
+                },
+                "compress": {
+                    "type": "boolean"
+                },
+                "include_amcache": {
+                    "type": "boolean"
+                },
+                "include_dlls": {
+                    "type": "boolean"
+                },
+                "include_drivers": {
+                    "type": "boolean"
+                },
+                "include_logs": {
+                    "type": "boolean"
+                },
+                "include_network": {
+                    "type": "boolean"
+                },
+                "include_prefetch": {
+                    "type": "boolean"
+                },
+                "include_processes": {
+                    "type": "boolean"
+                },
+                "include_registry": {
+                    "type": "boolean"
+                },
+                "include_shimcache": {
+                    "type": "boolean"
+                },
+                "include_system_info": {
+                    "type": "boolean"
+                },
+                "include_tasks": {
+                    "type": "boolean"
+                },
+                "include_userassist": {
+                    "type": "boolean"
+                },
+                "include_users": {
+                    "type": "boolean"
+                },
+                "include_usn_journal": {
+                    "type": "boolean"
+                },
+                "output_path": {
+                    "type": "string"
+                },
+                "workers": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.LogCollectRequest": {
+            "type": "object",
+            "properties": {
+                "formats": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "options": {
+                    "$ref": "#/definitions/api.LogCollectOptions"
+                },
+                "sources": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.LogCollectResponse": {
+            "type": "object",
+            "properties": {
+                "collected_items": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer"
+                    }
+                },
+                "duration": {
+                    "type": "string"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "event_count": {
+                    "type": "integer"
+                },
+                "failed_count": {
+                    "type": "integer"
+                },
+                "hash": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "output_path": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "success_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.LogImportRequest": {
+            "type": "object",
+            "required": [
+                "files"
+            ],
+            "properties": {
+                "alert_on_import": {
+                    "type": "boolean"
+                },
+                "files": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.MachineInfo": {
+            "type": "object",
+            "properties": {
+                "domain": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "last_seen": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "os_version": {
+                    "type": "string"
+                },
+                "role": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.MarkFalsePositiveRequest": {
+            "type": "object",
+            "properties": {
+                "reason": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.MetricsResponse": {
+            "type": "object",
+            "properties": {
+                "alerts_per_hour": {
+                    "type": "number"
+                },
+                "cpu_count": {
+                    "type": "integer"
+                },
+                "events_per_minute": {
+                    "type": "number"
+                },
+                "go_version": {
+                    "type": "string"
+                },
+                "memory_usage_mb": {
+                    "type": "number"
+                },
+                "system_memory_free_mb": {
+                    "type": "number"
+                },
+                "system_memory_total_mb": {
+                    "type": "number"
+                },
+                "total_alerts": {
+                    "type": "integer"
+                },
+                "total_events": {
+                    "type": "integer"
+                },
+                "uptime_seconds": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.MultiAnalyzeResponse": {
+            "type": "object",
+            "properties": {
+                "analysis_id": {
+                    "type": "string"
+                },
+                "cross_machine_activity": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.CrossMachineActivity"
+                    }
+                },
+                "lateral_movement": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.LateralMovement"
+                    }
+                },
+                "machines": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.MachineInfo"
+                    }
+                },
+                "summary": {
+                    "type": "string"
+                },
+                "suspicious_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.NetworkConnInfo": {
+            "type": "object",
+            "properties": {
+                "local_addr": {
+                    "type": "string"
+                },
+                "local_port": {
+                    "type": "integer"
+                },
+                "pid": {
+                    "type": "integer"
+                },
+                "process_name": {
+                    "type": "string"
+                },
+                "protocol": {
+                    "type": "string"
+                },
+                "remote_addr": {
+                    "type": "string"
+                },
+                "remote_port": {
+                    "type": "integer"
+                },
+                "state": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.NetworkConnectionResponse": {
+            "type": "object",
+            "properties": {
+                "connections": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.NetworkConnInfo"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.Pagination": {
+            "type": "object",
+            "properties": {
+                "limit": {
+                    "type": "integer"
+                },
+                "offset": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.ParameterInfo": {
+            "type": "object",
+            "properties": {
+                "default": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "required": {
+                    "type": "boolean"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.PersistenceRuleUpdate": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "event_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "patterns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "suspicious_indicators": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "whitelist": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.PolicyTemplateInfo": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "mitre_mapping": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "parameters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.ParameterInfo"
+                    }
+                },
+                "policy_type": {
+                    "type": "string"
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "time_window": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.PolicyTemplateRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "params": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.ProcessDLLResponse": {
+            "type": "object",
+            "properties": {
+                "dlls": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.DLLInfo"
+                    }
+                },
+                "process_id": {
+                    "type": "integer"
+                },
+                "process_name": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.ProcessInfo": {
+            "type": "object",
+            "properties": {
+                "args": {
+                    "type": "string"
+                },
+                "command_line": {
+                    "type": "string"
+                },
+                "exe": {
+                    "type": "string"
+                },
+                "is_signed": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "pid": {
+                    "type": "integer"
+                },
+                "ppid": {
+                    "type": "integer"
+                },
+                "signature": {
+                    "$ref": "#/definitions/api.SignatureInfo"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "user": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.ProcessResponse": {
+            "type": "object",
+            "properties": {
+                "processes": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.ProcessInfo"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.QueryRequest": {
+            "type": "object",
+            "required": [
+                "sql"
+            ],
+            "properties": {
+                "limit": {
+                    "type": "integer"
+                },
+                "offset": {
+                    "type": "integer"
+                },
+                "sql": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.QueryResponse": {
+            "type": "object",
+            "properties": {
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "count": {
+                    "type": "integer"
+                },
+                "rows": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": true
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.QuickQuery": {
+            "type": "object",
+            "properties": {
+                "category": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "sql": {
+                    "type": "string"
+                },
+                "table": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.RegistryKeyInfo": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.RegistryPersistenceResponse": {
+            "type": "object",
+            "properties": {
+                "run_keys": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.RegistryKeyInfo"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.ReportInfo": {
+            "type": "object",
+            "properties": {
+                "completed_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "error": {
+                    "type": "string"
+                },
+                "file_path": {
+                    "type": "string"
+                },
+                "file_size": {
+                    "type": "integer"
+                },
+                "format": {
+                    "type": "string"
+                },
+                "generated_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.ReportRequest": {
+            "type": "object",
+            "required": [
+                "format",
+                "type"
+            ],
+            "properties": {
+                "compression": {
+                    "type": "boolean"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "end_time": {
+                    "type": "string"
+                },
+                "format": {
+                    "type": "string"
+                },
+                "include_ioc": {
+                    "type": "boolean"
+                },
+                "include_mitre": {
+                    "type": "boolean"
+                },
+                "include_raw": {
+                    "type": "boolean"
+                },
+                "language": {
+                    "description": "\"en\" or \"zh\"",
+                    "type": "string"
+                },
+                "start_time": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.ResolveAlertRequest": {
+            "type": "object",
+            "properties": {
+                "notes": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.Result": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "event_count": {
+                    "type": "integer"
+                },
+                "input_path": {
+                    "type": "string"
+                },
+                "output_path": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.RuleInfo": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "event_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "filter": {
+                    "$ref": "#/definitions/api.FilterInfo"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_custom": {
+                    "type": "boolean"
+                },
+                "levels": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "mitre_attack": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "score": {
+                    "type": "number"
+                },
+                "severity": {
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.RulesListResponse": {
+            "type": "object",
+            "properties": {
+                "enabled_count": {
+                    "type": "integer"
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "rules": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.RuleInfo"
+                    }
+                },
+                "total_count": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.RunAnalysisResponse": {
+            "type": "object",
+            "properties": {
+                "alerts_created": {
+                    "type": "integer"
+                },
+                "duration": {
+                    "type": "string"
+                },
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "events_analyzed": {
+                    "type": "integer"
+                },
+                "rules_executed": {
+                    "type": "integer"
+                },
+                "success": {
+                    "type": "boolean"
+                }
+            }
+        },
+        "api.SearchEventsRequest": {
+            "type": "object",
+            "properties": {
+                "computers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "end_time": {
+                    "type": "string"
+                },
+                "event_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "highlight": {
+                    "type": "boolean"
+                },
+                "keyword_mode": {
+                    "type": "string"
+                },
+                "keywords": {
+                    "type": "string"
+                },
+                "levels": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "log_names": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "regex": {
+                    "type": "boolean"
+                },
+                "sort_by": {
+                    "type": "string"
+                },
+                "sort_order": {
+                    "type": "string"
+                },
+                "sources": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "start_time": {
+                    "type": "string"
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.Settings": {
+            "type": "object",
+            "properties": {
+                "api_host": {
+                    "type": "string"
+                },
+                "api_port": {
+                    "type": "integer"
+                },
+                "cors_enabled": {
+                    "type": "boolean"
+                },
+                "database_path": {
+                    "type": "string"
+                },
+                "enable_alerting": {
+                    "type": "boolean"
+                },
+                "enable_auto_update": {
+                    "type": "boolean"
+                },
+                "enable_live_collection": {
+                    "type": "boolean"
+                },
+                "export_directory": {
+                    "type": "string"
+                },
+                "log_level": {
+                    "type": "string"
+                },
+                "max_events": {
+                    "type": "integer"
+                },
+                "max_import_file_size": {
+                    "type": "integer"
+                },
+                "memory_limit": {
+                    "type": "integer"
+                },
+                "parser_workers": {
+                    "type": "integer"
+                },
+                "request_timeout": {
+                    "type": "integer"
+                },
+                "retention_days": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.SignatureInfo": {
+            "type": "object",
+            "properties": {
+                "issuer": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "subject": {
+                    "type": "string"
+                },
+                "thumbprint": {
+                    "type": "string"
+                },
+                "valid_from": {
+                    "type": "string"
+                },
+                "valid_to": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.SignatureResponse": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "issuer": {
+                    "type": "string"
+                },
+                "not_after": {
+                    "type": "string"
+                },
+                "not_before": {
+                    "type": "string"
+                },
+                "signed": {
+                    "type": "boolean"
+                },
+                "signer": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "thumbprint": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.SuccessResponse": {
+            "type": "object",
+            "properties": {
+                "data": {},
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.SuppressConditionReq": {
+            "type": "object",
+            "required": [
+                "field",
+                "operator",
+                "value"
+            ],
+            "properties": {
+                "field": {
+                    "type": "string"
+                },
+                "operator": {
+                    "type": "string"
+                },
+                "value": {}
+            }
+        },
+        "api.SuppressRuleRequest": {
+            "type": "object",
+            "required": [
+                "name"
+            ],
+            "properties": {
+                "conditions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.SuppressConditionReq"
+                    }
+                },
+                "duration": {
+                    "type": "integer"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "scope": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.SuppressRuleResponse": {
+            "type": "object",
+            "properties": {
+                "conditions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.SuppressCondition"
+                    }
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "duration": {
+                    "type": "integer"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "scope": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.SystemInfo": {
+            "type": "object",
+            "properties": {
+                "architecture": {
+                    "type": "string"
+                },
+                "cpu_count": {
+                    "type": "integer"
+                },
+                "domain": {
+                    "type": "string"
+                },
+                "go_memory_usage_mb": {
+                    "type": "number"
+                },
+                "go_version": {
+                    "type": "string"
+                },
+                "hostname": {
+                    "type": "string"
+                },
+                "is_admin": {
+                    "type": "boolean"
+                },
+                "local_time": {
+                    "type": "string"
+                },
+                "memory_free_gb": {
+                    "type": "number"
+                },
+                "memory_total_gb": {
+                    "type": "number"
+                },
+                "os_name": {
+                    "type": "string"
+                },
+                "os_version": {
+                    "type": "string"
+                },
+                "system_memory_free_gb": {
+                    "type": "number"
+                },
+                "system_memory_total_gb": {
+                    "type": "number"
+                },
+                "timezone": {
+                    "type": "string"
+                },
+                "uptime_seconds": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.TableInfo": {
+            "type": "object",
+            "properties": {
+                "columns": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.ColumnInfo"
+                    }
+                },
+                "count": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.TaskInfo": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "path": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.TaskResponse": {
+            "type": "object",
+            "properties": {
+                "tasks": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.TaskInfo"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.TemplateInfo": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "is_template": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "parameters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.TemplateParamInfo"
+                    }
+                }
+            }
+        },
+        "api.TemplateParamInfo": {
+            "type": "object",
+            "properties": {
+                "default": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "options": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "required": {
+                    "type": "boolean"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.TemplateRequest": {
+            "type": "object",
+            "required": [
+                "content",
+                "name"
+            ],
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.TimelineEntry": {
+            "type": "object",
+            "properties": {
+                "alert_id": {
+                    "type": "integer"
+                },
+                "computer": {
+                    "type": "string"
+                },
+                "event_db_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "event_id": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "level": {
+                    "type": "string"
+                },
+                "log_name": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "mitre_attack": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "rule_name": {
+                    "type": "string"
+                },
+                "severity": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                },
+                "type": {
+                    "description": "\"event\" or \"alert\"",
+                    "type": "string"
+                }
+            }
+        },
+        "api.TimelineResponse": {
+            "type": "object",
+            "properties": {
+                "alert_count": {
+                    "type": "integer"
+                },
+                "entries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.TimelineEntry"
+                    }
+                },
+                "event_count": {
+                    "type": "integer"
+                },
+                "has_more": {
+                    "type": "boolean"
+                },
+                "next_offset": {
+                    "type": "integer"
+                },
+                "total_count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.TimelineStats": {
+            "type": "object",
+            "properties": {
+                "attack_chains": {
+                    "type": "integer"
+                },
+                "by_category": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "by_level": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "by_source": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "time_range": {
+                    "type": "string"
+                },
+                "top_event_ids": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "total_alerts": {
+                    "type": "integer"
+                },
+                "total_events": {
+                    "type": "integer"
+                }
+            }
+        },
+        "api.TrendPoint": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "date": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.UEBARequest": {
+            "type": "object",
+            "properties": {
+                "end_time": {
+                    "type": "string"
+                },
+                "hours": {
+                    "type": "integer"
+                },
+                "start_time": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.UEBAResult": {
+            "type": "object",
+            "properties": {
+                "anomalies": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/ueba.AnomalyResult"
+                    }
+                },
+                "duration": {
+                    "type": "string"
+                },
+                "high_risk_count": {
+                    "type": "integer"
+                },
+                "medium_risk_count": {
+                    "type": "integer"
+                },
+                "total_anomaly": {
+                    "type": "integer"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.UpdateRuleRequest": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "event_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "filter": {
+                    "$ref": "#/definitions/api.FilterInfo"
+                },
+                "levels": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "mitre_attack": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "score": {
+                    "type": "number"
+                },
+                "severity": {
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.UserInfo": {
+            "type": "object",
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                },
+                "full_name": {
+                    "type": "string"
+                },
+                "home_dir": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "sid": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.UserResponse": {
+            "type": "object",
+            "properties": {
+                "total": {
+                    "type": "integer"
+                },
+                "users": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/api.UserInfo"
+                    }
+                }
+            }
+        },
+        "api.ValidateRuleRequest": {
+            "type": "object",
+            "properties": {
+                "content": {
+                    "type": "string"
+                },
+                "rule": {
+                    "$ref": "#/definitions/api.RuleInfo"
+                }
+            }
+        },
+        "api.ValidateRuleResponse": {
+            "type": "object",
+            "properties": {
+                "errors": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "valid": {
+                    "type": "boolean"
+                },
+                "warnings": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
+        "api.duration": {
+            "type": "integer",
+            "format": "int64",
+            "enum": [
+                -9223372036854775808,
+                9223372036854775807,
+                1,
+                1000,
+                1000000,
+                1000000000,
+                60000000000,
+                3600000000000
+            ],
+            "x-enum-varnames": [
+                "minDuration",
+                "maxDuration",
+                "Nanosecond",
+                "Microsecond",
+                "Millisecond",
+                "Second",
+                "Minute",
+                "Hour"
+            ]
+        },
+        "github_com_kkkdddd-start_winalog-go_internal_types.Severity": {
+            "type": "string",
+            "enum": [
+                "critical",
+                "high",
+                "medium",
+                "low",
+                "info"
+            ],
+            "x-enum-varnames": [
+                "SeverityCritical",
+                "SeverityHigh",
+                "SeverityMedium",
+                "SeverityLow",
+                "SeverityInfo"
+            ]
+        },
+        "types.Alert": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "event_db_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "event_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "false_positive": {
+                    "type": "boolean"
+                },
+                "first_seen": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "last_seen": {
+                    "type": "string"
+                },
+                "log_name": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "mitre_attack": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "resolved": {
+                    "type": "boolean"
+                },
+                "resolved_time": {
+                    "type": "string"
+                },
+                "rule_name": {
+                    "type": "string"
+                },
+                "rule_score": {
+                    "type": "number"
+                },
+                "severity": {
+                    "$ref": "#/definitions/github_com_kkkdddd-start_winalog-go_internal_types.Severity"
+                }
+            }
+        },
+        "types.AlertStats": {
+            "type": "object",
+            "properties": {
+                "avg_per_day": {
+                    "type": "number"
+                },
+                "by_rule": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.RuleCount"
+                    }
+                },
+                "by_severity": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "by_status": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "integer",
+                        "format": "int64"
+                    }
+                },
+                "rule_score_avg": {
+                    "type": "number"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "trend": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.TrendPoint"
+                    }
+                }
+            }
+        },
+        "types.AlertTrend": {
+            "type": "object",
+            "properties": {
+                "by_day_of_week": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.TrendPoint"
+                    }
+                },
+                "by_hour": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.TrendPoint"
+                    }
+                },
+                "daily": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.TrendPoint"
+                    }
+                },
+                "weekly": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.TrendPoint"
+                    }
+                }
+            }
+        },
+        "types.ErrorCode": {
+            "type": "string",
+            "enum": [
+                "SUCCESS",
+                "INTERNAL_ERROR",
+                "INVALID_PARAM",
+                "INVALID_REQUEST",
+                "INVALID_QUERY",
+                "NOT_FOUND",
+                "EVENT_NOT_FOUND",
+                "ALERT_NOT_FOUND",
+                "ALERT_ALREADY_RESOLVED",
+                "UNAUTHORIZED",
+                "PARSE_FAILED",
+                "IMPORT_FAILED",
+                "FILE_NOT_FOUND",
+                "FILE_LOCKED",
+                "INVALID_FORMAT",
+                "DB_ERROR",
+                "DB_READ_ONLY",
+                "RULE_INVALID",
+                "RULE_NOT_FOUND",
+                "RULE_DISABLED",
+                "SEARCH_FAILED",
+                "RESULT_TOO_LARGE",
+                "HASH_MISMATCH",
+                "SIGNATURE_INVALID",
+                "NOT_SUPPORTED"
+            ],
+            "x-enum-varnames": [
+                "ErrCodeSuccess",
+                "ErrCodeInternalError",
+                "ErrCodeInvalidParam",
+                "ErrCodeInvalidRequest",
+                "ErrCodeInvalidQuery",
+                "ErrCodeNotFound",
+                "ErrCodeEventNotFound",
+                "ErrCodeAlertNotFound",
+                "ErrCodeAlertAlreadyResolved",
+                "ErrCodeUnauthorized",
+                "ErrCodeParseFailed",
+                "ErrCodeImportFailed",
+                "ErrCodeFileNotFound",
+                "ErrCodeFileLocked",
+                "ErrCodeInvalidFormat",
+                "ErrCodeDBError",
+                "ErrCodeDBReadOnly",
+                "ErrCodeRuleInvalid",
+                "ErrCodeRuleNotFound",
+                "ErrCodeRuleDisabled",
+                "ErrCodeSearchFailed",
+                "ErrCodeResultTooLarge",
+                "ErrCodeHashMismatch",
+                "ErrCodeSignatureInvalid",
+                "ErrCodeNotSupported"
+            ]
+        },
+        "types.Event": {
+            "type": "object",
+            "properties": {
+                "computer": {
+                    "type": "string"
+                },
+                "event_id": {
+                    "type": "integer"
+                },
+                "extracted_fields": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "import_id": {
+                    "type": "integer"
+                },
+                "import_time": {
+                    "type": "string"
+                },
+                "ip_address": {
+                    "type": "string"
+                },
+                "level": {
+                    "$ref": "#/definitions/types.EventLevel"
+                },
+                "log_name": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "raw_xml": {
+                    "type": "string"
+                },
+                "session_id": {
+                    "type": "string"
+                },
+                "source": {
+                    "type": "string"
+                },
+                "timestamp": {
+                    "type": "string"
+                },
+                "user": {
+                    "type": "string"
+                },
+                "user_sid": {
+                    "type": "string"
+                }
+            }
+        },
+        "types.EventLevel": {
+            "type": "string",
+            "enum": [
+                "Critical",
+                "Error",
+                "Warning",
+                "Info",
+                "Verbose"
+            ],
+            "x-enum-varnames": [
+                "EventLevelCritical",
+                "EventLevelError",
+                "EventLevelWarning",
+                "EventLevelInfo",
+                "EventLevelVerbose"
+            ]
+        },
+        "types.RuleCount": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "percentage": {
+                    "type": "number"
+                },
+                "rule_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "types.SearchResponse": {
+            "type": "object",
+            "properties": {
+                "events": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/types.Event"
+                    }
+                },
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "query_time_ms": {
+                    "type": "integer"
+                },
+                "total": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "types.SuppressCondition": {
+            "type": "object",
+            "properties": {
+                "field": {
+                    "type": "string"
+                },
+                "operator": {
+                    "type": "string"
+                },
+                "value": {}
+            }
+        },
+        "types.TrendPoint": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "date": {
+                    "type": "string"
+                }
+            }
+        },
+        "ueba.AnomalyResult": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "details": {
+                    "type": "object",
+                    "additionalProperties": true
+                },
+                "end_time": {
+                    "type": "string"
+                },
+                "entity": {
+                    "type": "string"
+                },
+                "event_ids": {
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
+                "score": {
+                    "type": "number"
+                },
+                "severity": {
+                    "type": "string"
+                },
+                "start_time": {
+                    "type": "string"
+                },
+                "type": {
+                    "$ref": "#/definitions/ueba.AnomalyType"
+                },
+                "user": {
+                    "type": "string"
+                }
+            }
+        },
+        "ueba.AnomalyType": {
+            "type": "string",
+            "enum": [
+                "impossible_travel",
+                "abnormal_behavior",
+                "abnormal_hours",
+                "unusual_hours",
+                "new_location",
+                "privilege_escalation",
+                "brute_force",
+                "data_exfiltration"
+            ],
+            "x-enum-varnames": [
+                "AnomalyTypeImpossibleTravel",
+                "AnomalyTypeAbnormalBehavior",
+                "AnomalyTypeAbnormalHours",
+                "AnomalyTypeUnusualHours",
+                "AnomalyTypeNewLocation",
+                "AnomalyTypePrivilegeEscalation",
+                "AnomalyTypeBruteForce",
+                "AnomalyTypeDataExfiltration"
+            ]
+        }
+    }
+}
