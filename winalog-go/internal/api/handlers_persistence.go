@@ -107,6 +107,16 @@ func NewPersistenceHandler(db *storage.DB) *PersistenceHandler {
 				config.Whitelist = userWhitelist
 			}
 
+			dllWhitelist := whitelistStore.GetBuiltinDllWhitelist(detectorName)
+			if dllWhitelist != nil {
+				config.BuiltinDllWhitelist = dllWhitelist
+			}
+
+			clsidsWhitelist := whitelistStore.GetBuiltinClsidsWhitelist(detectorName)
+			if clsidsWhitelist != nil {
+				config.BuiltinClsidsWhitelist = clsidsWhitelist
+			}
+
 			if err := engine.SetDetectorConfig(detectorName, &persistence.DetectorConfig{
 				Enabled:               config.Enabled,
 				EventIDs:              config.EventIDs,
