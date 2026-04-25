@@ -479,15 +479,15 @@ foreach ($p in $paths) {
 	$sig = Get-AuthenticodeSignature -FilePath $p -ErrorAction SilentlyContinue
 	$status = if ($sig.Status -eq 'Valid') { 'Valid' } else { 'Invalid' }
 	if ($sig.SignerCertificate) {
-		$signer = $sig.SignerCertificate.Subject -replace '"', '\"'
-		$issuer = $sig.SignerCertificate.Issuer -replace '"', '\"'
+		$signer = $sig.SignerCertificate.Subject
+		$issuer = $sig.SignerCertificate.Issuer
 		$thumbprint = $sig.SignerCertificate.Thumbprint
 		$validFrom = $sig.SignerCertificate.NotBefore.ToString('o')
 		$validTo = $sig.SignerCertificate.NotAfter.ToString('o')
 	} else {
 		$signer = $issuer = $thumbprint = $validFrom = $validTo = ''
 	}
-	$json = "{`"p`":`"$p`",`"s`":`"$status`",`"si`":`"$signer`",`"i`":`"$issuer`",`"t`":`"$thumbprint`",`"vf`":`"$validFrom`",`"vt`":`"$validTo`"}"
+	$json = '{"p":"' + $p + '","s":"' + $status + '","si":"' + $signer + '","i":"' + $issuer + '","t":"' + $thumbprint + '","vf":"' + $validFrom + '","vt":"' + $validTo + '"}'
 	Write-Output $json
 }`
 
