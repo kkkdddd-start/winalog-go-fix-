@@ -487,8 +487,16 @@ foreach ($p in $paths) {
 	} else {
 		$signer = $issuer = $thumbprint = $validFrom = $validTo = ''
 	}
-	$json = '{"p":"' + $p + '","s":"' + $status + '","si":"' + $signer + '","i":"' + $issuer + '","t":"' + $thumbprint + '","vf":"' + $validFrom + '","vt":"' + $validTo + '"}'
-	Write-Output $json
+	$obj = @{
+		p = $p
+		s = $status
+		si = $signer
+		i = $issuer
+		t = $thumbprint
+		vf = $validFrom
+		vt = $validTo
+	}
+	Write-Output ($obj | ConvertTo-Json -Compress -EscapeHandling EscapeNonAscii)
 }`
 
 		psPaths := strings.Join(batch, "','")
