@@ -363,6 +363,7 @@ func parseChannelFilePaths(output string) ([]LogChannelInfo, error) {
 			decodedLogPath := logPath
 			decodedLogPath = strings.ReplaceAll(decodedLogPath, "%2F", "/")
 			decodedLogPath = strings.ReplaceAll(decodedLogPath, "%4", "/")
+			decodedLogPath = strings.ReplaceAll(decodedLogPath, "/", "\\")
 			channels = append(channels, LogChannelInfo{
 				Name:    decodedName,
 				LogPath: decodedLogPath,
