@@ -5553,3 +5553,15 @@ tr.unsigned-process:hover {
 .toggle-switch-small input:checked + .toggle-slider-small:before {
   transform: translateX(16px);
 }
+
+/* Hide toggle sliders in systeminfo page to prevent UI coverage */
+.systeminfo-page .toggle-slider,
+.systeminfo-page .toggle-slider:before {
+  display: none !important;
+}
+
+.systeminfo-page .module-toggle {
+  width: 0;
+  height: 0;
+  margin: 0;
+}
