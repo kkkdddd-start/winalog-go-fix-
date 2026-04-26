@@ -179,9 +179,9 @@ export interface ImportHistoryResponse {
 
 export const importAPI = {
   importLogs: (filePaths: string[], options?: ImportOptions) =>
-    api.post('/import/logs', { files: filePaths, ...options }),
+    api.post('/import/logs', { files: filePaths, ...options }, { timeout: 1800000 }),
   importLogsWithAlert: (filePaths: string[]) =>
-    api.post('/import/logs', { files: filePaths, alert_on_import: true }),
+    api.post('/import/logs', { files: filePaths, alert_on_import: true }, { timeout: 1800000 }),
   getStatus: (path: string) =>
     api.get(`/import/status?path=${encodeURIComponent(path)}`),
   getHistory: (params?: { limit?: number; offset?: number }) => {
