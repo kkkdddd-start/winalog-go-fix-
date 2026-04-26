@@ -149,9 +149,6 @@ export function useLiveEvents(options: UseLiveEventsOptions = {}) {
     } else {
       disconnect();
     }
-    return () => {
-      disconnect();
-    };
   }, [enabled]);
 
   const clearEvents = useCallback(() => {
