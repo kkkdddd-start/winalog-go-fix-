@@ -56,8 +56,8 @@ func (s *WhitelistStore) Load() error {
 }
 
 func (s *WhitelistStore) Save() error {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	if err := os.MkdirAll(s.dir, 0755); err != nil {
 		return err
