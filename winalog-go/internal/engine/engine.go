@@ -349,7 +349,7 @@ type ImportRequest struct {
 
 func decodeEvtxPath(path string) string {
 	path = strings.ReplaceAll(path, "%2F", "/")
-	path = strings.ReplaceAll(path, "%4", "/")
+	path = strings.ReplaceAll(path, "%5C", "\\")
 	path = strings.ReplaceAll(path, "/", "\\")
 	return path
 }
