@@ -3,6 +3,7 @@
 package persistence
 
 import (
+	"os"
 	"strings"
 	"sync"
 )
@@ -78,11 +79,15 @@ func (w *Whitelist) IsAllowedByType(key string, wtype WhitelistType) bool {
 }
 
 func (w *Whitelist) keyMatches(input, pattern string) bool {
+	patternExpanded := os.ExpandEnv(pattern)
+	patternLower := strings.ToLower(patternExpanded)
+	inputLower := strings.ToLower(input)
+
 	if strings.Contains(pattern, "*") {
-		prefix := strings.TrimSuffix(pattern, "*")
-		return strings.HasPrefix(input, prefix)
+		prefix := strings.TrimSuffix(patternLower, "*")
+		return strings.HasPrefix(inputLower, prefix)
 	}
-	return input == pattern
+	return inputLower == patternLower
 }
 
 func (w *Whitelist) ensureLoaded() {
