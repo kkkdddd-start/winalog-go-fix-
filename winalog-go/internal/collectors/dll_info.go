@@ -4,6 +4,7 @@ package collectors
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -174,7 +175,14 @@ func ListLoadedDLLs() ([]DLLModuleInfo, error) {
 		log.Printf("[INFO] [DLL] Collecting signatures for %d DLLs...", len(dlls))
 		sigMap := batchGetDLLSignatures(dlls)
 		for i := range dlls {
-			if sig, ok := sigMap[dlls[i].Path]; ok {
+			dllPath := dlls[i].Path
+			if sig, ok := sigMap[dllPath]; ok {
+				dlls[i].IsSigned = sig.IsSigned
+				dlls[i].Signer = sig.Signer
+			} else if sig, ok := sigMap[strings.ToLower(dllPath)]; ok {
+				dlls[i].IsSigned = sig.IsSigned
+				dlls[i].Signer = sig.Signer
+			} else if sig, ok := sigMap[strings.ToUpper(dllPath)]; ok {
 				dlls[i].IsSigned = sig.IsSigned
 				dlls[i].Signer = sig.Signer
 			}
@@ -228,7 +236,7 @@ foreach ($p in $paths) {
 	if ($sig.Status -eq 'Valid') { $status = 'Signed' }
 	if ($sig.SignerCertificate) { $signer = $sig.SignerCertificate.Subject }
 	[PSCustomObject]@{
-		p = $p
+		p = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($p))
 		s = $status
 		si = $signer
 	}
@@ -253,6 +261,7 @@ foreach ($p in $paths) {
 
 		if strings.HasPrefix(cmdResult.Output, "[") {
 			if err := json.Unmarshal([]byte(cmdResult.Output), &sigResults); err != nil {
+				log.Printf("[WARN] [DLL] batchGetDLLSignatures: JSON parse error: %v", err)
 				continue
 			}
 		} else if strings.HasPrefix(cmdResult.Output, "{") {
@@ -267,7 +276,13 @@ foreach ($p in $paths) {
 		}
 
 		for _, sr := range sigResults {
-			result[sr.P] = DLLSignature{
+			pathBytes, err := base64.StdEncoding.DecodeString(sr.P)
+			if err != nil {
+				log.Printf("[WARN] [DLL] batchGetDLLSignatures: base64 decode error: %v, path: %s", err, sr.P)
+				continue
+			}
+			decodedPath := string(pathBytes)
+			result[decodedPath] = DLLSignature{
 				IsSigned: sr.S == "Signed",
 				Signer:   sr.Si,
 			}
