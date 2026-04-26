@@ -212,6 +212,10 @@ func (d *AppInitDetector) checkAppInit(basePath string) *Detection {
 func (d *AppInitDetector) isSuspiciousDLL(dll string) bool {
 	dllLower := strings.ToLower(dll)
 
+	if GlobalWhitelist.IsAllowed(dllLower) {
+		return false
+	}
+
 	if d.isWhitelisted(dllLower) {
 		return false
 	}

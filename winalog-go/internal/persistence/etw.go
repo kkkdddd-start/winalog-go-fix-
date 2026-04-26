@@ -266,6 +266,10 @@ func (d *ETWDetector) analyzeConsumerBinding(binding ETWConsumerBinding) *Detect
 func (d *ETWDetector) isSuspiciousProvider(name string) bool {
 	nameLower := strings.ToLower(name)
 
+	if GlobalWhitelist.IsAllowed(nameLower) {
+		return false
+	}
+
 	if d.isWhitelisted(nameLower) {
 		return false
 	}

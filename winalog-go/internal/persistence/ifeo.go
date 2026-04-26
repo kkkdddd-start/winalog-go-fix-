@@ -199,6 +199,10 @@ func (d *IFEODetector) analyzeIFEOTarget(target IFEOTarget) *Detection {
 		return nil
 	}
 
+	if GlobalWhitelist.IsAllowed(target.Debugger) {
+		return nil
+	}
+
 	if d.isWhitelisted(target.Debugger) {
 		return nil
 	}

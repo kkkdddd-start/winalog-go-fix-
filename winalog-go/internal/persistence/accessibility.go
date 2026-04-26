@@ -201,6 +201,10 @@ func (d *AccessibilityDetector) DetectViaEventLog(ctx context.Context, taskName,
 func (d *AccessibilityDetector) isSuspiciousTaskCommand(command string) bool {
 	commandLower := strings.ToLower(command)
 
+	if GlobalWhitelist.IsAllowed(commandLower) {
+		return false
+	}
+
 	if d.isWhitelisted(commandLower) {
 		return false
 	}

@@ -354,6 +354,10 @@ func (d *WMIPersistenceDetector) analyzeBinding(binding WMIBinding) *Detection {
 func (d *WMIPersistenceDetector) isSuspiciousCommand(command string) bool {
 	commandLower := strings.ToLower(command)
 
+	if GlobalWhitelist.IsAllowed(commandLower) {
+		return false
+	}
+
 	if d.isWhitelisted(commandLower) {
 		return false
 	}

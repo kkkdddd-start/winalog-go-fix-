@@ -22,6 +22,9 @@ const (
 	WhitelistTypeCOM
 	WhitelistTypeWMI
 	WhitelistTypeScheduledTask
+	WhitelistTypeIFEO
+	WhitelistTypeETW
+	WhitelistTypeAppCert
 )
 
 type WhitelistEntry struct {
@@ -102,6 +105,11 @@ func (w *Whitelist) LoadDefaults() {
 	w.addBootExecuteWhitelist()
 	w.addAccessibilityWhitelist()
 	w.addScheduledTaskWhitelist()
+	w.addWMIPersistenceWhitelist()
+	w.addAppInitWhitelist()
+	w.addIFEOPersistenceWhitelist()
+	w.addETWPersistenceWhitelist()
+	w.addAppCertPersistenceWhitelist()
 
 	w.loaded = true
 }
@@ -500,4 +508,139 @@ func (w *Whitelist) addScheduledTaskWhitelist() {
 	}
 
 	w.Add("*\\Microsoft\\Windows\\*", WhitelistTypeScheduledTask, "Microsoft Official Tasks", "microsoft")
+}
+
+func (w *Whitelist) addWMIPersistenceWhitelist() {
+	knownBenignWMIConsumers := []struct {
+		name   string
+		reason string
+	}{
+		{"Baseline", "WMI Baseline"},
+		{"MicrosoftWmiDevFwEvent", "Microsoft Firewall"},
+		{"MS_SystemCompliance", "System Compliance"},
+		{"Office妖魔Task", "Office"},
+		{"TempSignedBaseLine", "Signed Baseline"},
+	}
+
+	for _, item := range knownBenignWMIConsumers {
+		w.Add(item.name, WhitelistTypeWMI, item.reason, "microsoft")
+	}
+}
+
+func (w *Whitelist) addAppInitWhitelist() {
+	knownBenignAppInitDLLs := []struct {
+		dll    string
+		reason string
+	}{
+		{"acuapi.dll", "ACU API"},
+		{"autheng.dll", "Authentication Engine"},
+		{"authfwcfg.dll", "Authentication Firewall Config"},
+		{"bfgateway.dll", "BlueFence Gateway"},
+		{"cngaudit.dll", "CNG Audit"},
+		{"cred SSP", "Credential Security Support Provider"},
+		{"cryptbase.dll", "Cryptographic Base"},
+		{"cryptnet.dll", "Cryptographic Network"},
+		{"cryptngc.dll", "Cryptographic NGC"},
+		{"dbnetlib.dll", "DB Net Library"},
+		{"dwapi.dll", "DW API"},
+		{"fwbase.dll", "Firewall Base"},
+		{"gpkcsp.dll", "GPK CSP"},
+		{"ipamExtAI.dll", "IPAM Extension"},
+		{"keyiso.dll", "Key Isolation"},
+		{"mscms.dll", "Microsoft Color Management"},
+		{"msctf.dll", "MS Text Framework"},
+		{"msim32.dll", "MS IM"},
+		{"mspatcha.dll", "MS Patch"},
+		{"netapi32.dll", "Net API"},
+		{"netjoin.dll", "Net Join"},
+		{"pku2u.dll", "PKU2U"},
+		{"ralsoup.dll", "RALSoup"},
+		{"scc base.dll", "SCC Base"},
+		{"schannel.dll", "Schannel"},
+		{"setupkeyb.dll", "Setup Keyboard"},
+		{"slc.dll", "Software Licensing"},
+		{"spnetcfg.dll", "SP Network Config"},
+		{"stclient.dll", "ST Client"},
+		{"tbcbase.dll", "TBC Base"},
+		{"tbs.dll", "TBS"},
+		{"un雷keyb.dll", "Uninstall Keyboard"},
+		{"w32keyb.dll", "Windows Keyboard"},
+		{"winbrand.dll", "Windows Brand"},
+		{"wldp.dll", "Windows Lockdown Policy"},
+		{"wlidres.dll", "Windows Live ID"},
+	}
+
+	for _, item := range knownBenignAppInitDLLs {
+		w.Add(item.dll, WhitelistTypeAppInit, item.reason, "microsoft")
+	}
+}
+
+func (w *Whitelist) addIFEOPersistenceWhitelist() {
+	knownBenignIFEODebuggers := []struct {
+		debugger string
+		reason   string
+	}{
+		{"msgirl.dll", "Microsoft Debugger"},
+		{"Ole32.dll", "OLE32"},
+		{"wminet_utils.dll", "WMI NET Utils"},
+	}
+
+	for _, item := range knownBenignIFEODebuggers {
+		w.Add(item.debugger, WhitelistTypeIFEO, item.reason, "microsoft")
+	}
+}
+
+func (w *Whitelist) addETWPersistenceWhitelist() {
+	knownBenignETWProviders := []struct {
+		provider string
+		reason   string
+	}{
+		{"Microsoft-Windows-ESE", "Extensible Storage Engine"},
+		{"Microsoft-Windows-EventLog", "Windows Event Log"},
+		{"Microsoft-Windows-Kernel-File", "Kernel File"},
+		{"Microsoft-Windows-Kernel-Registry", "Kernel Registry"},
+		{"Microsoft-Windows-NDIS", "Network Driver Interface"},
+		{"Microsoft-Windows-NTLM", "NTLM"},
+		{"Microsoft-Windows-PI", "Performance Instrument"},
+		{"Microsoft-Windows-PowerShell", "PowerShell"},
+		{"Microsoft-Windows-RPC", "RPC"},
+		{"Microsoft-Windows-Security-Auditing", "Security Auditing"},
+		{"Microsoft-Windows-SMBServer", "SMB Server"},
+		{"Microsoft-Windows-TCPIP", "TCP/IP"},
+		{"Microsoft-Windows-WER-SystemErrorReporting", "WER System Error"},
+		{"Microsoft-Windows-WinINet", "Windows Internet"},
+		{"Microsoft-Windows-Wired-AutoConfig", "Wired AutoConfig"},
+		{"Microsoft-Windows-WLAN-AutoConfig", "WLAN AutoConfig"},
+		{"Microsoft-Windows-WMI", "WMI"},
+		{"Microsoft-Windows-Wordpad", "Wordpad"},
+	}
+
+	for _, item := range knownBenignETWProviders {
+		w.Add(item.provider, WhitelistTypeETW, item.reason, "microsoft")
+	}
+}
+
+func (w *Whitelist) addAppCertPersistenceWhitelist() {
+	knownBenignAppCertDLLs := []struct {
+		dll    string
+		reason string
+	}{
+		{"auditcse.dll", "Audit CSE"},
+		{"autheng.dll", "Authentication Engine"},
+		{"authfwcfg.dll", "Authentication Firewall Config"},
+		{"cryptbase.dll", "Cryptographic Base"},
+		{"cryptngc.dll", "Cryptographic NGC"},
+		{"keyiso.dll", "Key Isolation"},
+		{"msctf.dll", "MS Text Framework"},
+		{"netapi32.dll", "Net API"},
+		{"pku2u.dll", "PKU2U"},
+		{"schannel.dll", "Schannel"},
+		{"tbs.dll", "TBS"},
+		{"wdigest.dll", "WDigest"},
+		{"wldp.dll", "Windows Lockdown Policy"},
+	}
+
+	for _, item := range knownBenignAppCertDLLs {
+		w.Add(item.dll, WhitelistTypeAppCert, item.reason, "microsoft")
+	}
 }

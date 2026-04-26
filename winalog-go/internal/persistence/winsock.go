@@ -88,6 +88,10 @@ func (d *WinsockDetector) isSuspicious(entry WinsockEntry) bool {
 		return false
 	}
 
+	if GlobalWhitelist.IsAllowed(entry.Value) {
+		return false
+	}
+
 	if d.isWhitelisted(entry.Value) {
 		return false
 	}

@@ -184,6 +184,10 @@ func (d *RunKeyDetector) enumerateRunKey(keyPath string) ([]RunKeyEntry, error) 
 func (d *RunKeyDetector) isSuspicious(value string) bool {
 	valueLower := strings.ToLower(value)
 
+	if GlobalWhitelist.IsAllowed(valueLower) {
+		return false
+	}
+
 	if d.isWhitelisted(valueLower) {
 		return false
 	}
