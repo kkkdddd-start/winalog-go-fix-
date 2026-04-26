@@ -115,7 +115,138 @@ type PersistenceQueryRequest struct {
 }
 
 func (r *PersistenceDetectionRepo) Query(req *PersistenceQueryRequest) ([]*persistence.Detection, int64, error) {
-	return nil, 0, nil
+	if req == nil {
+		return nil, 0, fmt.Errorf("query request cannot be nil")
+	}
+
+	conditions := []string{}
+	args := []interface{}{}
+
+	if req.Technique != "" {
+		conditions = append(conditions, "technique = ?")
+		args = append(args, req.Technique)
+	}
+	if req.Category != "" {
+		conditions = append(conditions, "category = ?")
+		args = append(args, req.Category)
+	}
+	if req.Severity != "" {
+		conditions = append(conditions, "severity = ?")
+		args = append(args, req.Severity)
+	}
+	if req.StartTime != "" {
+		conditions = append(conditions, "detected_at >= ?")
+		args = append(args, req.StartTime)
+	}
+	if req.EndTime != "" {
+		conditions = append(conditions, "detected_at <= ?")
+		args = append(args, req.EndTime)
+	}
+	if req.IsTruePositive >= 0 {
+		conditions = append(conditions, "is_true_positive = ?")
+		args = append(args, req.IsTruePositive)
+	}
+
+	whereClause := ""
+	if len(conditions) > 0 {
+		whereClause = " WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	countQuery := "SELECT COUNT(*) FROM persistence_detections" + whereClause
+	var total int64
+	if err := r.db.QueryRow(countQuery, args...).Scan(&total); err != nil {
+		return nil, 0, fmt.Errorf("count query failed: %w", err)
+	}
+
+	limit := req.Limit
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+	offset := req.Offset
+	if offset < 0 {
+		offset = 0
+	}
+
+	query := fmt.Sprintf(`SELECT id, detection_id, technique, category, severity, title, description,
+		evidence_type, evidence_path, evidence_key, evidence_value,
+		evidence_file_path, evidence_command, mitre_ref, recommended_action,
+		false_positive_risk, detected_at, is_true_positive, notes, created_at
+		FROM persistence_detections%s
+		ORDER BY detected_at DESC
+		LIMIT ? OFFSET ?`, whereClause)
+
+	queryArgs := make([]interface{}, 0, len(args)+2)
+	queryArgs = append(queryArgs, args...)
+	queryArgs = append(queryArgs, limit, offset)
+
+	rows, err := r.db.Query(query, queryArgs...)
+	if err != nil {
+		return nil, 0, fmt.Errorf("query failed: %w", err)
+	}
+	defer rows.Close()
+
+	detections := make([]*persistence.Detection, 0)
+	for rows.Next() {
+		var detection persistence.Detection
+		var evidence persistence.Evidence
+		var detectedAt string
+		var detectionID, technique, category, severity, title, description string
+		var evidenceType, evidencePath, evidenceKey, evidenceValue string
+		var evidenceFilePath, evidenceCommand, mitreRef string
+		var recommendedAction, falsePositiveRisk string
+		var isTruePositive int
+		var notes string
+
+		err := rows.Scan(
+			&detection.ID,
+			&detectionID,
+			&technique,
+			&category,
+			&severity,
+			&title,
+			&description,
+			&evidenceType,
+			&evidencePath,
+			&evidenceKey,
+			&evidenceValue,
+			&evidenceFilePath,
+			&evidenceCommand,
+			&mitreRef,
+			&recommendedAction,
+			&falsePositiveRisk,
+			&detectedAt,
+			&isTruePositive,
+			&notes,
+		)
+		if err != nil {
+			continue
+		}
+
+		detection.ID = detectionID
+		detection.Technique = persistence.Technique(technique)
+		detection.Category = category
+		detection.Severity = persistence.Severity(severity)
+		detection.Title = title
+		detection.Description = description
+		evidence.Type = persistence.EvidenceType(evidenceType)
+		evidence.Path = evidencePath
+		evidence.Key = evidenceKey
+		evidence.Value = evidenceValue
+		evidence.FilePath = evidenceFilePath
+		evidence.Command = evidenceCommand
+		detection.Evidence = evidence
+		detection.MITRERef = strings.Split(mitreRef, ",")
+		detection.RecommendedAction = recommendedAction
+		detection.FalsePositiveRisk = falsePositiveRisk
+
+		if t, err := time.Parse(time.RFC3339, detectedAt); err == nil {
+			detection.Time = t
+		}
+
+		detections = append(detections, &detection)
+	}
+
+	return detections, total, nil
 }
 
 func (r *PersistenceDetectionRepo) MarkTruePositive(detectionID string, isTruePositive bool, notes string) error {

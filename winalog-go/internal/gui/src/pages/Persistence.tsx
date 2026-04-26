@@ -410,21 +410,31 @@ function Persistence() {
       alert(t('persistence.exportNoData'))
       return
     }
+
+    const escapeCSV = (str: string): string => {
+      if (str == null || str === '') return ''
+      let escaped = String(str)
+      if (/^[=+\-@\t\r]/.test(escaped)) {
+        escaped = "'" + escaped
+      }
+      return `"${escaped.replace(/"/g, '""')}"`
+    }
+
     const headers = ['Time', 'Technique', 'Category', 'Severity', 'Title', 'Description', 'Evidence Type', 'Evidence Key', 'Evidence Value', 'Recommended Action', 'False Positive Risk']
     const csvContent = [
-      headers.join(','),
+      headers.map(h => escapeCSV(h)).join(','),
       ...filteredDetections.map(d => [
-        d.time || '',
-        d.technique || '',
-        d.category || '',
-        d.severity || '',
-        `"${(d.title || '').replace(/"/g, '""')}"`,
-        `"${(d.description || '').replace(/"/g, '""')}"`,
-        d.evidence?.type || '',
-        `"${(d.evidence?.key || '').replace(/"/g, '""')}"`,
-        `"${(d.evidence?.value || '').replace(/"/g, '""')}"`,
-        `"${(d.recommended_action || '').replace(/"/g, '""')}"`,
-        d.false_positive_risk || '',
+        escapeCSV(d.time || ''),
+        escapeCSV(d.technique || ''),
+        escapeCSV(d.category || ''),
+        escapeCSV(d.severity || ''),
+        escapeCSV(d.title || ''),
+        escapeCSV(d.description || ''),
+        escapeCSV(d.evidence?.type || ''),
+        escapeCSV(d.evidence?.key || ''),
+        escapeCSV(d.evidence?.value || ''),
+        escapeCSV(d.recommended_action || ''),
+        escapeCSV(d.false_positive_risk || ''),
       ].join(','))
     ].join('\n')
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })

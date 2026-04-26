@@ -477,7 +477,7 @@ func batchGetProcessSignatures(paths map[uint32]string) map[uint32]*ProcessSigna
 
 		script := `$paths = @('%s')
 foreach ($p in $paths) {
-	$sig = Get-AuthenticodeSignature -FilePath $p -ErrorAction SilentlyContinue
+	$sig = Get-AuthenticodeSignature -LiteralPath $p -ErrorAction SilentlyContinue
 	$status = if ($sig.Status -eq 'Valid') { 'Valid' } else { 'Invalid' }
 	if ($sig.SignerCertificate) {
 		$signer = $sig.SignerCertificate.Subject

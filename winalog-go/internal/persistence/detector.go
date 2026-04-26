@@ -96,7 +96,13 @@ func (e *DetectionEngine) Detect(ctx context.Context) *DetectionResult {
 		wg.Add(1)
 		log.Printf("[DEBUG] Running detector: %s", name)
 		go func(name string, d Detector) {
-			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("[ERROR] Detector %s panicked: %v", name, r)
+					errorChan <- fmt.Sprintf("%s: panic: %v", name, r)
+				}
+				wg.Done()
+			}()
 
 			detections, err := d.Detect(ctx)
 			if err != nil {

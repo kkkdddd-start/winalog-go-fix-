@@ -21,8 +21,18 @@ import (
 	"golang.org/x/sys/windows"
 )
 
+const (
+	dllCacheMaxSize = 10000
+	dllCacheTTL     = 30 * time.Minute
+)
+
+type cachedDLLVersion struct {
+	value     string
+	timestamp time.Time
+}
+
 var (
-	dllVersionCache = make(map[string]string)
+	dllVersionCache = make(map[string]*cachedDLLVersion)
 	dllCacheMu      sync.RWMutex
 	dllFetchSem     = make(chan struct{}, 10)
 )
@@ -230,7 +240,7 @@ func batchGetDLLSignatures(dlls []DLLModuleInfo) map[string]DLLSignature {
 
 		script := `$paths = @('%s')
 foreach ($p in $paths) {
-	$sig = Get-AuthenticodeSignature -FilePath $p -ErrorAction SilentlyContinue
+	$sig = Get-AuthenticodeSignature -LiteralPath $p -ErrorAction SilentlyContinue
 	$status = 'Unsigned'
 	$signer = ''
 	if ($sig.Status -eq 'Valid') { $status = 'Signed' }
@@ -390,9 +400,11 @@ func GetDLLVersion(dllPath string) string {
 	}
 
 	dllCacheMu.RLock()
-	if version, ok := dllVersionCache[dllPath]; ok {
-		dllCacheMu.RUnlock()
-		return version
+	if entry, ok := dllVersionCache[dllPath]; ok {
+		if time.Since(entry.timestamp) < dllCacheTTL {
+			dllCacheMu.RUnlock()
+			return entry.value
+		}
 	}
 	dllCacheMu.RUnlock()
 
@@ -414,7 +426,21 @@ func GetDLLVersion(dllPath string) string {
 	}
 
 	dllCacheMu.Lock()
-	dllVersionCache[dllPath] = version
+	if len(dllVersionCache) >= dllCacheMaxSize {
+		now := time.Now()
+		for path, entry := range dllVersionCache {
+			if now.Sub(entry.timestamp) > dllCacheTTL {
+				delete(dllVersionCache, path)
+			}
+		}
+		if len(dllVersionCache) >= dllCacheMaxSize {
+			dllVersionCache = make(map[string]*cachedDLLVersion)
+		}
+	}
+	dllVersionCache[dllPath] = &cachedDLLVersion{
+		value:     version,
+		timestamp: time.Now(),
+	}
 	dllCacheMu.Unlock()
 
 	return version
@@ -547,6 +573,6 @@ func parseDLLVersionResults(jsonOutput string) (map[string]string, error) {
 
 func ClearDLLVersionCache() {
 	dllCacheMu.Lock()
-	dllVersionCache = make(map[string]string)
+	dllVersionCache = make(map[string]*cachedDLLVersion)
 	dllCacheMu.Unlock()
 }
