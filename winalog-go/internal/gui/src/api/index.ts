@@ -130,7 +130,7 @@ export interface CollectParams {
 
 export const collectAPI = {
   collect: (params: CollectParams) =>
-    api.post('/collect', params),
+    api.post('/collect', params, { timeout: 1800000 }),
   getChannels: () =>
     api.get('/collect/channels'),
   getStatus: () =>
@@ -142,10 +142,11 @@ export const collectAPI = {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
+      timeout: 1800000,
     })
   },
   evtx2csv: (filePaths: string[], options?: { output_dir?: string; include_xml?: boolean; calculate_hash?: boolean; limit?: number }) =>
-    api.post('/collect/evtx2csv', { file_paths: filePaths, ...options }),
+    api.post('/collect/evtx2csv', { file_paths: filePaths, ...options }, { timeout: 1800000 }),
 }
 
 export interface ImportOptions {
