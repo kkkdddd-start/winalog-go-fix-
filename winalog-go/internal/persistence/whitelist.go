@@ -79,9 +79,11 @@ func (w *Whitelist) IsAllowedByType(key string, wtype WhitelistType) bool {
 }
 
 func (w *Whitelist) keyMatches(input, pattern string) bool {
+	inputExpanded := os.ExpandEnv(input)
 	patternExpanded := os.ExpandEnv(pattern)
+
+	inputLower := strings.ToLower(inputExpanded)
 	patternLower := strings.ToLower(patternExpanded)
-	inputLower := strings.ToLower(input)
 
 	if strings.Contains(pattern, "*") {
 		prefix := strings.TrimSuffix(patternLower, "*")
