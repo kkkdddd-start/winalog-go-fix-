@@ -101,34 +101,38 @@ func NewPersistenceHandler(db *storage.DB) *PersistenceHandler {
 
 	for _, d := range engine.ListDetectors() {
 		detectorName := d.Name
-		if config, exists := defaultRuleConfigs[detectorName]; exists {
+		if baseConfig, exists := defaultRuleConfigs[detectorName]; exists {
 			userWhitelist := whitelistStore.GetUserWhitelist(detectorName)
-			if userWhitelist != nil {
-				config.Whitelist = userWhitelist
-			}
-
 			dllWhitelist := whitelistStore.GetBuiltinDllWhitelist(detectorName)
-			if dllWhitelist != nil {
-				config.BuiltinDllWhitelist = dllWhitelist
+			clsidsWhitelist := whitelistStore.GetBuiltinClsidsWhitelist(detectorName)
+
+			whitelist := baseConfig.Whitelist
+			if userWhitelist != nil {
+				whitelist = userWhitelist
 			}
 
-			clsidsWhitelist := whitelistStore.GetBuiltinClsidsWhitelist(detectorName)
+			builtinDllWhitelist := baseConfig.BuiltinDllWhitelist
+			if dllWhitelist != nil {
+				builtinDllWhitelist = dllWhitelist
+			}
+
+			builtinClsidsWhitelist := baseConfig.BuiltinClsidsWhitelist
 			if clsidsWhitelist != nil {
-				config.BuiltinClsidsWhitelist = clsidsWhitelist
+				builtinClsidsWhitelist = clsidsWhitelist
 			}
 
 			if err := engine.SetDetectorConfig(detectorName, &persistence.DetectorConfig{
-				Enabled:               config.Enabled,
-				EventIDs:              config.EventIDs,
-				Patterns:              config.Patterns,
-				Whitelist:            config.Whitelist,
-				BuiltinWhitelist:     config.BuiltinWhitelist,
-				BuiltinDllWhitelist:  config.BuiltinDllWhitelist,
-				BuiltinClsidsWhitelist: config.BuiltinClsidsWhitelist,
+				Enabled:               baseConfig.Enabled,
+				EventIDs:              baseConfig.EventIDs,
+				Patterns:              baseConfig.Patterns,
+				Whitelist:            whitelist,
+				BuiltinWhitelist:     baseConfig.BuiltinWhitelist,
+				BuiltinDllWhitelist:  builtinDllWhitelist,
+				BuiltinClsidsWhitelist: builtinClsidsWhitelist,
 			}); err != nil {
 				log.Printf("[WARN] [PERSISTENCE] Failed to set config for %s: %v", detectorName, err)
 			}
-			log.Printf("[INFO] [PERSISTENCE] Enabled detector: %s (enabled=%v)", detectorName, config.Enabled)
+			log.Printf("[INFO] [PERSISTENCE] Enabled detector: %s (enabled=%v)", detectorName, baseConfig.Enabled)
 		}
 	}
 

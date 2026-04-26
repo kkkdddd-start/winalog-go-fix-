@@ -496,7 +496,8 @@ foreach ($p in $paths) {
 		vf = $validFrom
 		vt = $validTo
 	}
-	Write-Output ($obj | ConvertTo-Json -Compress -EscapeHandling EscapeNonAscii)
+	$json = $obj | ConvertTo-Json -Compress
+	Write-Output $json
 }`
 
 		psPaths := strings.Join(batch, "','")
