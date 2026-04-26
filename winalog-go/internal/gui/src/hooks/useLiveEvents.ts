@@ -29,6 +29,8 @@ interface WSMessage {
   code?: string;
 }
 
+const LIVE_ENABLED_KEY = 'winalog_live_enabled';
+
 export function useLiveEvents(options: UseLiveEventsOptions = {}) {
   const {
     channels = ['Security', 'System', 'Application'],
@@ -42,11 +44,19 @@ export function useLiveEvents(options: UseLiveEventsOptions = {}) {
   const [events, setEvents] = useState<LiveEvent[]>([]);
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [enabled, setEnabled] = useState(false);
+  const [enabled, setEnabled] = useState(() => {
+    const saved = localStorage.getItem(LIVE_ENABLED_KEY);
+    return saved === 'true';
+  });
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttempts = useRef(0);
   const subscribedRef = useRef(false);
+
+  const handleSetEnabled = useCallback((value: boolean) => {
+    localStorage.setItem(LIVE_ENABLED_KEY, String(value));
+    setEnabled(value);
+  }, []);
 
   const disconnect = useCallback(() => {
     if (reconnectTimeoutRef.current) {
@@ -153,7 +163,7 @@ export function useLiveEvents(options: UseLiveEventsOptions = {}) {
     isConnected,
     isConnecting,
     enabled,
-    setEnabled,
+    setEnabled: handleSetEnabled,
     clearEvents,
     disconnect,
     connect,

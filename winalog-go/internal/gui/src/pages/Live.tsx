@@ -84,7 +84,7 @@ function Live() {
           <h2>{t('live.title')}</h2>
           <div className={`connection-status ${isConnected ? 'connected' : 'disconnected'}`}>
             <span className="status-dot"></span>
-            {isConnected ? 'Connected' : isConnecting ? 'Connecting...' : 'Disconnected'}
+            {isConnected ? t('live.connected') : isConnecting ? t('live.connecting') : t('live.disconnected')}
           </div>
         </div>
         <div className="header-actions">
@@ -97,18 +97,18 @@ function Live() {
             <span className="toggle-slider"></span>
           </label>
           <span style={{ marginRight: '12px', fontSize: '14px' }}>
-            {isConnected ? 'Live Monitoring ON' : 'Live Monitoring OFF'}
+            {isConnected ? t('live.liveMonitoringOn') : t('live.liveMonitoringOff')}
           </span>
           <select
             className="filter-select"
             value={filter}
             onChange={e => setFilter(e.target.value)}
           >
-            <option value="all">All Levels</option>
-            <option value="critical">Critical</option>
-            <option value="error">Error</option>
-            <option value="warning">Warning</option>
-            <option value="info">Info</option>
+            <option value="all">{t('live.allLevels')}</option>
+            <option value="critical">{t('dashboard.critical')}</option>
+            <option value="error">{t('dashboard.error') || 'Error'}</option>
+            <option value="warning">{t('dashboard.warning') || 'Warning'}</option>
+            <option value="info">{t('dashboard.info') || 'Info'}</option>
             <option value="verbose">Verbose</option>
           </select>
           <button className="btn-secondary" onClick={clearEvents}>
