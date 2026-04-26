@@ -16,6 +16,7 @@ import (
 type ScheduledTaskDetector struct {
 	config      *DetectorConfig
 	configPaths []string
+	configWhitelist []string
 }
 
 func NewScheduledTaskDetector() *ScheduledTaskDetector {
@@ -25,6 +26,7 @@ func NewScheduledTaskDetector() *ScheduledTaskDetector {
 			EventIDs: []int32{4698, 4699, 4700, 4701, 4702},
 		},
 		configPaths: nil,
+		configWhitelist: nil,
 	}
 }
 
@@ -48,11 +50,21 @@ func (d *ScheduledTaskDetector) SetConfig(config *DetectorConfig) error {
 	if len(config.Paths) > 0 {
 		d.configPaths = config.Paths
 	}
+	if len(config.Whitelist) > 0 {
+		d.configWhitelist = config.Whitelist
+	}
 	return nil
 }
 
 func (d *ScheduledTaskDetector) GetConfig() *DetectorConfig {
 	return d.config
+}
+
+func (d *ScheduledTaskDetector) getWhitelist() []string {
+	if d.configWhitelist != nil {
+		return d.configWhitelist
+	}
+	return []string{}
 }
 
 type ScheduledTaskInfo struct {
@@ -186,8 +198,12 @@ func (d *ScheduledTaskDetector) isSuspiciousTask(task ScheduledTaskInfo) bool {
 		return false
 	}
 
+	if d.isWhitelisted(strings.ToLower(task.Name)) {
+		return false
+	}
+
 	taskAuthorLower := strings.ToLower(task.Author)
-	isMicrosoftTask := strings.Contains(taskAuthorLower, "microsoft") ||
+	isMicrosoftTask := strings.Contains(taskAuthorLower, "Microsoft") ||
 		strings.Contains(taskAuthorLower, "system") ||
 		taskAuthorLower == "" || taskAuthorLower == "author"
 
@@ -213,6 +229,25 @@ func (d *ScheduledTaskDetector) isSuspiciousTask(task ScheduledTaskInfo) bool {
 		}
 	}
 
+	return false
+}
+
+func (d *ScheduledTaskDetector) isWhitelisted(name string) bool {
+	whitelist := d.getWhitelist()
+	if len(whitelist) == 0 {
+		return false
+	}
+	for _, entry := range whitelist {
+		entryLower := strings.ToLower(entry)
+		if strings.Contains(entryLower, "*") {
+			prefix := strings.TrimSuffix(entryLower, "*")
+			if strings.HasPrefix(name, prefix) {
+				return true
+			}
+		} else if name == entryLower {
+			return true
+		}
+	}
 	return false
 }
 

@@ -12,7 +12,8 @@ import (
 )
 
 type IFEODetector struct {
-	config *DetectorConfig
+	config          *DetectorConfig
+	configWhitelist []string
 }
 
 func NewIFEODetector() *IFEODetector {
@@ -21,6 +22,7 @@ func NewIFEODetector() *IFEODetector {
 			Enabled:  true,
 			EventIDs: []int32{4697},
 		},
+		configWhitelist: nil,
 	}
 }
 
@@ -41,11 +43,41 @@ func (d *IFEODetector) SetConfig(config *DetectorConfig) error {
 		return fmt.Errorf("config cannot be nil")
 	}
 	d.config = config
+	if len(config.Whitelist) > 0 {
+		d.configWhitelist = config.Whitelist
+	}
 	return nil
 }
 
 func (d *IFEODetector) GetConfig() *DetectorConfig {
 	return d.config
+}
+
+func (d *IFEODetector) getWhitelist() []string {
+	if d.configWhitelist != nil {
+		return d.configWhitelist
+	}
+	return []string{}
+}
+
+func (d *IFEODetector) isWhitelisted(debugger string) bool {
+	whitelist := d.getWhitelist()
+	if len(whitelist) == 0 {
+		return false
+	}
+	debuggerLower := strings.ToLower(debugger)
+	for _, entry := range whitelist {
+		entryLower := strings.ToLower(entry)
+		if strings.Contains(entryLower, "*") {
+			prefix := strings.TrimSuffix(entryLower, "*")
+			if strings.HasPrefix(debuggerLower, prefix) {
+				return true
+			}
+		} else if debuggerLower == entryLower {
+			return true
+		}
+	}
+	return false
 }
 
 var IFEOPath = `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options`
@@ -164,6 +196,10 @@ func (d *IFEODetector) enumerateIFEOTargets() ([]IFEOTarget, error) {
 
 func (d *IFEODetector) analyzeIFEOTarget(target IFEOTarget) *Detection {
 	if target.Debugger == "" {
+		return nil
+	}
+
+	if d.isWhitelisted(target.Debugger) {
 		return nil
 	}
 

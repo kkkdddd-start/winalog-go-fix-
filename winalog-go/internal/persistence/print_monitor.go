@@ -9,7 +9,8 @@ import (
 )
 
 type PrintMonitorDetector struct {
-	config *DetectorConfig
+	config          *DetectorConfig
+	configWhitelist []string
 }
 
 func NewPrintMonitorDetector() *PrintMonitorDetector {
@@ -18,6 +19,7 @@ func NewPrintMonitorDetector() *PrintMonitorDetector {
 			Enabled:  true,
 			EventIDs: []int32{4697},
 		},
+		configWhitelist: nil,
 	}
 }
 
@@ -38,11 +40,41 @@ func (d *PrintMonitorDetector) SetConfig(config *DetectorConfig) error {
 		return fmt.Errorf("config cannot be nil")
 	}
 	d.config = config
+	if len(config.Whitelist) > 0 {
+		d.configWhitelist = config.Whitelist
+	}
 	return nil
 }
 
 func (d *PrintMonitorDetector) GetConfig() *DetectorConfig {
 	return d.config
+}
+
+func (d *PrintMonitorDetector) getWhitelist() []string {
+	if d.configWhitelist != nil {
+		return d.configWhitelist
+	}
+	return []string{}
+}
+
+func (d *PrintMonitorDetector) isWhitelisted(name string) bool {
+	whitelist := d.getWhitelist()
+	if len(whitelist) == 0 {
+		return false
+	}
+	nameLower := strings.ToLower(name)
+	for _, entry := range whitelist {
+		entryLower := strings.ToLower(entry)
+		if strings.Contains(entryLower, "*") {
+			prefix := strings.TrimSuffix(entryLower, "*")
+			if strings.HasPrefix(nameLower, prefix) {
+				return true
+			}
+		} else if nameLower == entryLower {
+			return true
+		}
+	}
+	return false
 }
 
 var PrintMonitorRegistryPaths = []string{
@@ -149,6 +181,10 @@ func (d *PrintMonitorDetector) isSuspicious(entry PrintMonitorEntry) bool {
 	}
 
 	if GlobalWhitelist.IsAllowed(entry.Name) {
+		return false
+	}
+
+	if d.isWhitelisted(strings.ToLower(entry.Name)) {
 		return false
 	}
 

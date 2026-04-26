@@ -12,7 +12,8 @@ import (
 )
 
 type AppCertDllsDetector struct {
-	config *DetectorConfig
+	config          *DetectorConfig
+	configWhitelist []string
 }
 
 func NewAppCertDllsDetector() *AppCertDllsDetector {
@@ -21,6 +22,7 @@ func NewAppCertDllsDetector() *AppCertDllsDetector {
 			Enabled:  true,
 			EventIDs: []int32{4697},
 		},
+		configWhitelist: nil,
 	}
 }
 
@@ -41,11 +43,41 @@ func (d *AppCertDllsDetector) SetConfig(config *DetectorConfig) error {
 		return fmt.Errorf("config cannot be nil")
 	}
 	d.config = config
+	if len(config.Whitelist) > 0 {
+		d.configWhitelist = config.Whitelist
+	}
 	return nil
 }
 
 func (d *AppCertDllsDetector) GetConfig() *DetectorConfig {
 	return d.config
+}
+
+func (d *AppCertDllsDetector) getWhitelist() []string {
+	if d.configWhitelist != nil {
+		return d.configWhitelist
+	}
+	return []string{}
+}
+
+func (d *AppCertDllsDetector) isWhitelisted(path string) bool {
+	whitelist := d.getWhitelist()
+	if len(whitelist) == 0 {
+		return false
+	}
+	pathLower := strings.ToLower(path)
+	for _, entry := range whitelist {
+		entryLower := strings.ToLower(entry)
+		if strings.Contains(entryLower, "*") {
+			prefix := strings.TrimSuffix(entryLower, "*")
+			if strings.HasPrefix(pathLower, prefix) {
+				return true
+			}
+		} else if pathLower == entryLower {
+			return true
+		}
+	}
+	return false
 }
 
 type AppCertEntry struct {
@@ -135,6 +167,10 @@ func (d *AppCertDllsDetector) enumerateAppCertDlls() ([]AppCertEntry, error) {
 
 func (d *AppCertDllsDetector) isSuspicious(entry AppCertEntry) bool {
 	if GlobalWhitelist.IsAllowed(entry.Path + "\\" + entry.Name) {
+		return false
+	}
+
+	if d.isWhitelisted(strings.ToLower(entry.Path + "\\" + entry.Name)) {
 		return false
 	}
 

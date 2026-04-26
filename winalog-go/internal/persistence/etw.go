@@ -13,7 +13,8 @@ import (
 )
 
 type ETWDetector struct {
-	config *DetectorConfig
+	config          *DetectorConfig
+	configWhitelist []string
 }
 
 func NewETWDetector() *ETWDetector {
@@ -22,6 +23,7 @@ func NewETWDetector() *ETWDetector {
 			Enabled:  true,
 			EventIDs: []int32{4670},
 		},
+		configWhitelist: nil,
 	}
 }
 
@@ -42,11 +44,41 @@ func (d *ETWDetector) SetConfig(config *DetectorConfig) error {
 		return fmt.Errorf("config cannot be nil")
 	}
 	d.config = config
+	if len(config.Whitelist) > 0 {
+		d.configWhitelist = config.Whitelist
+	}
 	return nil
 }
 
 func (d *ETWDetector) GetConfig() *DetectorConfig {
 	return d.config
+}
+
+func (d *ETWDetector) getWhitelist() []string {
+	if d.configWhitelist != nil {
+		return d.configWhitelist
+	}
+	return []string{}
+}
+
+func (d *ETWDetector) isWhitelisted(name string) bool {
+	whitelist := d.getWhitelist()
+	if len(whitelist) == 0 {
+		return false
+	}
+	nameLower := strings.ToLower(name)
+	for _, entry := range whitelist {
+		entryLower := strings.ToLower(entry)
+		if strings.Contains(entryLower, "*") {
+			prefix := strings.TrimSuffix(entryLower, "*")
+			if strings.HasPrefix(nameLower, prefix) {
+				return true
+			}
+		} else if nameLower == entryLower {
+			return true
+		}
+	}
+	return false
 }
 
 type ETWProvider struct {
@@ -233,6 +265,10 @@ func (d *ETWDetector) analyzeConsumerBinding(binding ETWConsumerBinding) *Detect
 
 func (d *ETWDetector) isSuspiciousProvider(name string) bool {
 	nameLower := strings.ToLower(name)
+
+	if d.isWhitelisted(nameLower) {
+		return false
+	}
 
 	suspiciousProviders := []string{
 		"mimikatz", "pwdump", "hashdump",

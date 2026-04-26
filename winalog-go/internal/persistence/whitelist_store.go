@@ -15,8 +15,8 @@ type WhitelistStore struct {
 }
 
 type UserWhitelistConfig struct {
-	UserWhitelist        []string `json:"user_whitelist"`
-	BuiltinDllWhitelist  []string `json:"builtin_dll_whitelist,omitempty"`
+	UserWhitelist          []string `json:"user_whitelist,omitempty"`
+	BuiltinDllWhitelist     []string `json:"builtin_dll_whitelist,omitempty"`
 	BuiltinClsidsWhitelist []string `json:"builtin_clsids_whitelist,omitempty"`
 }
 

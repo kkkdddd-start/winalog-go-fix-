@@ -184,6 +184,10 @@ func (d *RunKeyDetector) enumerateRunKey(keyPath string) ([]RunKeyEntry, error) 
 func (d *RunKeyDetector) isSuspicious(value string) bool {
 	valueLower := strings.ToLower(value)
 
+	if d.isWhitelisted(valueLower) {
+		return false
+	}
+
 	indicators := d.getIndicators()
 	for _, indicator := range indicators {
 		if strings.Contains(valueLower, strings.ToLower(indicator)) {
@@ -199,6 +203,26 @@ func (d *RunKeyDetector) isSuspicious(value string) bool {
 		return true
 	}
 
+	return false
+}
+
+func (d *RunKeyDetector) isWhitelisted(value string) bool {
+	whitelist := d.getWhitelist()
+	if len(whitelist) == 0 {
+		return false
+	}
+	valueLower := strings.ToLower(value)
+	for _, entry := range whitelist {
+		entryLower := strings.ToLower(entry)
+		if strings.Contains(entryLower, "*") {
+			prefix := strings.TrimSuffix(entryLower, "*")
+			if strings.HasPrefix(valueLower, prefix) {
+				return true
+			}
+		} else if valueLower == entryLower {
+			return true
+		}
+	}
 	return false
 }
 

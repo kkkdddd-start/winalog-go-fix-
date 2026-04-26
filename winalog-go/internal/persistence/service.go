@@ -17,6 +17,7 @@ type ServicePersistenceDetector struct {
 	config           *DetectorConfig
 	configSuspicious []string
 	configNames      []string
+	configWhitelist  []string
 }
 
 func NewServicePersistenceDetector() *ServicePersistenceDetector {
@@ -27,6 +28,7 @@ func NewServicePersistenceDetector() *ServicePersistenceDetector {
 		},
 		configSuspicious: nil,
 		configNames:      nil,
+		configWhitelist:  nil,
 	}
 }
 
@@ -53,7 +55,17 @@ func (d *ServicePersistenceDetector) SetConfig(config *DetectorConfig) error {
 	if len(config.Patterns) > 0 {
 		d.configNames = config.Patterns
 	}
+	if len(config.Whitelist) > 0 {
+		d.configWhitelist = config.Whitelist
+	}
 	return nil
+}
+
+func (d *ServicePersistenceDetector) getWhitelist() []string {
+	if d.configWhitelist != nil {
+		return d.configWhitelist
+	}
+	return []string{}
 }
 
 func (d *ServicePersistenceDetector) GetConfig() *DetectorConfig {
@@ -288,6 +300,10 @@ func (d *ServicePersistenceDetector) isSuspiciousService(name, path string) bool
 		return false
 	}
 
+	if d.isWhitelisted(nameLower) {
+		return false
+	}
+
 	// 白名单前缀：合法厂商的服务直接跳过
 	for _, prefix := range LegitimateServicePrefixes {
 		if strings.HasPrefix(name, prefix) || strings.HasPrefix(nameLower, strings.ToLower(prefix)) {
@@ -309,6 +325,25 @@ func (d *ServicePersistenceDetector) isSuspiciousService(name, path string) bool
 		}
 	}
 
+	return false
+}
+
+func (d *ServicePersistenceDetector) isWhitelisted(name string) bool {
+	whitelist := d.getWhitelist()
+	if len(whitelist) == 0 {
+		return false
+	}
+	for _, entry := range whitelist {
+		entryLower := strings.ToLower(entry)
+		if strings.Contains(entryLower, "*") {
+			prefix := strings.TrimSuffix(entryLower, "*")
+			if strings.HasPrefix(name, prefix) {
+				return true
+			}
+		} else if name == entryLower {
+			return true
+		}
+	}
 	return false
 }
 

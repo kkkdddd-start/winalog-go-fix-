@@ -12,7 +12,8 @@ import (
 )
 
 type AppInitDetector struct {
-	config *DetectorConfig
+	config          *DetectorConfig
+	configWhitelist []string
 }
 
 func NewAppInitDetector() *AppInitDetector {
@@ -21,6 +22,7 @@ func NewAppInitDetector() *AppInitDetector {
 			Enabled:  true,
 			EventIDs: []int32{4697},
 		},
+		configWhitelist: nil,
 	}
 }
 
@@ -41,11 +43,41 @@ func (d *AppInitDetector) SetConfig(config *DetectorConfig) error {
 		return fmt.Errorf("config cannot be nil")
 	}
 	d.config = config
+	if len(config.Whitelist) > 0 {
+		d.configWhitelist = config.Whitelist
+	}
 	return nil
 }
 
 func (d *AppInitDetector) GetConfig() *DetectorConfig {
 	return d.config
+}
+
+func (d *AppInitDetector) getWhitelist() []string {
+	if d.configWhitelist != nil {
+		return d.configWhitelist
+	}
+	return []string{}
+}
+
+func (d *AppInitDetector) isWhitelisted(dll string) bool {
+	whitelist := d.getWhitelist()
+	if len(whitelist) == 0 {
+		return false
+	}
+	dllLower := strings.ToLower(dll)
+	for _, entry := range whitelist {
+		entryLower := strings.ToLower(entry)
+		if strings.Contains(entryLower, "*") {
+			prefix := strings.TrimSuffix(entryLower, "*")
+			if strings.HasPrefix(dllLower, prefix) {
+				return true
+			}
+		} else if dllLower == entryLower {
+			return true
+		}
+	}
+	return false
 }
 
 var AppInitPaths = []string{
@@ -179,6 +211,10 @@ func (d *AppInitDetector) checkAppInit(basePath string) *Detection {
 
 func (d *AppInitDetector) isSuspiciousDLL(dll string) bool {
 	dllLower := strings.ToLower(dll)
+
+	if d.isWhitelisted(dllLower) {
+		return false
+	}
 
 	for _, suspicious := range SuspiciousAppInitDLLs {
 		if strings.Contains(dllLower, strings.ToLower(suspicious)) {

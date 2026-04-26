@@ -11,7 +11,8 @@ import (
 )
 
 type WinsockDetector struct {
-	config *DetectorConfig
+	config          *DetectorConfig
+	configWhitelist []string
 }
 
 func NewWinsockDetector() *WinsockDetector {
@@ -20,6 +21,7 @@ func NewWinsockDetector() *WinsockDetector {
 			Enabled:  true,
 			EventIDs: []int32{4697},
 		},
+		configWhitelist: nil,
 	}
 }
 
@@ -40,11 +42,69 @@ func (d *WinsockDetector) SetConfig(config *DetectorConfig) error {
 		return fmt.Errorf("config cannot be nil")
 	}
 	d.config = config
+	if len(config.Whitelist) > 0 {
+		d.configWhitelist = config.Whitelist
+	}
 	return nil
 }
 
 func (d *WinsockDetector) GetConfig() *DetectorConfig {
 	return d.config
+}
+
+func (d *WinsockDetector) getWhitelist() []string {
+	if d.configWhitelist != nil {
+		return d.configWhitelist
+	}
+	return []string{}
+}
+
+func (d *WinsockDetector) isWhitelisted(value string) bool {
+	whitelist := d.getWhitelist()
+	if len(whitelist) == 0 {
+		return false
+	}
+	valueLower := strings.ToLower(value)
+	for _, entry := range whitelist {
+		entryLower := strings.ToLower(entry)
+		if strings.Contains(entryLower, "*") {
+			prefix := strings.TrimSuffix(entryLower, "*")
+			if strings.HasPrefix(valueLower, prefix) {
+				return true
+			}
+		} else if valueLower == entryLower {
+			return true
+		}
+	}
+	return false
+}
+
+func (d *WinsockDetector) isSuspicious(entry WinsockEntry) bool {
+	if entry.Value == "" {
+		return false
+	}
+
+	if strings.HasPrefix(entry.Name, "0000000000") {
+		return false
+	}
+
+	if d.isWhitelisted(entry.Value) {
+		return false
+	}
+
+	valueUpper := strings.ToUpper(entry.Value)
+
+	for _, indicator := range SuspiciousWinsockIndicators {
+		if strings.Contains(valueUpper, strings.ToLower(indicator)) {
+			return true
+		}
+	}
+
+	if strings.Contains(valueUpper, ".DLL") && !strings.Contains(valueUpper, "SYSTEM32") && !strings.Contains(valueUpper, "SYSWOW64") {
+		return true
+	}
+
+	return false
 }
 
 var WinsockRegistryPaths = []string{
@@ -223,30 +283,6 @@ func listRegistrySubkeysRecursive(root, remaining string) ([]string, error) {
 
 func listImmediateSubkeys(keyPath string) ([]string, error) {
 	return utils.ListRegistrySubkeys(keyPath)
-}
-
-func (d *WinsockDetector) isSuspicious(entry WinsockEntry) bool {
-	if entry.Value == "" {
-		return false
-	}
-
-	if strings.HasPrefix(entry.Name, "0000000000") {
-		return false
-	}
-
-	valueUpper := strings.ToUpper(entry.Value)
-
-	for _, indicator := range SuspiciousWinsockIndicators {
-		if strings.Contains(valueUpper, strings.ToUpper(indicator)) {
-			return true
-		}
-	}
-
-	if strings.Contains(valueUpper, ".DLL") && !strings.Contains(valueUpper, "SYSTEM32") && !strings.Contains(valueUpper, "SYSWOW64") {
-		return true
-	}
-
-	return false
 }
 
 func (d *WinsockDetector) calculateSeverity(entry WinsockEntry) Severity {

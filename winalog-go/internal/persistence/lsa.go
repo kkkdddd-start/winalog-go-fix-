@@ -11,7 +11,8 @@ import (
 )
 
 type LSAPersistenceDetector struct {
-	config *DetectorConfig
+	config          *DetectorConfig
+	configWhitelist []string
 }
 
 func NewLSAPersistenceDetector() *LSAPersistenceDetector {
@@ -20,6 +21,7 @@ func NewLSAPersistenceDetector() *LSAPersistenceDetector {
 			Enabled:  true,
 			EventIDs: []int32{4670},
 		},
+		configWhitelist: nil,
 	}
 }
 
@@ -40,11 +42,41 @@ func (d *LSAPersistenceDetector) SetConfig(config *DetectorConfig) error {
 		return fmt.Errorf("config cannot be nil")
 	}
 	d.config = config
+	if len(config.Whitelist) > 0 {
+		d.configWhitelist = config.Whitelist
+	}
 	return nil
 }
 
 func (d *LSAPersistenceDetector) GetConfig() *DetectorConfig {
 	return d.config
+}
+
+func (d *LSAPersistenceDetector) getWhitelist() []string {
+	if d.configWhitelist != nil {
+		return d.configWhitelist
+	}
+	return []string{}
+}
+
+func (d *LSAPersistenceDetector) isWhitelisted(name string) bool {
+	whitelist := d.getWhitelist()
+	if len(whitelist) == 0 {
+		return false
+	}
+	nameLower := strings.ToLower(name)
+	for _, entry := range whitelist {
+		entryLower := strings.ToLower(entry)
+		if strings.Contains(entryLower, "*") {
+			prefix := strings.TrimSuffix(entryLower, "*")
+			if strings.HasPrefix(nameLower, prefix) {
+				return true
+			}
+		} else if nameLower == entryLower {
+			return true
+		}
+	}
+	return false
 }
 
 var LSARegistryPaths = []string{
@@ -181,6 +213,10 @@ func (d *LSAPersistenceDetector) isSuspicious(entry LSAEntry) bool {
 	valueUpper := strings.ToUpper(entry.Value)
 
 	if GlobalWhitelist.IsAllowed(entry.Name) {
+		return false
+	}
+
+	if d.isWhitelisted(strings.ToLower(entry.Name)) {
 		return false
 	}
 

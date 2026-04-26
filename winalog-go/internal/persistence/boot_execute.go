@@ -11,7 +11,8 @@ import (
 )
 
 type BootExecuteDetector struct {
-	config *DetectorConfig
+	config          *DetectorConfig
+	configWhitelist []string
 }
 
 func NewBootExecuteDetector() *BootExecuteDetector {
@@ -20,6 +21,7 @@ func NewBootExecuteDetector() *BootExecuteDetector {
 			Enabled:  true,
 			EventIDs: []int32{4697},
 		},
+		configWhitelist: nil,
 	}
 }
 
@@ -40,11 +42,41 @@ func (d *BootExecuteDetector) SetConfig(config *DetectorConfig) error {
 		return fmt.Errorf("config cannot be nil")
 	}
 	d.config = config
+	if len(config.Whitelist) > 0 {
+		d.configWhitelist = config.Whitelist
+	}
 	return nil
 }
 
 func (d *BootExecuteDetector) GetConfig() *DetectorConfig {
 	return d.config
+}
+
+func (d *BootExecuteDetector) getWhitelist() []string {
+	if d.configWhitelist != nil {
+		return d.configWhitelist
+	}
+	return []string{}
+}
+
+func (d *BootExecuteDetector) isWhitelisted(value string) bool {
+	whitelist := d.getWhitelist()
+	if len(whitelist) == 0 {
+		return false
+	}
+	valueLower := strings.ToLower(value)
+	for _, entry := range whitelist {
+		entryLower := strings.ToLower(entry)
+		if strings.Contains(entryLower, "*") {
+			prefix := strings.TrimSuffix(entryLower, "*")
+			if strings.HasPrefix(valueLower, prefix) {
+				return true
+			}
+		} else if valueLower == entryLower {
+			return true
+		}
+	}
+	return false
 }
 
 var BootExecuteRegistryPaths = []string{
@@ -164,6 +196,10 @@ func (d *BootExecuteDetector) isSuspicious(entry BootExecuteEntry) bool {
 	}
 
 	if GlobalWhitelist.IsAllowed(entry.Value) {
+		return false
+	}
+
+	if d.isWhitelisted(strings.ToLower(entry.Value)) {
 		return false
 	}
 

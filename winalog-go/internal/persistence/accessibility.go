@@ -12,7 +12,8 @@ import (
 )
 
 type AccessibilityDetector struct {
-	config *DetectorConfig
+	config          *DetectorConfig
+	configWhitelist []string
 }
 
 func NewAccessibilityDetector() *AccessibilityDetector {
@@ -21,6 +22,7 @@ func NewAccessibilityDetector() *AccessibilityDetector {
 			Enabled:  true,
 			EventIDs: []int32{4697},
 		},
+		configWhitelist: nil,
 	}
 }
 
@@ -41,11 +43,41 @@ func (d *AccessibilityDetector) SetConfig(config *DetectorConfig) error {
 		return fmt.Errorf("config cannot be nil")
 	}
 	d.config = config
+	if len(config.Whitelist) > 0 {
+		d.configWhitelist = config.Whitelist
+	}
 	return nil
 }
 
 func (d *AccessibilityDetector) GetConfig() *DetectorConfig {
 	return d.config
+}
+
+func (d *AccessibilityDetector) getWhitelist() []string {
+	if d.configWhitelist != nil {
+		return d.configWhitelist
+	}
+	return []string{}
+}
+
+func (d *AccessibilityDetector) isWhitelisted(command string) bool {
+	whitelist := d.getWhitelist()
+	if len(whitelist) == 0 {
+		return false
+	}
+	commandLower := strings.ToLower(command)
+	for _, entry := range whitelist {
+		entryLower := strings.ToLower(entry)
+		if strings.Contains(entryLower, "*") {
+			prefix := strings.TrimSuffix(entryLower, "*")
+			if strings.HasPrefix(commandLower, prefix) {
+				return true
+			}
+		} else if commandLower == entryLower {
+			return true
+		}
+	}
+	return false
 }
 
 var AccessibilityBinaries = map[string]string{
@@ -168,6 +200,10 @@ func (d *AccessibilityDetector) DetectViaEventLog(ctx context.Context, taskName,
 
 func (d *AccessibilityDetector) isSuspiciousTaskCommand(command string) bool {
 	commandLower := strings.ToLower(command)
+
+	if d.isWhitelisted(commandLower) {
+		return false
+	}
 
 	suspicious := []string{
 		"cmd.exe /c", "cmd /c", "powershell", "wscript", "cscript",
