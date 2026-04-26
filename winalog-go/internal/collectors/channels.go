@@ -138,7 +138,6 @@ func getLogFilesFallback() ([]LogFileInfo, error) {
 
 		channelName := strings.TrimSuffix(name, ".evtx")
 		channelName = strings.ReplaceAll(channelName, "%2F", "/")
-		channelName = strings.ReplaceAll(channelName, "%4", "/")
 
 		logFiles = append(logFiles, LogFileInfo{
 			Name:         channelName,
@@ -312,7 +311,6 @@ func GetChannelFilePathsFallback() ([]LogChannelInfo, error) {
 
 		channelName := strings.TrimSuffix(name, ".evtx")
 		channelName = strings.ReplaceAll(channelName, "%2F", "/")
-		channelName = strings.ReplaceAll(channelName, "%4", "/")
 
 		channels = append(channels, LogChannelInfo{
 			Name:    channelName,
