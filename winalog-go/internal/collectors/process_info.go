@@ -4,6 +4,7 @@ package collectors
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -488,7 +489,7 @@ foreach ($p in $paths) {
 		$signer = $issuer = $thumbprint = $validFrom = $validTo = ''
 	}
 	$obj = @{
-		p = $p
+		p = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($p))
 		s = $status
 		si = $signer
 		i = $issuer
@@ -541,12 +542,19 @@ foreach ($p in $paths) {
 				continue
 			}
 
-			pid, ok := pidByPath[sr.P]
+			pathBytes, err := base64.StdEncoding.DecodeString(sr.P)
+			if err != nil {
+				log.Printf("[WARN] batchGetProcessSignatures: base64 decode error: %v, path: %s", err, sr.P)
+				continue
+			}
+			decodedPath := string(pathBytes)
+
+			pid, ok := pidByPath[decodedPath]
 			if !ok {
-				pid, ok = pidByPath[strings.ToLower(sr.P)]
+				pid, ok = pidByPath[strings.ToLower(decodedPath)]
 			}
 			if !ok {
-				pid, ok = pidByPath[strings.ToUpper(sr.P)]
+				pid, ok = pidByPath[strings.ToUpper(decodedPath)]
 			}
 			if ok {
 				result[pid] = &ProcessSignature{
@@ -558,7 +566,7 @@ foreach ($p in $paths) {
 					ValidTo:    sr.Vt,
 				}
 			} else {
-				log.Printf("[DEBUG] batchGetProcessSignatures: path not found in pidByPath: %s", sr.P)
+				log.Printf("[DEBUG] batchGetProcessSignatures: path not found in pidByPath: %s", decodedPath)
 			}
 		}
 	}
