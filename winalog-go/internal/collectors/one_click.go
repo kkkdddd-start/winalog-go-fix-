@@ -567,7 +567,6 @@ func (c *OneClickCollector) CollectEventLogs(ctx context.Context, outputDir stri
 
 		fileName := filepath.Base(ch.LogPath)
 		fileName = strings.ReplaceAll(fileName, "%2F", "/")
-		fileName = strings.ReplaceAll(fileName, "%4", "/")
 
 		uniqueName := genUniqueName(fileName)
 		if !strings.HasSuffix(strings.ToLower(uniqueName), ".evtx") {

@@ -84,10 +84,8 @@ func GetLogFiles() ([]LogFileInfo, error) {
 
 		decodedName := name
 		decodedName = strings.ReplaceAll(decodedName, "%2F", "/")
-		decodedName = strings.ReplaceAll(decodedName, "%4", "/")
 		decodedLogPath := logPath
 		decodedLogPath = strings.ReplaceAll(decodedLogPath, "%2F", "/")
-		decodedLogPath = strings.ReplaceAll(decodedLogPath, "%4", "/")
 
 		var fileSize int64
 		if fs, ok := item["FileSize"].(float64); ok {
@@ -247,10 +245,8 @@ func GetLogFilesDetailed() ([]LogFileInfo, error) {
 
 		decodedName := name
 		decodedName = strings.ReplaceAll(decodedName, "%2F", "/")
-		decodedName = strings.ReplaceAll(decodedName, "%4", "/")
 		decodedLogPath := logPath
 		decodedLogPath = strings.ReplaceAll(decodedLogPath, "%2F", "/")
-		decodedLogPath = strings.ReplaceAll(decodedLogPath, "%4", "/")
 
 		var fileSize int64
 		if fs, ok := item["FileSize"].(float64); ok {
@@ -357,12 +353,10 @@ func parseChannelFilePaths(output string) ([]LogChannelInfo, error) {
 		isEVTX, _ := item["IsEVTX"].(bool)
 
 		if name != "" && logPath != "" {
-			decodedName := name
-			decodedName = strings.ReplaceAll(decodedName, "%2F", "/")
-			decodedName = strings.ReplaceAll(decodedName, "%4", "/")
-			decodedLogPath := logPath
-			decodedLogPath = strings.ReplaceAll(decodedLogPath, "%2F", "/")
-			decodedLogPath = strings.ReplaceAll(decodedLogPath, "%4", "/")
+		decodedName := name
+		decodedName = strings.ReplaceAll(decodedName, "%2F", "/")
+		decodedLogPath := logPath
+		decodedLogPath = strings.ReplaceAll(decodedLogPath, "%2F", "/")
 			decodedLogPath = strings.ReplaceAll(decodedLogPath, "/", "\\")
 			channels = append(channels, LogChannelInfo{
 				Name:    decodedName,
