@@ -318,18 +318,21 @@ func (d *Detection) ToAlert() *types.Alert {
 	}
 
 	return &types.Alert{
-		RuleName:    d.ToRuleName(),
-		Severity:    d.Severity.ToAlertSeverity(),
-		Message:     message,
-		EventIDs:    []int32{},
-		FirstSeen:   d.Time,
-		LastSeen:    d.Time,
-		Count:       1,
-		MITREAttack: mitreRef,
-		Resolved:    false,
+		RuleName:       d.ToRuleName(),
+		Severity:       d.Severity.ToAlertSeverity(),
+		Message:        message,
+		EventIDs:       []int32{},
+		FirstSeen:      d.Time,
+		LastSeen:       d.Time,
+		Count:          1,
+		MITREAttack:    mitreRef,
+		Resolved:       false,
 		Notes: fmt.Sprintf("=== 规则解读 ===\n%s\n\n=== 处置建议 ===\n%s\n\n=== 真实案例 ===\n%s\n\n=== 原始描述 ===\n%s",
 			explanation, recommendation, realCase, d.Description),
-		RuleScore: d.SeverityToScore(),
+		Explanation:    explanation,
+		Recommendation: recommendation,
+		RealCase:       realCase,
+		RuleScore:      d.SeverityToScore(),
 	}
 }
 

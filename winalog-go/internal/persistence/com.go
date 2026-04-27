@@ -5,6 +5,7 @@ package persistence
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -392,10 +393,12 @@ func (d *COMHijackDetector) isTrustedPath(path string) bool {
 	pathExpanded := os.ExpandEnv(path)
 	pathLower := strings.ToLower(pathExpanded)
 	for _, trusted := range d.builtinPaths {
-		if strings.HasPrefix(pathLower, strings.ToLower(trusted)) {
+		trustedLower := strings.ToLower(trusted)
+		if strings.HasPrefix(pathLower, trustedLower) {
 			return true
 		}
 	}
+	log.Printf("[DEBUG] [COM] isTrustedPath: path=%s, expanded=%s, builtinPaths=%v", path, pathExpanded, d.builtinPaths)
 	return false
 }
 
@@ -411,8 +414,9 @@ func (d *COMHijackDetector) isTrustedDLLName(path string) bool {
 }
 
 func (d *COMHijackDetector) isTrustedCLSIDPrefix(clsid string) bool {
+	cleanClsID := strings.TrimPrefix(strings.TrimPrefix(strings.ToLower(clsid), "{"), "}")
 	for _, prefix := range d.builtinClsidsPrefix {
-		if strings.HasPrefix(strings.ToLower(clsid), strings.ToLower(prefix)) {
+		if strings.HasPrefix(cleanClsID, strings.ToLower(prefix)) {
 			return true
 		}
 	}

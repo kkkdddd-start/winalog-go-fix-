@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useI18n } from '../locales/I18n'
 import { alertsAPI } from '../api'
 
 interface Event {
@@ -40,6 +41,7 @@ interface AlertWithDetails extends Alert {
 }
 
 function AlertDetail() {
+  const { t } = useI18n()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [alert, setAlert] = useState<AlertWithDetails | null>(null)
@@ -97,8 +99,8 @@ function AlertDetail() {
     navigate(`/events?${params.toString()}`)
   }
 
-  if (loading) return <div className="loading-state"><div className="loading-spinner"></div><p>Loading...</p></div>
-  if (!alert) return <div className="alert-not-found">Alert not found</div>
+  if (loading) return <div className="loading-state"><div className="loading-spinner"></div><p>{t('alerts.loading')}</p></div>
+  if (!alert) return <div className="alert-not-found">{t('alerts.alertNotFound')}</div>
 
   const getSeverityClass = (severity: string) => {
     switch (severity) {
@@ -110,67 +112,77 @@ function AlertDetail() {
     }
   }
 
+  const getSeverityLabel = (severity: string) => {
+    switch (severity) {
+      case 'critical': return t('dashboard.critical')
+      case 'high': return t('dashboard.high')
+      case 'medium': return t('dashboard.medium')
+      case 'low': return t('dashboard.low')
+      default: return severity
+    }
+  }
+
   return (
     <div className="alert-detail">
-      <Link to="/alerts" className="back-link">← 返回告警列表</Link>
+      <Link to="/alerts" className="back-link">← {t('alerts.backToList')}</Link>
       
       <div className="detail-layout">
         <div className="detail-main">
           <div className="detail-panel">
             <div className="panel-header">
-              <h3>告警 #{alert.id}</h3>
+              <h3>{t('alerts.title')} #{alert.id}</h3>
               <div className="status-badges">
                 <span className={`badge ${getSeverityClass(alert.severity)}`}>
-                  {alert.severity.toUpperCase()}
+                  {getSeverityLabel(alert.severity)}
                 </span>
-                {alert.resolved && <span className="badge resolved">已解决</span>}
-                {alert.false_positive && <span className="badge false-positive">误报</span>}
+                {alert.resolved && <span className="badge resolved">{t('alerts.resolved')}</span>}
+                {alert.false_positive && <span className="badge false-positive">{t('alerts.falsePositive')}</span>}
               </div>
             </div>
-            
+
             <div className="detail-grid">
               <div className="detail-item">
-                <label>规则名称:</label>
+                <label>{t('alerts.ruleName')}:</label>
                 <span className="rule-name">{alert.rule_name}</span>
               </div>
               <div className="detail-item">
-                <label>威胁评分:</label>
+                <label>{t('alerts.threatScore')}:</label>
                 <span className="score-value">{alert.rule_score.toFixed(2)}</span>
               </div>
               <div className="detail-item">
-                <label>日志名称:</label>
+                <label>{t('alerts.logName')}:</label>
                 <span>{alert.log_name}</span>
               </div>
               <div className="detail-item">
-                <label>触发次数:</label>
+                <label>{t('alerts.triggerCount')}:</label>
                 <span>{alert.count}</span>
               </div>
               <div className="detail-item">
-                <label>首次出现:</label>
+                <label>{t('alerts.firstSeen')}:</label>
                 <span>{new Date(alert.first_seen).toLocaleString()}</span>
               </div>
               <div className="detail-item">
-                <label>最后出现:</label>
+                <label>{t('alerts.lastSeen')}:</label>
                 <span>{new Date(alert.last_seen).toLocaleString()}</span>
               </div>
             </div>
 
             <div className="detail-section">
-              <label>触发事件ID:</label>
+              <label>{t('alerts.eventIds')}:</label>
               <div className="event-ids">
                 {alert.event_ids && alert.event_ids.length > 0 ? (
                   alert.event_ids.map((eid, i) => (
                     <span key={i} className="event-id-badge">{eid}</span>
                   ))
                 ) : (
-                  <span className="no-data">无</span>
+                  <span className="no-data">{t('alerts.noEventIds')}</span>
                 )}
               </div>
             </div>
 
             {alert.keywords && (
               <div className="detail-section">
-                <label>匹配关键字:</label>
+                <label>{t('alerts.keywords')}:</label>
                 <div className="keywords">
                   {alert.keywords.split(' ').filter(k => k).map((keyword, i) => (
                     <span key={i} className="keyword-badge">{keyword}</span>
@@ -180,13 +192,13 @@ function AlertDetail() {
             )}
 
             <div className="detail-section">
-              <label>告警消息:</label>
+              <label>{t('alerts.alertMessage')}:</label>
               <pre className="message-box">{alert.message}</pre>
             </div>
 
             {alert.mitre_attack && alert.mitre_attack.length > 0 && (
               <div className="detail-section">
-                <label>MITRE ATT&CK:</label>
+                <label>{t('alerts.mitreAttack')}:</label>
                 <div className="mitre-tags">
                   {alert.mitre_attack.map((tactic, i) => (
                     <span key={i} className="mitre-tag">{tactic}</span>
@@ -198,14 +210,14 @@ function AlertDetail() {
 
           {alert.explanation && (
             <div className="detail-panel explanation-panel">
-              <h4>规则解读</h4>
+              <h4>{t('alerts.ruleExplanation')}</h4>
               <p className="explanation-text">{alert.explanation}</p>
             </div>
           )}
 
           {alert.recommendation && (
             <div className="detail-panel recommendation-panel">
-              <h4>处置建议</h4>
+              <h4>{t('alerts.recommendation')}</h4>
               <div className="recommendation-text">
                 {alert.recommendation.split('\n').filter(line => line).map((line, i) => (
                   <p key={i}>{line}</p>
@@ -216,14 +228,14 @@ function AlertDetail() {
 
           {alert.real_case && (
             <div className="detail-panel case-panel">
-              <h4>真实案例</h4>
+              <h4>{t('alerts.realCase')}</h4>
               <p className="case-text">{alert.real_case}</p>
             </div>
           )}
 
           {alert.matched_events && alert.matched_events.length > 0 && (
             <div className="detail-panel events-panel">
-              <h4>关联日志 ({alert.matched_events.length})</h4>
+              <h4>{t('alerts.relatedLogs')} ({alert.matched_events.length})</h4>
               <div className="events-list">
                 {alert.matched_events.map(event => (
                   <div key={event.id} className="event-item">
@@ -232,8 +244,8 @@ function AlertDetail() {
                       <span className="event-time">{new Date(event.timestamp).toLocaleString()}</span>
                       <span className={`event-level level-${event.level.toLowerCase()}`}>{event.level}</span>
                     </div>
-                    <div className="event-source">来源: {event.source}</div>
-                    <div className="event-computer">计算机: {event.computer}</div>
+                    <div className="event-source">{t('events.source')}: {event.source}</div>
+                    <div className="event-computer">{t('events.computer')}: {event.computer}</div>
                     <div className="event-message">{event.message}</div>
                   </div>
                 ))}
@@ -244,29 +256,29 @@ function AlertDetail() {
 
         <div className="detail-sidebar">
           <div className="sidebar-panel">
-            <h4>操作</h4>
+            <h4>{t('alerts.operations')}</h4>
             {!alert.resolved && !alert.false_positive && (
               <>
                 <textarea
-                  placeholder="添加备注..."
+                  placeholder={t('alerts.addNotes')}
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
                   rows={3}
                 />
                 <button onClick={handleResolve} disabled={saving} className="btn-action btn-resolve">
-                  标记为已解决
+                  {t('alerts.markAsResolved')}
                 </button>
                 <button onClick={handleMarkFalsePositive} disabled={saving} className="btn-action btn-falsepositive">
-                  标记为误报
+                  {t('alerts.markAsFalsePositive')}
                 </button>
               </>
             )}
             <button onClick={handleSearchRelatedEvents} className="btn-action btn-search">
-              搜索关联事件
+              {t('alerts.searchRelatedEvents')}
             </button>
             {alert.notes && (
               <div className="notes-section">
-                <label>备注:</label>
+                <label>{t('alerts.notes')}:</label>
                 <pre className="notes-box">{alert.notes}</pre>
               </div>
             )}

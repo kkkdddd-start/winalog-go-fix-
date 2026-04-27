@@ -353,6 +353,7 @@ func (np *NetworkPoller) Subscribe(ch chan *types.MonitorEvent) func() {
 
 func (np *NetworkPoller) run() {
 	defer np.wg.Done()
+	log.Printf("[NETWORK] NetworkPoller run() started, interval=%v", np.interval)
 	ticker := time.NewTicker(np.interval)
 	defer ticker.Stop()
 
@@ -361,6 +362,7 @@ func (np *NetworkPoller) run() {
 	for {
 		select {
 		case <-np.ctx.Done():
+			log.Printf("[NETWORK] NetworkPoller run() stopping")
 			return
 		case <-ticker.C:
 			np.pollConnections()
@@ -375,6 +377,8 @@ func (np *NetworkPoller) pollConnections() {
 	default:
 	}
 
+	log.Printf("[NETWORK] Starting network connection poll...")
+
 	currentTCPIPv4 := make(map[string]*types.ConnectionInfo)
 	currentTCPIPv6 := make(map[string]*types.ConnectionInfo)
 	currentUDPIPv4 := make(map[string]*types.ConnectionInfo)
@@ -384,6 +388,7 @@ func (np *NetworkPoller) pollConnections() {
 	if err != nil {
 		log.Printf("[ERROR] getTCPConnections failed: %v", err)
 	} else {
+		log.Printf("[NETWORK] getTCPConnections returned %d connections", len(tcpConns))
 		for _, conn := range tcpConns {
 			key := fmt.Sprintf("tcp4-%s-%s", conn.LocalAddr, conn.RemoteAddr)
 			currentTCPIPv4[key] = conn
@@ -400,6 +405,7 @@ func (np *NetworkPoller) pollConnections() {
 	if err != nil {
 		log.Printf("[ERROR] getTCPIPv6Connections failed: %v", err)
 	} else {
+		log.Printf("[NETWORK] getTCPIPv6Connections returned %d connections", len(tcp6Conns))
 		for _, conn := range tcp6Conns {
 			key := fmt.Sprintf("tcp6-%s-%s", conn.LocalAddr, conn.RemoteAddr)
 			currentTCPIPv6[key] = conn
@@ -416,6 +422,7 @@ func (np *NetworkPoller) pollConnections() {
 	if err != nil {
 		log.Printf("[ERROR] getUDPConnections failed: %v", err)
 	} else {
+		log.Printf("[NETWORK] getUDPConnections returned %d connections", len(udpConns))
 		for _, conn := range udpConns {
 			key := fmt.Sprintf("udp4-%s", conn.LocalAddr)
 			currentUDPIPv4[key] = conn
@@ -426,6 +433,7 @@ func (np *NetworkPoller) pollConnections() {
 	if err != nil {
 		log.Printf("[ERROR] getUDPIPv6Connections failed: %v", err)
 	} else {
+		log.Printf("[NETWORK] getUDPIPv6Connections returned %d connections", len(udp6Conns))
 		for _, conn := range udp6Conns {
 			key := fmt.Sprintf("udp6-%s", conn.LocalAddr)
 			currentUDPIPv6[key] = conn
@@ -443,14 +451,21 @@ func (np *NetworkPoller) pollConnections() {
 	np.prevUDPIPv4 = currentUDPIPv4
 	np.prevUDPIPv6 = currentUDPIPv6
 	np.mu.Unlock()
+
+	totalConns := len(currentTCPIPv4) + len(currentTCPIPv6) + len(currentUDPIPv4) + len(currentUDPIPv6)
+	log.Printf("[NETWORK] Poll completed: TCPv4=%d, TCPv6=%d, UDPv4=%d, UDPv6=%d, Total=%d",
+		len(currentTCPIPv4), len(currentTCPIPv6), len(currentUDPIPv4), len(currentUDPIPv6), totalConns)
 }
 
 func (np *NetworkPoller) diffAndPublish(current, previous map[string]*types.ConnectionInfo, isTCP bool, protocol string) {
+	newCount := 0
+	closeCount := 0
 	for key, conn := range current {
 		if _, existed := previous[key]; !existed {
 			event := np.createNetworkEvent(conn, isTCP)
 			if event != nil {
 				np.publishEvent(event)
+				newCount++
 			}
 		}
 	}
@@ -460,8 +475,12 @@ func (np *NetworkPoller) diffAndPublish(current, previous map[string]*types.Conn
 			event := np.createNetworkCloseEvent(conn, isTCP)
 			if event != nil {
 				np.publishEvent(event)
+				closeCount++
 			}
 		}
+	}
+	if newCount > 0 || closeCount > 0 {
+		log.Printf("[NETWORK] %s diff: %d new connections, %d closed connections", protocol, newCount, closeCount)
 	}
 }
 
@@ -548,16 +567,24 @@ func (np *NetworkPoller) publishEvent(event *types.MonitorEvent) {
 	np.subMu.RLock()
 	defer np.subMu.RUnlock()
 
+	subscriberCount := len(np.subscribers)
+	if subscriberCount == 0 {
+		log.Printf("[NETWORK] WARNING: No subscribers for event, dropping event: Type=%s", event.Type)
+		return
+	}
+
 	for _, ch := range np.subscribers {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					// Channel was closed, ignore
+					log.Printf("[NETWORK] WARNING: Recovered from panic while publishing to channel: %v", r)
 				}
 			}()
 			select {
 			case ch <- event:
-			default:
+				// 阻塞发送成功
+			case <-time.After(1 * time.Second):
+				log.Printf("[NETWORK] WARNING: Failed to send event to subscriber (timeout): Type=%s", event.Type)
 			}
 		}()
 	}

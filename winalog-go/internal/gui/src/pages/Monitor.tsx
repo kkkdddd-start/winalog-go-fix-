@@ -78,12 +78,14 @@ function Monitor() {
     poll_interval: 5,
   })
   const [loading, setLoading] = useState(false)
+  const [statsLoading, setStatsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<'all' | 'process' | 'network'>('all')
   const [expandedEvent, setExpandedEvent] = useState<string | null>(null)
   const [statsError, setStatsError] = useState<string | null>(null)
   const [eventsError, setEventsError] = useState<string | null>(null)
 
   const fetchStats = useCallback(async () => {
+    setStatsLoading(true)
     try {
       const response = await monitorAPI.getStats()
       const backendStats = response.data.stats
@@ -96,11 +98,13 @@ function Monitor() {
         poll_interval: 5,
       })
     } catch (error: any) {
-      const msg = error.response?.status === 404 
-        ? 'Monitor stats not available (Windows only feature)' 
+      const msg = error.response?.status === 404
+        ? 'Monitor stats not available (Windows only feature)'
         : error.message || 'Failed to fetch stats'
       setStatsError(msg)
       console.error('Failed to fetch stats:', error)
+    } finally {
+      setStatsLoading(false)
     }
   }, [])
 
@@ -135,41 +139,62 @@ function Monitor() {
   }, [fetchEvents])
 
   const handleToggle = async (key: keyof MonitorConfig) => {
-    console.log('[MONITOR] handleToggle called:', key, 'current is_running:', stats?.is_running)
+    console.log('[MONITOR] handleToggle called:', key)
+    console.log('[MONITOR] stats:', stats)
+    console.log('[MONITOR] stats?.is_running:', stats?.is_running)
+    console.log('[MONITOR] config:', config)
+
     if (!stats?.is_running) {
-      console.warn('Cannot toggle: monitor is not running, need to start monitor first')
+      console.warn('[MONITOR] Cannot toggle: monitor is not running, need to start monitor first')
       message.warning('请先启动监控')
       return
     }
-    const newConfig = { ...config, [key]: !config[key as keyof MonitorConfig] }
+
+    const newValue = !config[key as keyof MonitorConfig]
+    const newConfig = { ...config, [key]: newValue }
     const oldConfig = { ...config }
-    console.log('[MONITOR] Toggling', key, 'from', oldConfig[key as keyof MonitorConfig], 'to', newConfig[key as keyof MonitorConfig])
+
+    console.log('[MONITOR] Toggling', key, 'from', oldConfig[key as keyof MonitorConfig], 'to', newValue)
     setConfig(newConfig)
+
     try {
+      console.log('[MONITOR] Sending API request to /monitor/config with:', newConfig)
       const response = await monitorAPI.updateConfig(newConfig)
       console.log('[MONITOR] updateConfig success:', response.data)
+      message.success('配置已更新')
       fetchStats()
-    } catch (error) {
-      console.error('Failed to update config:', error)
+    } catch (error: any) {
+      console.error('[MONITOR] Failed to update config:', error)
+      console.error('[MONITOR] Error response:', error.response)
       setConfig(oldConfig)
-      message.error('配置更新失败')
+      message.error('配置更新失败: ' + (error.response?.data?.error || error.message))
     }
   }
 
   const handleStartStop = async () => {
+    const action = stats?.is_running ? 'stop' : 'start'
+    console.log('[MONITOR] handleStartStop called, action:', action)
+    console.log('[MONITOR] stats?.is_running:', stats?.is_running)
+
     setLoading(true)
     try {
       if (stats?.is_running) {
+        console.log('[MONITOR] Stopping monitor...')
         await monitorAPI.updateConfig({
           process_enabled: false,
           network_enabled: false,
         })
       }
-      await monitorAPI.startStop(stats?.is_running ? 'stop' : 'start')
+      console.log('[MONITOR] Sending start/stop API request:', action)
+      const response = await monitorAPI.startStop(action)
+      console.log('[MONITOR] startStop success:', response.data)
+      message.success(action === 'start' ? '监控已启动' : '监控已停止')
       fetchStats()
       fetchEvents()
-    } catch (error) {
-      console.error('Failed to start/stop monitor:', error)
+    } catch (error: any) {
+      console.error('[MONITOR] Failed to start/stop monitor:', error)
+      console.error('[MONITOR] Error response:', error.response)
+      message.error('操作失败: ' + (error.response?.data?.error || error.message))
     } finally {
       setLoading(false)
     }
@@ -263,7 +288,7 @@ function Monitor() {
                   type="checkbox"
                   checked={config.process_enabled}
                   onChange={() => handleToggle('process_enabled')}
-                  disabled={!stats?.is_running}
+                  disabled={statsLoading}
                 />
                 <span className="toggle-slider-small"></span>
               </label>
@@ -284,7 +309,7 @@ function Monitor() {
                   type="checkbox"
                   checked={config.network_enabled}
                   onChange={() => handleToggle('network_enabled')}
-                  disabled={!stats?.is_running}
+                  disabled={statsLoading}
                 />
                 <span className="toggle-slider-small"></span>
               </label>
@@ -327,7 +352,7 @@ function Monitor() {
                     type="checkbox"
                     checked={config.process_enabled}
                     onChange={() => handleToggle('process_enabled')}
-                    disabled={!stats?.is_running}
+                    disabled={statsLoading}
                   />
                   <span className="toggle-slider"></span>
                 </label>
@@ -346,7 +371,7 @@ function Monitor() {
                     type="checkbox"
                     checked={config.network_enabled}
                     onChange={() => handleToggle('network_enabled')}
-                    disabled={!stats?.is_running}
+                    disabled={statsLoading}
                   />
                   <span className="toggle-slider"></span>
                 </label>

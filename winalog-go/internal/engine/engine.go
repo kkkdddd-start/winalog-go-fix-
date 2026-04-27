@@ -61,6 +61,7 @@ type ImportProgress struct {
 }
 
 func NewEngine(db *storage.DB) *Engine {
+	fmt.Printf("[ENGINE] >>> NewEngine ENTERED, db=%p\n", db)
 	e := &Engine{
 		db:        db,
 		parsers:   parsers.GetGlobalRegistry(),
@@ -80,7 +81,7 @@ func NewEngine(db *storage.DB) *Engine {
 			maxSize: 100,
 		},
 	}
-
+	fmt.Printf("[ENGINE] >>> NewEngine EXIT, e=%p, parsers=%p\n", e, e.parsers)
 	return e
 }
 
@@ -89,13 +90,24 @@ func (e *Engine) SetImportConfig(cfg ImportConfig) {
 }
 
 func (e *Engine) Import(ctx context.Context, req *ImportRequest, progressFn func(*ImportProgress)) (*ImportResult, error) {
+	fmt.Printf("[IMPORT] >>> Import ENTERED, ctx=%p, req=%p, req.Paths=%d\n", ctx, req, len(req.Paths))
+	if req == nil {
+		fmt.Printf("[IMPORT] >>> FATAL: req is nil!\n")
+		return nil, fmt.Errorf("ImportRequest is nil")
+	}
+	fmt.Printf("[IMPORT] >>> Accessing importCfg.Workers\n")
+	workers := e.importCfg.Workers
+	batchSize := e.importCfg.BatchSize
+	fmt.Printf("[IMPORT] >>> importCfg accessed: Workers=%d, BatchSize=%d\n", workers, batchSize)
 	if req.Workers <= 0 {
-		req.Workers = e.importCfg.Workers
+		req.Workers = workers
 	}
 	if req.BatchSize <= 0 {
-		req.BatchSize = e.importCfg.BatchSize
+		req.BatchSize = batchSize
 	}
 
+	fmt.Printf("[IMPORT] >>> Import config: Workers=%d, BatchSize=%d\n", req.Workers, req.BatchSize)
+	fmt.Printf("[IMPORT] >>> About to call importWithProgress\n")
 	return e.importWithProgress(ctx, req, progressFn)
 }
 
@@ -221,77 +233,56 @@ func (e *Engine) importFile(ctx context.Context, path string, logName string) (*
 		return nil, fmt.Errorf("failed to create import log: %w", err)
 	}
 
-	parseResult := parser.ParseWithError(path)
-
-	var parseErr error
-	if parseResult.ErrCh != nil {
-		select {
-		case err, ok := <-parseResult.ErrCh:
-			if !ok {
-				parseErr = nil
-			} else {
-				parseErr = err
-			}
-		case <-ctx.Done():
-			_ = e.db.UpdateImportLog(importID, 0, 0, "cancelled", ctx.Err().Error())
-			return &ImportResult{}, ctx.Err()
-		}
-	}
-
+	// 同步解析文件
+	events, parseErr := parser.ParseBatch(path)
 	if parseErr != nil {
 		_ = e.db.UpdateImportLog(importID, 0, 0, "failed", parseErr.Error())
 		return &ImportResult{FilesFailed: 1}, parseErr
 	}
 
-	events := parseResult.Events
+	if len(events) == 0 {
+		_ = e.db.UpdateImportLog(importID, 0, 0, "success", "no events")
+		return &ImportResult{EventsImported: 0}, nil
+	}
 
 	var batch []*types.Event
 	var totalEvents int64
 	var importErr error
 	var batchNum int
-	skipProcessing := false
 
-	for {
+	for _, event := range events {
 		select {
-		case event, ok := <-events:
-			if !ok {
-				goto DONE
-			}
-			if skipProcessing {
-				continue
-			}
-			event.ImportID = importID
-			if logName != "" {
-				event.LogName = logName
-			}
-			batch = append(batch, event)
-			if len(batch) >= e.importCfg.BatchSize {
-				batchNum++
-				if err := e.eventRepo.InsertBatch(batch); err != nil {
-					importErr = fmt.Errorf("batch %d failed: %w", batchNum, err)
-					skipProcessing = true
-					continue
-				}
-				totalEvents += int64(len(batch))
-				batch = batch[:0]
-			}
 		case <-ctx.Done():
 			_ = e.db.UpdateImportLog(importID, int(totalEvents), int(time.Since(startTime).Milliseconds()), "cancelled", ctx.Err().Error())
 			return &ImportResult{EventsImported: totalEvents}, ctx.Err()
+		default:
+		}
+
+		event.ImportID = importID
+		if logName != "" {
+			event.LogName = logName
+		}
+		batch = append(batch, event)
+
+		if len(batch) >= e.importCfg.BatchSize {
+			batchNum++
+			if err := e.eventRepo.InsertBatch(batch); err != nil {
+				importErr = fmt.Errorf("batch %d failed: %w", batchNum, err)
+				break
+			}
+			totalEvents += int64(len(batch))
+			batch = batch[:0]
 		}
 	}
 
-DONE:
-	if len(batch) > 0 {
-		if importErr == nil {
-			batchNum++
-			if err := e.eventRepo.InsertBatch(batch); err != nil {
-				importErr = fmt.Errorf("batch %d (final) failed: %w", batchNum, err)
-			} else {
-				totalEvents += int64(len(batch))
-			}
+	// 处理剩余的事件
+	if len(batch) > 0 && importErr == nil {
+		batchNum++
+		if err := e.eventRepo.InsertBatch(batch); err != nil {
+			importErr = fmt.Errorf("batch %d (final) failed: %w", batchNum, err)
+		} else {
+			totalEvents += int64(len(batch))
 		}
-		batch = batch[:0]
 	}
 
 	duration := time.Since(startTime)

@@ -85,6 +85,7 @@ func (pw *ProcessWatcher) Subscribe(ch chan *types.MonitorEvent) func() {
 	pw.subMu.Lock()
 	defer pw.subMu.Unlock()
 	pw.subscribers = append(pw.subscribers, ch)
+	log.Printf("[PROCESS] DEBUG: Subscribe called, subscriber count=%d, ch=%p", len(pw.subscribers), ch)
 	return func() {
 		pw.subMu.Lock()
 		defer pw.subMu.Unlock()
@@ -98,6 +99,7 @@ func (pw *ProcessWatcher) Subscribe(ch chan *types.MonitorEvent) func() {
 }
 
 func (pw *ProcessWatcher) run() {
+	log.Printf("[PROCESS] ProcessWatcher run() started")
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
@@ -106,6 +108,7 @@ func (pw *ProcessWatcher) run() {
 	for {
 		select {
 		case <-pw.ctx.Done():
+			log.Printf("[PROCESS] ProcessWatcher run() stopping")
 			return
 		case <-ticker.C:
 			pw.checkProcesses(isFirstRun)
@@ -128,6 +131,8 @@ func (pw *ProcessWatcher) checkProcesses(isFirstRun bool) {
 		return
 	}
 
+	log.Printf("[PROCESS] WMI query returned %d processes (firstRun=%v)", len(processes), isFirstRun)
+
 	currentPIDs := make(map[uint32]bool)
 	currentProcs := make(map[uint32]*Win32_Process)
 
@@ -138,13 +143,18 @@ func (pw *ProcessWatcher) checkProcesses(isFirstRun bool) {
 	}
 
 	pw.mu.Lock()
+	newProcessCount := 0
+	exitProcessCount := 0
 	for pid, p := range currentProcs {
 		pw.pidToName[pid] = p.Name
 		_, existed := pw.lastPIDs[pid]
 		if !existed {
 			event := pw.createProcessEvent(p, true)
 			if event != nil {
+				log.Printf("[PROCESS] DEBUG: Detected new process, calling publishEvent, subscribers=%d", len(pw.subscribers))
 				pw.publishEvent(event)
+				newProcessCount++
+				log.Printf("[PROCESS] New process detected: Name=%s, PID=%d, Path=%s", p.Name, p.ProcessID, p.ExecutablePath)
 			}
 		}
 	}
@@ -158,12 +168,18 @@ func (pw *ProcessWatcher) checkProcesses(isFirstRun bool) {
 			event := pw.createProcessExitEvent(pid, procName)
 			if event != nil {
 				pw.publishEvent(event)
+				exitProcessCount++
+				log.Printf("[PROCESS] Process exited: Name=%s, PID=%d", procName, pid)
 			}
 			delete(pw.pidToName, pid)
 		}
 	}
 	pw.lastPIDs = currentPIDs
 	pw.mu.Unlock()
+
+	if newProcessCount > 0 {
+		log.Printf("[PROCESS] Summary: %d new processes, %d exited", newProcessCount, exitProcessCount)
+	}
 }
 
 func (pw *ProcessWatcher) createProcessEvent(p *Win32_Process, isNew bool) *types.MonitorEvent {
@@ -218,10 +234,12 @@ func (pw *ProcessWatcher) publishEvent(event *types.MonitorEvent) {
 	pw.subMu.RLock()
 	defer pw.subMu.RUnlock()
 
+	log.Printf("[PROCESS] DEBUG: publishEvent called, subscriber count=%d, event type=%s", len(pw.subscribers), event.Type)
 	for _, ch := range pw.subscribers {
 		select {
 		case ch <- event:
-		default:
+		case <-time.After(1 * time.Second):
+			log.Printf("[PROCESS] WARNING: Failed to send event to subscriber (timeout)")
 		}
 	}
 }

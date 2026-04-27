@@ -45,6 +45,9 @@ CREATE TABLE IF NOT EXISTS alerts (
 	resolved INTEGER DEFAULT 0,
 	resolved_time TEXT,
 	notes TEXT,
+	explanation TEXT,
+	recommendation TEXT,
+	real_case TEXT,
 	false_positive INTEGER DEFAULT 0,
 	log_name TEXT,
 	rule_score REAL DEFAULT 0.0

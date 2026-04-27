@@ -141,8 +141,12 @@ func (m *LiveStreamManager) Subscribe(clientID string, channels []string, query 
 		return fmt.Errorf("client not found")
 	}
 
+	log.Printf("[INFO] [Live] Subscribe request: clientID=%s, channels=%v, query=%s", clientID, channels, query)
+
 	for _, channel := range channels {
+		log.Printf("[DEBUG] [Live] Processing channel: %s", channel)
 		if !validChannel(channel) {
+			log.Printf("[WARN] [Live] Invalid channel skipped: %s", channel)
 			continue
 		}
 
@@ -154,17 +158,20 @@ func (m *LiveStreamManager) Subscribe(clientID string, channels []string, query 
 		m.subscribers[channel][clientID] = client
 
 		if _, ok := m.collectors[channel]; !ok {
+			log.Printf("[INFO] [Live] Creating new collector for channel: %s", channel)
 			collector := live.NewEventCollector(channel, query)
 			if collector == nil {
 				log.Printf("[WARN] Event collector not available for channel %s (Windows only)", channel)
 				continue
 			}
+			log.Printf("[DEBUG] [Live] Starting collector for channel: %s", channel)
 			if err := collector.Start(context.Background()); err != nil {
-				log.Printf("[WARN] Failed to start collector for channel %s: %v", channel, err)
+				log.Printf("[ERROR] [Live] Failed to start collector for channel %s: %v", channel, err)
 				continue
 			}
 			m.collectors[channel] = collector
 			go m.dispatchEvents(channel, collector)
+			log.Printf("[INFO] [Live] Collector started successfully for channel: %s", channel)
 		}
 	}
 
@@ -232,10 +239,12 @@ func validChannel(channel string) bool {
 		"Security":          true,
 		"System":            true,
 		"Application":       true,
-		"Setup":            true,
+		"Setup":             true,
 		"ForwardedEvents":   true,
 	}
-	return validChannels[channel]
+	isValid := validChannels[channel]
+	log.Printf("[DEBUG] [Live] validChannel check: channel=%s, isValid=%v", channel, isValid)
+	return isValid
 }
 
 func (c *WSClient) writePump() {

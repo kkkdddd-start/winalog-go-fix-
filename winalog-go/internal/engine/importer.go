@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -296,53 +297,96 @@ func (im *Importer) shouldSkip(path string) bool {
 func (im *Importer) ImportFile(ctx context.Context, path string, batchSize int) (*types.ImportResult, error) {
 	parser := im.parserRegistry.Get(path)
 	if parser == nil {
+		log.Printf("[IMPORTER] ERROR: No parser found for file: %s", path)
 		return nil, fmt.Errorf("no parser found for %s", path)
 	}
 
+	log.Printf("[IMPORTER] Starting import: Path=%s, BatchSize=%d", path, batchSize)
 	startTime := time.Now()
-	parseResult := parser.ParseWithError(path)
-	if parseResult.Error != nil {
+
+	// 同步解析文件
+	events, parseErr := parser.ParseBatch(path)
+	if parseErr != nil {
+		log.Printf("[IMPORTER] ERROR: Parse failed for %s: %v", path, parseErr)
 		return &types.ImportResult{
 			EventsImported: 0,
 			Duration:       time.Since(startTime),
-			Errors:         []*types.ImportError{{FilePath: path, Error: parseResult.Error.Error()}},
-		}, parseResult.Error
+			Errors:         []*types.ImportError{{FilePath: path, Error: parseErr.Error()}},
+		}, parseErr
 	}
 
-	events := parseResult.Events
+	if len(events) == 0 {
+		log.Printf("[IMPORTER] Import completed (no events): Path=%s, Duration=%v", path, time.Since(startTime))
+		return &types.ImportResult{
+			EventsImported: 0,
+			Duration:       time.Since(startTime),
+		}, nil
+	}
+
+	log.Printf("[IMPORTER] Parsed %d events from %s, starting batch insert...", len(events), path)
 
 	var batch []*types.Event
 	var totalEvents int64
 	var lastErr error
+	var batchNum int
 
-	for event := range events {
+	for _, event := range events {
+		// 检查 context 是否取消
 		select {
 		case <-ctx.Done():
+			duration := time.Since(startTime)
+			fileHash, _ := im.CalculateFileHash(path)
+			log.Printf("[IMPORTER] WARNING: Import cancelled: Path=%s, EventsImported=%d, Duration=%v, Reason=%v",
+				path, totalEvents, duration, ctx.Err())
+			im.db.InsertImportLog(path, fileHash, int(totalEvents), int(duration.Milliseconds()), "cancelled", ctx.Err().Error())
 			return im.makeImportResult(totalEvents, startTime, lastErr), ctx.Err()
 		default:
 		}
 
 		batch = append(batch, event)
 		if len(batch) >= batchSize {
+			batchNum++
 			if err := im.eventRepo.InsertBatch(batch); err != nil {
 				lastErr = err
+				log.Printf("[IMPORTER] ERROR: Batch %d insert failed: Path=%s, BatchSize=%d, Error=%v",
+					batchNum, path, len(batch), err)
 				break
 			}
 			totalEvents += int64(len(batch))
 			batch = batch[:0]
+			log.Printf("[IMPORTER] Batch %d inserted: Path=%s, TotalEvents=%d", batchNum, path, totalEvents)
 		}
 	}
 
-	if len(batch) > 0 {
+	// 处理剩余的事件
+	if len(batch) > 0 && lastErr == nil {
+		batchNum++
 		if err := im.eventRepo.InsertBatch(batch); err != nil {
 			lastErr = err
+			log.Printf("[IMPORTER] ERROR: Final batch %d insert failed: Path=%s, BatchSize=%d, Error=%v",
+				batchNum, path, len(batch), err)
+		} else {
+			totalEvents += int64(len(batch))
+			log.Printf("[IMPORTER] Final batch %d inserted: Path=%s, BatchSize=%d, TotalEvents=%d",
+				batchNum, path, len(batch), totalEvents)
 		}
-		totalEvents += int64(len(batch))
 	}
 
 	duration := time.Since(startTime)
 	fileHash, _ := im.CalculateFileHash(path)
-	im.db.InsertImportLog(path, fileHash, int(totalEvents), int(duration.Milliseconds()), "success", "")
+
+	status := "success"
+	errorMsg := ""
+	if lastErr != nil {
+		status = "failed"
+		errorMsg = lastErr.Error()
+		log.Printf("[IMPORTER] Import failed: Path=%s, TotalEvents=%d, Duration=%v, Error=%s",
+			path, totalEvents, duration, errorMsg)
+	} else {
+		log.Printf("[IMPORTER] Import completed successfully: Path=%s, TotalEvents=%d, Duration=%v, FileHash=%s",
+			path, totalEvents, duration, fileHash)
+	}
+	im.db.InsertImportLog(path, fileHash, int(totalEvents), int(duration.Milliseconds()), status, errorMsg)
 
 	return im.makeImportResult(totalEvents, startTime, lastErr), lastErr
 }

@@ -49,7 +49,7 @@ func NewMonitorEngine(configPath string) (*MonitorEngine, error) {
 			NetworkCount: 0,
 			AlertCount:   0,
 		},
-		eventCh: make(chan *types.MonitorEvent, 1000),
+		eventCh: make(chan *types.MonitorEvent, 5000),
 		metrics: observability.GetMetricsLogger(),
 	}
 
@@ -61,22 +61,33 @@ func (e *MonitorEngine) Start(ctx context.Context) error {
 	defer e.mu.Unlock()
 
 	if e.isRunning {
+		log.Printf("[MONITOR] Start called but already running")
 		return nil
 	}
+
+	log.Printf("[MONITOR] Starting monitor engine...")
 
 	e.ctx, e.cancel = context.WithCancel(ctx)
 
 	config := e.config.Get()
 	e.startTime = time.Now()
 
+	log.Printf("[MONITOR] Config: ProcessEnabled=%v, NetworkEnabled=%v, PollInterval=%v",
+		config.ProcessEnabled, config.NetworkEnabled, config.PollInterval)
+
 	var err error
 
 	if config.ProcessEnabled {
+		log.Printf("[MONITOR] Creating process watcher...")
 		e.processWatch, err = e.createProcessWatcher()
 		if err == nil && e.processWatch != nil {
+			log.Printf("[MONITOR] DEBUG: About to subscribe processWatch to eventCh=%p", e.eventCh)
 			e.processWatch.Subscribe(e.eventCh)
+			log.Printf("[MONITOR] DEBUG: processWatch subscription completed")
 			if err := e.processWatch.Start(); err != nil {
 				log.Printf("[MONITOR] Process watcher start failed: %v", err)
+			} else {
+				log.Printf("[MONITOR] Process watcher started successfully")
 			}
 		} else if err != nil {
 			log.Printf("[MONITOR] Process watcher creation failed: %v", err)
@@ -84,11 +95,14 @@ func (e *MonitorEngine) Start(ctx context.Context) error {
 	}
 
 	if config.NetworkEnabled {
+		log.Printf("[MONITOR] Creating network poller...")
 		e.networkPoll = e.createNetworkPoller(config.PollInterval)
 		if e.networkPoll != nil {
 			e.networkPoll.Subscribe(e.eventCh)
 			if err := e.networkPoll.Start(); err != nil {
 				log.Printf("[MONITOR] Network poller start failed: %v", err)
+			} else {
+				log.Printf("[MONITOR] Network poller started successfully")
 			}
 		}
 	}
@@ -120,48 +134,70 @@ func (e *MonitorEngine) Stop() error {
 	e.ctx = nil
 	e.mu.Unlock()
 
+	log.Printf("[MONITOR] Stop called, shutting down...")
+
 	// 1. 通知 goroutine 退出
 	if cancel != nil {
 		cancel()
+		log.Printf("[MONITOR] Cancel function called")
+	} else {
+		log.Printf("[MONITOR] WARNING: cancel function is nil")
 	}
 
 	// 2. 等待 processEvents 完全退出
+	log.Printf("[MONITOR] Waiting for processEvents goroutine to exit...")
 	e.wg.Wait()
+	log.Printf("[MONITOR] processEvents goroutine exited")
 
 	// 3. 安全关闭 channel（此时不再有写入者）
 	close(e.eventCh)
+	log.Printf("[MONITOR] Event channel closed")
 
 	// 4. 清理子组件
 	if e.processWatch != nil {
+		log.Printf("[MONITOR] Stopping process watcher...")
 		e.processWatch.Stop()
 		e.processWatch = nil
+		log.Printf("[MONITOR] Process watcher stopped")
 	}
 
 	if e.networkPoll != nil {
+		log.Printf("[MONITOR] Stopping network poller...")
 		e.networkPoll.Stop()
 		e.networkPoll = nil
+		log.Printf("[MONITOR] Network poller stopped")
 	}
 
+	log.Printf("[MONITOR] Stop completed successfully")
 	return nil
 }
 
 func (e *MonitorEngine) processEvents() {
+	log.Printf("[MONITOR] processEvents goroutine started")
+	eventCount := 0
+	log.Printf("[MONITOR] DEBUG: processEvents starting, eventCh=%p, eventCache=%p", e.eventCh, e.eventCache)
 	for {
 		select {
 		case <-e.ctx.Done():
+			log.Printf("[MONITOR] processEvents goroutine stopping, processed %d events", eventCount)
 			return
 		case event, ok := <-e.eventCh:
 			if !ok {
+				log.Printf("[MONITOR] eventCh closed, processed %d events", eventCount)
 				return
 			}
+			eventCount++
+			log.Printf("[MONITOR] DEBUG: Received event #%d: type=%s, channel len=%d", eventCount, event.Type, len(e.eventCh))
 			e.eventCache.Add(event)
+			log.Printf("[MONITOR] DEBUG: After Add, cache size=%d", e.eventCache.Size())
 			e.updateStats(event)
 
 			e.mu.Lock()
 			for _, sub := range e.subscribers {
 				select {
 				case sub <- event:
-				default:
+				case <-time.After(1 * time.Second):
+					log.Printf("[MONITOR] WARNING: failed to send event to subscriber (timeout)")
 				}
 			}
 			e.mu.Unlock()
@@ -265,12 +301,15 @@ func (e *MonitorEngine) GetStats() *types.MonitorStats {
 }
 
 func (e *MonitorEngine) GetEvents(filter *EventFilter) ([]*types.MonitorEvent, int64) {
-	return e.eventCache.Get(filter)
+	events, total := e.eventCache.Get(filter)
+	log.Printf("[MONITOR] GetEvents called: filter=%+v, returning %d events (total=%d), cache_size=%d", filter, len(events), total, e.eventCache.Size())
+	return events, total
 }
 
 func (e *MonitorEngine) Subscribe(ch chan *types.MonitorEvent) func() {
 	e.mu.Lock()
 	e.subscribers = append(e.subscribers, ch)
+	log.Printf("[MONITOR] DEBUG: Subscribe called, total subscribers=%d, ch=%p", len(e.subscribers), ch)
 	e.mu.Unlock()
 
 	return func() {

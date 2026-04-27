@@ -45,7 +45,7 @@ function Alerts() {
 
   useEffect(() => {
     setLoading(true)
-    alertsAPI.list(page, 50, severityFilter || undefined)
+    alertsAPI.list(page, 100, severityFilter || undefined)
       .then(res => {
         const data = res.data as ListResponse
         setAlerts(data.alerts || [])
@@ -64,7 +64,7 @@ function Alerts() {
   }
 
   const handleMarkFalsePositive = (id: number) => {
-    const reason = prompt('Enter reason for marking as false positive:')
+    const reason = window.prompt(t('alerts.falsePositiveReason') || 'Enter reason for marking as false positive:')
     if (!reason) return
     alertsAPI.markFalsePositive(id, reason)
       .then(() => {
@@ -254,7 +254,7 @@ function Alerts() {
         <div className="toolbar-right">
           {selectedAlerts.length > 0 && (
             <div className="batch-actions">
-              <span className="selected-count">{selectedAlerts.length} selected</span>
+              <span className="selected-count">{selectedAlerts.length} {t('alerts.selected')}</span>
               <button className="btn-batch-resolve" onClick={handleBatchResolve}>
                 {t('alerts.resolveSelected')}
               </button>
@@ -405,7 +405,7 @@ function Alerts() {
               {analysisResult && (
                 <div className="analysis-result">
                   <div className={`result-header ${analysisResult.success ? 'success' : 'error'}`}>
-                    {analysisResult.success ? '✓' : '✗'} {analysisResult.success ? 'Analysis Complete' : 'Analysis Failed'}
+                    {analysisResult.success ? '✓' : '✗'} {analysisResult.success ? t('alerts.analysisComplete') : t('alerts.analysisFailed')}
                   </div>
                   <div className="result-stats">
                     <div className="result-stat">
@@ -427,7 +427,7 @@ function Alerts() {
                   </div>
                   {analysisResult.errors && analysisResult.errors.length > 0 && (
                     <div className="result-errors">
-                      <h4>Errors:</h4>
+                      <h4>{t('alerts.errors')}:</h4>
                       <ul>
                         {analysisResult.errors.map((err, i) => (
                           <li key={i}>{err}</li>

@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -208,7 +209,13 @@ func (c *OneClickCollector) FullCollect(ctx context.Context) (*OneClickResult, e
 	if c.cfg.Timeout > 0 {
 		ctx, cancel = context.WithTimeout(ctx, c.cfg.Timeout)
 		defer cancel()
-		log.Printf("[INFO] Collection timeout set to %v", c.cfg.Timeout)
+		log.Printf("[DEBUG] [CTX] Collection ctx created with timeout=%v", c.cfg.Timeout)
+		log.Printf("[DEBUG] [CTX] Original ctx info: err=%v, deadline=%v", ctx.Err(), func() interface{} {
+			if d, ok := ctx.Deadline(); ok {
+				return d
+			}
+			return "no deadline"
+		}())
 	}
 
 	var allErrors []string
@@ -312,15 +319,40 @@ func (c *OneClickCollector) FullCollect(ctx context.Context) (*OneClickResult, e
 
 	go func() {
 		<-ctx.Done()
-		log.Printf("[WARN] Collection context cancelled/timeout, forcing completion...")
-		cancel()
+		ctxErr := ctx.Err()
+
+		var cancelReason string
+		switch ctxErr {
+		case context.Canceled:
+			cancelReason = "explicit_cancel"
+		case context.DeadlineExceeded:
+			cancelReason = "deadline_exceeded"
+		default:
+			cancelReason = fmt.Sprintf("unknown: %v", ctxErr)
+		}
+
+		deadline, hasDeadline := ctx.Deadline()
+		now := time.Now()
+
+		log.Printf("[WARN] [CTX] Collection context cancelled: reason=%s, ctx_err=%v", cancelReason, ctxErr)
+		log.Printf("[WARN] [CTX] Context timing: now=%v, deadline=%v, has_deadline=%v", now, deadline, hasDeadline)
+		if hasDeadline {
+			log.Printf("[WARN] [CTX] Time until deadline: %v, time since deadline: %v", time.Until(deadline), now.Sub(deadline))
+		}
+		log.Printf("[WARN] [CTX] Cancel function exists: %v", cancel != nil)
+		log.Printf("[WARN] [CTX] Stack trace at ctx cancellation:")
+		log.Printf("[WARN] %s", debug.Stack())
+
+		if cancel != nil {
+			cancel()
+		}
 	}()
 
 	wg.Wait()
 	close(collectionDone)
 
 	if ctx.Err() == context.DeadlineExceeded || ctx.Err() == context.Canceled {
-		log.Printf("[WARN] Collection ended due to timeout/cancellation, proceeding with partial results")
+		log.Printf("[WARN] Collection ended due to ctx error: %v", ctx.Err())
 		result.Success = false
 		result.Errors = append(result.Errors, fmt.Sprintf("collection ended early: %v", ctx.Err()))
 	}
@@ -350,6 +382,22 @@ func (c *OneClickCollector) FullCollect(ctx context.Context) (*OneClickResult, e
 	}
 
 	if c.cfg.Compress {
+		tempFileCount := 0
+		tempFileSize := int64(0)
+		evtxFileCount := 0
+		evtxFileSize := int64(0)
+		filepath.Walk(tempDir, func(path string, info os.FileInfo, err error) error {
+			if err == nil && !info.IsDir() {
+				tempFileCount++
+				tempFileSize += info.Size()
+				if strings.HasSuffix(strings.ToLower(info.Name()), ".evtx") {
+					evtxFileCount++
+					evtxFileSize += info.Size()
+				}
+			}
+			return nil
+		})
+		log.Printf("[INFO] [ZIP] Pre-compression: %d files (%d .evtx), %d bytes in temp directory", tempFileCount, evtxFileCount, tempFileSize)
 		log.Printf("[INFO] Creating ZIP archive...")
 		zipPath := c.cfg.OutputPath + ".zip"
 		if err := c.CreateZipFromDir(tempDir, zipPath); err != nil {
@@ -357,6 +405,9 @@ func (c *OneClickCollector) FullCollect(ctx context.Context) (*OneClickResult, e
 			allErrors = append(allErrors, err.Error())
 		} else {
 			log.Printf("[INFO] ZIP archive created: %s", zipPath)
+			if zipInfo, err := os.Stat(zipPath); err == nil {
+				log.Printf("[INFO] [ZIP] ZIP file size: %d bytes (%.2f MB)", zipInfo.Size(), float64(zipInfo.Size())/1024/1024)
+			}
 			c.cfg.OutputPath = zipPath
 		}
 	} else {
@@ -499,18 +550,34 @@ func (c *OneClickCollector) CollectEventLogs(ctx context.Context, outputDir stri
 		log.Printf("[WARN] [OneClick] Failed to get channel file paths, using fallback: %v", err)
 		logChannels = c.getEventLogFilesFallback()
 	}
+	log.Printf("[INFO] [OneClick] Found %d log channels to collect", len(logChannels))
+	if len(logChannels) > 0 {
+		log.Printf("[INFO] [OneClick] First 5 channels:")
+		for i, ch := range logChannels {
+			if i >= 5 {
+				break
+			}
+			log.Printf("[INFO]   Channel[%d]: Name=%s, Path=%s, IsEVTX=%v", i, ch.Name, ch.LogPath, ch.IsEVTX)
+		}
+		if len(logChannels) > 5 {
+			log.Printf("[INFO]   ... and %d more channels", len(logChannels)-5)
+		}
+	}
 
 	var (
-		failedItems  []CollectionItem
-		failedMu     sync.Mutex
-		copiedCount  int
-		countMu      sync.Mutex
-		dirMu        sync.Mutex
-		usedNames    = make(map[string]bool)
-		usedNamesMu  sync.Mutex
-		workerCount  = 3
-		sem          = make(chan struct{}, workerCount)
-		wg           sync.WaitGroup
+		failedItems    []CollectionItem
+		failedMu       sync.Mutex
+		copiedCount    int
+		skippedCount   int
+		zeroSizeCount  int
+		zeroSizeFiles  []string
+		countMu        sync.Mutex
+		dirMu          sync.Mutex
+		usedNames      = make(map[string]bool)
+		usedNamesMu    sync.Mutex
+		workerCount    = 3
+		sem            = make(chan struct{}, workerCount)
+		wg             sync.WaitGroup
 	)
 
 	sanitizeFileName := func(name string) string {
@@ -552,16 +619,24 @@ func (c *OneClickCollector) CollectEventLogs(ctx context.Context, outputDir stri
 
 		select {
 		case <-ctx.Done():
+			log.Printf("[DEBUG] [OneClick] copyLog cancelled before start: channel=%s, path=%s", ch.Name, ch.LogPath)
 			return
 		default:
 		}
 
 		if !strings.HasSuffix(strings.ToLower(ch.LogPath), ".evtx") {
+			log.Printf("[DEBUG] [OneClick] Skipped (not .evtx): channel=%s, path=%s", ch.Name, ch.LogPath)
+			countMu.Lock()
+			skippedCount++
+			countMu.Unlock()
 			return
 		}
 
 		if _, err := os.Stat(ch.LogPath); os.IsNotExist(err) {
-			log.Printf("[DEBUG] [OneClick] Event log file does not exist: %s", ch.LogPath)
+			log.Printf("[DEBUG] [OneClick] Skipped (file not exist): channel=%s, path=%s", ch.Name, ch.LogPath)
+			countMu.Lock()
+			skippedCount++
+			countMu.Unlock()
 			return
 		}
 
@@ -577,8 +652,9 @@ func (c *OneClickCollector) CollectEventLogs(ctx context.Context, outputDir stri
 		dstPath := filepath.Join(eventLogDir, uniqueName)
 		dirMu.Unlock()
 
-		if err := c.CopyFileWithRetry(ch.LogPath, dstPath, 3); err != nil {
-			log.Printf("[WARN] [OneClick] Failed to copy log %s: %v", ch.Name, err)
+		if dstSize, err := c.CopyFileWithRetry(ch.LogPath, dstPath, 3); err != nil {
+			log.Printf("[WARN] [OneClick] Failed to copy log %s from %s: %v (is_locked=%v, file_exists=%v, file_size=%d)",
+				ch.Name, ch.LogPath, err, c.IsFileLocked(ch.LogPath), func() bool { _, e := os.Stat(ch.LogPath); return e == nil }(), func() int64 { fi, _ := os.Stat(ch.LogPath); if fi != nil { return fi.Size() }; return 0 }())
 			failedMu.Lock()
 			failedItems = append(failedItems, CollectionItem{
 				Name:        ch.Name,
@@ -592,8 +668,14 @@ func (c *OneClickCollector) CollectEventLogs(ctx context.Context, outputDir stri
 		} else {
 			countMu.Lock()
 			copiedCount++
+			if dstSize == 0 && !c.isLikelyEmptyLog(ch.LogPath) {
+				zeroSizeCount++
+				zeroSizeFiles = append(zeroSizeFiles, ch.Name)
+				log.Printf("[WARN] [OneClick] Zero-size log file: channel=%s, path=%s", ch.Name, ch.LogPath)
+			}
 			countMu.Unlock()
-			log.Printf("[DEBUG] [OneClick] Copied event log: %s -> %s", ch.Name, uniqueName)
+			log.Printf("[INFO] [OneClick] EventLog copied: channel=%s, original_path=%s, saved_as=%s, size=%d",
+				ch.Name, ch.LogPath, uniqueName, dstSize)
 		}
 	}
 
@@ -609,7 +691,23 @@ func (c *OneClickCollector) CollectEventLogs(ctx context.Context, outputDir stri
 
 	wg.Wait()
 
-	log.Printf("[DEBUG] [OneClick] Event log collection completed: %d files copied, %d failed", copiedCount, len(failedItems))
+	log.Printf("[INFO] [OneClick] Event log collection summary:")
+	log.Printf("[INFO]   Total log sources found: %d", len(logChannels))
+	log.Printf("[INFO]   Successfully copied: %d", copiedCount)
+	log.Printf("[INFO]   Skipped (not .evtx or not exist): %d", skippedCount)
+	log.Printf("[INFO]   Failed to copy: %d", len(failedItems))
+	if len(failedItems) > 0 {
+		log.Printf("[WARN] [OneClick] All failed copies (%d total):", len(failedItems))
+		for i, item := range failedItems {
+			log.Printf("[WARN]   Failed[%d]: Name=%s, Path=%s, Error=%s", i+1, item.Name, item.Path, item.Error)
+		}
+	}
+	if zeroSizeCount > 0 {
+		log.Printf("[WARN] [OneClick] Zero-size log files: %d files", zeroSizeCount)
+		for i, name := range zeroSizeFiles {
+			log.Printf("[WARN]   ZeroSize[%d]: %s", i+1, name)
+		}
+	}
 	return failedItems, nil
 }
 
@@ -679,7 +777,7 @@ func (c *OneClickCollector) CollectPrefetch(ctx context.Context, outputDir strin
 			dirMu.Lock()
 			dst := filepath.Join(prefetchDir, entry.Name())
 			dirMu.Unlock()
-			if err := c.CopyFileWithRetry(src, dst, 3); err != nil {
+			if _, err := c.CopyFileWithRetry(src, dst, 3); err != nil {
 				log.Printf("[WARN] [OneClick] Failed to copy prefetch %s: %v", entry.Name(), err)
 			}
 		}
@@ -872,8 +970,11 @@ func (c *OneClickCollector) CreateZipFromDir(sourceDir, zipPath string) error {
 	writer := zip.NewWriter(zipFile)
 	defer writer.Close()
 
-	return filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
+	fileCount := 0
+	dirCount := 0
+	err = filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
+			log.Printf("[WARN] [ZIP] Walk error on %s: %v", path, err)
 			return err
 		}
 
@@ -882,6 +983,12 @@ func (c *OneClickCollector) CreateZipFromDir(sourceDir, zipPath string) error {
 
 		if info.IsDir() {
 			header.Name += "/"
+			dirCount++
+		} else {
+			fileCount++
+			if strings.HasSuffix(strings.ToLower(header.Name), ".evtx") {
+				log.Printf("[DEBUG] [ZIP] Adding .evtx to archive: name=%s, size=%d", header.Name, info.Size())
+			}
 		}
 
 		headerWriter, _ := writer.Create(header.Name)
@@ -889,11 +996,21 @@ func (c *OneClickCollector) CreateZipFromDir(sourceDir, zipPath string) error {
 			return nil
 		}
 
-		file, _ := os.Open(path)
+		file, err := os.Open(path)
+		if err != nil {
+			log.Printf("[WARN] [ZIP] Failed to open file %s for zipping: %v", path, err)
+			return nil
+		}
 		defer file.Close()
 		_, err = io.Copy(headerWriter, file)
+		if err != nil {
+			log.Printf("[WARN] [ZIP] Failed to copy file %s to zip: %v", path, err)
+		}
 		return err
 	})
+
+	log.Printf("[INFO] [ZIP] Compression completed: %d files, %d directories added to %s", fileCount, dirCount, zipPath)
+	return err
 }
 
 func (c *OneClickCollector) CalculateFileHashes(dir string) (map[string]string, error) {
@@ -933,20 +1050,28 @@ func (c *OneClickCollector) IsFileLocked(path string) bool {
 	return false
 }
 
-func (c *OneClickCollector) CopyFileWithRetry(src, dst string, maxRetries int) error {
+func (c *OneClickCollector) CopyFileWithRetry(src, dst string, maxRetries int) (int64, error) {
 	var lastErr error
 	for i := 0; i < maxRetries; i++ {
-		if c.IsFileLocked(src) {
+		if !isFileAccessible(src) {
+			log.Printf("[DEBUG] [CopyFileWithRetry] File not accessible, retry %d/%d: %s", i+1, maxRetries, src)
 			time.Sleep(time.Second)
 			continue
 		}
-		lastErr = copyFile(src, dst)
-		if lastErr == nil {
-			return nil
+
+		dstSize, err := safeCopyFile(src, dst)
+		if err == nil {
+			if dstSize == 0 && !c.isLikelyEmptyLog(src) {
+				log.Printf("[WARN] [CopyFileWithRetry] Copied 0 bytes but file may not be empty: %s", src)
+			}
+			return dstSize, nil
 		}
+
+		lastErr = err
+		log.Printf("[DEBUG] [CopyFileWithRetry] Copy failed, retry %d/%d: %s, err=%v", i+1, maxRetries, src, err)
 		time.Sleep(time.Millisecond * 500)
 	}
-	return lastErr
+	return 0, lastErr
 }
 
 func copyFile(src, dst string) error {
@@ -1005,6 +1130,92 @@ func getDir(path string) string {
 		}
 	}
 	return "."
+}
+
+func safeCopyFile(src, dst string) (int64, error) {
+	log.Printf("[DEBUG] [safeCopyFile] Starting copy: src=%s", src)
+
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		log.Printf("[ERROR] [safeCopyFile] os.Stat failed: src=%s, err=%v", src, err)
+		return 0, err
+	}
+	srcSize := srcInfo.Size()
+	log.Printf("[DEBUG] [safeCopyFile] Source file size: %d bytes", srcSize)
+
+	destDir := getDir(dst)
+	if err := os.MkdirAll(destDir, 0755); err != nil {
+		log.Printf("[ERROR] [safeCopyFile] Create directory failed: dir=%s, err=%v", destDir, err)
+		return 0, err
+	}
+
+	srcFile, err := os.Open(src)
+	if err != nil {
+		log.Printf("[ERROR] [safeCopyFile] os.Open failed: src=%s, err=%v", src, err)
+		return 0, err
+	}
+	defer srcFile.Close()
+
+	dstFile, err := os.Create(dst)
+	if err != nil {
+		log.Printf("[ERROR] [safeCopyFile] os.Create failed: dst=%s, err=%v", dst, err)
+		return 0, err
+	}
+	defer dstFile.Close()
+
+	written, err := io.Copy(dstFile, srcFile)
+	if err != nil {
+		log.Printf("[ERROR] [safeCopyFile] io.Copy failed: src=%s, dst=%s, err=%v", src, dst, err)
+		return 0, err
+	}
+
+	if err := dstFile.Close(); err != nil {
+		log.Printf("[WARN] [safeCopyFile] dstFile.Close failed: err=%v", err)
+	}
+	if err := srcFile.Close(); err != nil {
+		log.Printf("[WARN] [safeCopyFile] srcFile.Close failed: err=%v", err)
+	}
+
+	dstSize := written
+	log.Printf("[INFO] [safeCopyFile] Copy completed: src=%s, dst=%s, src_size=%d, dst_size=%d",
+		src, dst, srcSize, dstSize)
+
+	if srcSize != dstSize {
+		log.Printf("[WARN] [safeCopyFile] Size mismatch: src=%d, dst=%d, diff=%d",
+			srcSize, dstSize, srcSize-dstSize)
+	}
+
+	return dstSize, nil
+}
+
+func isFileAccessible(path string) bool {
+	f, err := os.Open(path)
+	if err != nil {
+		log.Printf("[DEBUG] [isFileAccessible] Cannot open file: %s, err=%v", path, err)
+		return false
+	}
+	defer f.Close()
+
+	buf := make([]byte, 1024)
+	_, err = f.Read(buf)
+	if err != nil && err != io.EOF {
+		log.Printf("[DEBUG] [isFileAccessible] Cannot read file: %s, err=%v", path, err)
+		return false
+	}
+	return true
+}
+
+func (c *OneClickCollector) isLikelyEmptyLog(path string) bool {
+	emptyLogs := []string{
+		"Windows PowerShell",
+		"State",
+	}
+	for _, name := range emptyLogs {
+		if strings.Contains(path, name) {
+			return true
+		}
+	}
+	return false
 }
 
 func (c *OneClickCollector) GenerateCollectReport(success bool, outputDir string) error {

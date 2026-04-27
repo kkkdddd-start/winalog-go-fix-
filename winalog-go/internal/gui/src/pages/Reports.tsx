@@ -146,16 +146,16 @@ function Reports() {
   }
 
   const reportTypes = [
-    { value: 'security', label: t('reports.securitySummary'), icon: '🛡️', desc: 'Comprehensive security overview with event statistics and alerts' },
-    { value: 'alert', label: t('reports.alertAnalysis'), icon: '🚨', desc: 'Detailed alert analysis with threat patterns' },
-    { value: 'timeline', label: t('reports.eventTimeline'), icon: '📊', desc: 'Chronological event timeline with correlations' },
-    { value: 'compliance', label: t('reports.complianceReport'), icon: '📋', desc: 'Compliance status and audit trail report' },
+    { value: 'security', label: t('reports.securitySummary'), icon: '🛡️', desc: t('reports.comprehensiveSecurityOverview') },
+    { value: 'alert', label: t('reports.alertAnalysis'), icon: '🚨', desc: t('reports.detailedAlertAnalysis') },
+    { value: 'timeline', label: t('reports.eventTimeline'), icon: '📊', desc: t('reports.chronologicalEventTimeline') },
+    { value: 'compliance', label: t('reports.complianceReport'), icon: '📋', desc: t('reports.complianceStatusAuditTrail') },
   ]
 
   const formatOptions = [
-    { value: 'html', label: 'HTML', icon: '🌐', desc: 'Interactive web report with charts' },
-    { value: 'json', label: 'JSON', icon: '📄', desc: 'Structured data for further processing' },
-    { value: 'pdf', label: 'PDF', icon: '📕', desc: 'Printable document format' },
+    { value: 'html', label: 'HTML', icon: '🌐', desc: t('reports.interactiveWebReport') },
+    { value: 'json', label: 'JSON', icon: '📄', desc: t('reports.structuredDataProcessing') },
+    { value: 'pdf', label: 'PDF', icon: '📕', desc: t('reports.printableDocument') },
   ]
 
   return (
@@ -168,7 +168,7 @@ function Reports() {
           <p className="card-desc">{t('reports.generateDesc')}</p>
           
           <div className="config-section">
-            <label className="section-label">Report Type</label>
+            <label className="section-label">{t('reports.reportType')}</label>
             <div className="type-grid">
               {reportTypes.map(rt => (
                 <div 
@@ -184,7 +184,7 @@ function Reports() {
           </div>
 
           <div className="config-section">
-            <label className="section-label">Output Format</label>
+            <label className="section-label">{t('reports.outputFormat')}</label>
             <div className="format-row">
               {formatOptions.map(fo => (
                 <div 
@@ -200,7 +200,7 @@ function Reports() {
           </div>
 
           <div className="config-section">
-            <label className="section-label">Time Range</label>
+            <label className="section-label">{t('reports.timeRange')}</label>
             <div className="date-range-selector">
               {['24h', '7d', '30d', '90d'].map(range => (
                 <button
@@ -208,17 +208,17 @@ function Reports() {
                   className={`range-btn ${dateRange === range ? 'active' : ''}`}
                   onClick={() => setDateRange(range)}
                 >
-                  {range === '24h' && 'Last 24 Hours'}
-                  {range === '7d' && 'Last 7 Days'}
-                  {range === '30d' && 'Last 30 Days'}
-                  {range === '90d' && 'Last 90 Days'}
+                  {range === '24h' && t('reports.last24Hours')}
+                  {range === '7d' && t('reports.last7Days')}
+                  {range === '30d' && t('reports.last30Days')}
+                  {range === '90d' && t('reports.last90Days')}
                 </button>
               ))}
             </div>
           </div>
 
           <div className="config-section">
-            <label className="section-label">Report Language</label>
+            <label className="section-label">{t('reports.reportLanguage')}</label>
             <div className="format-row">
               <div 
                 className={`format-option ${reportLang === 'en' ? 'selected' : ''}`}
@@ -251,7 +251,7 @@ function Reports() {
             {generating ? (
               <>
                 <span className="btn-spinner"></span>
-                Generating Report...
+                {t('reports.generatingReport')}
               </>
             ) : (
               <>📊 {t('reports.generate')}</>
@@ -260,36 +260,36 @@ function Reports() {
 
           {lastGenerated && (
             <div className="last-generated">
-              ✓ Last report generated at {lastGenerated}
+              ✓ {t('reports.lastReportGeneratedAt')} {lastGenerated}
             </div>
           )}
         </div>
 
         <div className="reports-card stats-card">
-          <h3>Report Statistics</h3>
+          <h3>{t('reports.reportStatistics')}</h3>
           
           <div className="stats-preview">
             <div className="stat-item">
               <div className="stat-icon">📁</div>
               <div className="stat-value">{reports.length}</div>
-              <div className="stat-label">Total Reports</div>
+              <div className="stat-label">{t('reports.totalReports')}</div>
             </div>
             
             <div className="stat-item">
               <div className="stat-icon">🛡️</div>
               <div className="stat-value">{reports.filter(r => r.type === 'security').length}</div>
-              <div className="stat-label">Security Reports</div>
+              <div className="stat-label">{t('reports.securityReports')}</div>
             </div>
             
             <div className="stat-item">
               <div className="stat-icon">🚨</div>
               <div className="stat-value">{reports.filter(r => r.type === 'alert').length}</div>
-              <div className="stat-label">Alert Reports</div>
+              <div className="stat-label">{t('reports.alertReports')}</div>
             </div>
           </div>
 
           <div className="chart-placeholder">
-            <div className="chart-label">Reports by Type</div>
+            <div className="chart-label">{t('reports.reportsByType')}</div>
             <div className="mini-chart">
               <div className="bar" style={{height: '60%', background: '#00d9ff'}}></div>
               <div className="bar" style={{height: '30%', background: '#f97316'}}></div>
@@ -308,12 +308,12 @@ function Reports() {
             <table>
               <thead>
                 <tr>
-                  <th>Report Name</th>
-                  <th>Type</th>
-                  <th>Format</th>
-                  <th>Generated</th>
-                  <th>Size</th>
-                  <th>Actions</th>
+                  <th>{t('reports.reportName')}</th>
+                  <th>{t('reports.type')}</th>
+                  <th>{t('reports.format')}</th>
+                  <th>{t('reports.generated')}</th>
+                  <th>{t('reports.size')}</th>
+                  <th>{t('reports.actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -335,8 +335,8 @@ function Reports() {
                     <td>{new Date(report.generated_at).toLocaleString()}</td>
                     <td>{formatSize(report.file_size)}</td>
                     <td>
-                      <button className="btn-small" onClick={() => handleView(report)}>View</button>
-                      <button className="btn-small" onClick={() => handleDownload(report)}>Download</button>
+                      <button className="btn-small" onClick={() => handleView(report)}>{t('reports.view')}</button>
+                      <button className="btn-small" onClick={() => handleDownload(report)}>{t('reports.download')}</button>
                     </td>
                   </tr>
                 ))}
@@ -347,7 +347,7 @@ function Reports() {
           <div className="empty-state">
             <div className="empty-icon">📊</div>
             <div className="empty-text">{t('reports.noReports')}</div>
-            <div className="empty-hint">Generate your first report using the form above</div>
+            <div className="empty-hint">{t('reports.generateFirstReport')}</div>
           </div>
         )}
       </div>

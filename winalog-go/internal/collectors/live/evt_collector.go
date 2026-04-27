@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	EvtSubscribeActionStartAtBeginning   = 0
-	EvtSubscribeActionStartAfterBookmark = 1
+	EvtSubscribeActionStartAtOldestRecord = 2
+	EvtSubscribeActionStartAfterBookmark  = 3
 
 	EvtRenderEventXML = 1
 
@@ -81,11 +81,14 @@ func (c *EvtLiveCollector) Start(ctx context.Context) error {
 		return nil
 	}
 
+	log.Printf("[INFO] [EvtLiveCollector] Creating signal event for channel: %s", c.channelName)
 	signalEvent, err := windows.CreateEvent(nil, 0, 0, nil)
 	if err != nil {
+		log.Printf("[ERROR] [EvtLiveCollector] CreateEvent failed for channel %s: err=%v", c.channelName, err)
 		c.mu.Unlock()
 		return err
 	}
+	log.Printf("[DEBUG] [EvtLiveCollector] CreateEvent succeeded: channel=%s, handle=0x%x", c.channelName, signalEvent)
 	c.signalEvent = signalEvent
 
 	subscriptionCtx, subscriptionCancel := context.WithCancel(ctx)
@@ -96,14 +99,18 @@ func (c *EvtLiveCollector) Start(ctx context.Context) error {
 	c.mu.Unlock()
 
 	if c.bookmarkFile != "" {
+		log.Printf("[DEBUG] [EvtLiveCollector] Loading bookmark: channel=%s, file=%s", c.channelName, c.bookmarkFile)
 		c.loadBookmark()
 	}
 
+	log.Printf("[INFO] [EvtLiveCollector] Starting subscription: channel=%s", c.channelName)
 	if err := c.subscribe(); err != nil {
+		log.Printf("[ERROR] [EvtLiveCollector] subscribe failed for channel %s: %v", c.channelName, err)
 		c.Stop()
 		return err
 	}
 
+	log.Printf("[INFO] [EvtLiveCollector] Starting event loop: channel=%s", c.channelName)
 	go c.runLoop()
 	return nil
 }
@@ -114,30 +121,42 @@ func (c *EvtLiveCollector) subscribe() error {
 	bookmark := c.bookmark
 	c.mu.RUnlock()
 
+	log.Printf("[INFO] [EvtSubscribe] Attempting to subscribe to channel: name=%s, query=%s", c.channelName, c.query)
+
 	channelPtr, _ := windows.UTF16PtrFromString(c.channelName)
+	if channelPtr == nil {
+		log.Printf("[ERROR] [EvtSubscribe] channelPtr is nil for channel: %s", c.channelName)
+	}
 
 	var queryPtr *uint16
 	if c.query != "" {
 		queryPtr, _ = windows.UTF16PtrFromString(c.query)
 	}
 
-	flags := EvtSubscribeActionStartAtBeginning
+	flags := EvtSubscribeActionStartAtOldestRecord
+	signalEventToUse := uintptr(0)
 	if bookmark != 0 {
 		flags = EvtSubscribeActionStartAfterBookmark
+		signalEventToUse = uintptr(signalEvent)
 	}
+
+	log.Printf("[DEBUG] [EvtSubscribe] Calling EvtSubscribe: channel=%s, signalEventHandle=0x%x, signalEventPassed=%d, bookmark=0x%x, flags=%d, useBookmark=%v",
+		c.channelName, signalEvent, signalEventToUse, bookmark, flags, bookmark != 0)
 
 	ret, _, err := procEvtSubscribe.Call(
 		0,
 		uintptr(unsafe.Pointer(channelPtr)),
 		uintptr(unsafe.Pointer(queryPtr)),
-		uintptr(signalEvent),
-		0,
+		signalEventToUse,
 		uintptr(bookmark),
 		uintptr(flags),
 	)
 
 	if ret == 0 {
-		observability.LogServiceError("evt_live_collector", fmt.Sprintf("EvtSubscribe failed for channel %s: %v", c.channelName, err))
+		errCode := windows.GetLastError()
+		log.Printf("[ERROR] [EvtSubscribe] EvtSubscribe failed for channel %s: err=%v, errCode=%d, sysErr=%v",
+			c.channelName, err, errCode, errCode)
+		observability.LogServiceError("evt_live_collector", fmt.Sprintf("EvtSubscribe failed for channel %s: err=%v, errCode=%d", c.channelName, err, errCode))
 		return err
 	}
 
@@ -145,6 +164,7 @@ func (c *EvtLiveCollector) subscribe() error {
 	c.session = windows.Handle(ret)
 	c.mu.Unlock()
 
+	log.Printf("[INFO] [EvtSubscribe] Successfully subscribed to channel: name=%s, session=0x%x", c.channelName, ret)
 	return nil
 }
 

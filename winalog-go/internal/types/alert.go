@@ -62,11 +62,14 @@ type Alert struct {
 	Count         int        `json:"count" db:"count"`
 	MITREAttack   []string   `json:"mitre_attack,omitempty" db:"mitre_attack"`
 	Resolved      bool       `json:"resolved" db:"resolved"`
-	ResolvedTime  *time.Time `json:"resolved_time,omitempty" db:"resolved_time"`
-	Notes         string     `json:"notes,omitempty" db:"notes"`
-	FalsePositive bool       `json:"false_positive" db:"false_positive"`
-	LogName       string     `json:"log_name" db:"log_name"`
-	RuleScore     float64    `json:"rule_score" db:"rule_score"`
+	ResolvedTime   *time.Time `json:"resolved_time,omitempty" db:"resolved_time"`
+	Notes          string     `json:"notes,omitempty" db:"notes"`
+	Explanation    string     `json:"explanation,omitempty" db:"explanation"`
+	Recommendation string     `json:"recommendation,omitempty" db:"recommendation"`
+	RealCase       string     `json:"real_case,omitempty" db:"real_case"`
+	FalsePositive  bool       `json:"false_positive" db:"false_positive"`
+	LogName        string     `json:"log_name" db:"log_name"`
+	RuleScore      float64    `json:"rule_score" db:"rule_score"`
 }
 
 func (a *Alert) ToMap() map[string]interface{} {
@@ -75,20 +78,23 @@ func (a *Alert) ToMap() map[string]interface{} {
 	mitreJSON, _ := json.Marshal(a.MITREAttack)
 
 	m := map[string]interface{}{
-		"rule_name":      a.RuleName,
-		"severity":       a.Severity,
-		"message":        a.Message,
-		"event_ids":      string(eventIDsJSON),
-		"event_db_ids":   string(eventDBIDsJSON),
-		"first_seen":     a.FirstSeen,
-		"last_seen":      a.LastSeen,
-		"count":          a.Count,
-		"mitre_attack":   string(mitreJSON),
-		"resolved":       a.Resolved,
-		"notes":          a.Notes,
-		"false_positive": a.FalsePositive,
-		"log_name":       a.LogName,
-		"rule_score":     a.RuleScore,
+		"rule_name":       a.RuleName,
+		"severity":        a.Severity,
+		"message":         a.Message,
+		"event_ids":       string(eventIDsJSON),
+		"event_db_ids":    string(eventDBIDsJSON),
+		"first_seen":      a.FirstSeen,
+		"last_seen":       a.LastSeen,
+		"count":           a.Count,
+		"mitre_attack":    string(mitreJSON),
+		"resolved":        a.Resolved,
+		"notes":           a.Notes,
+		"explanation":     a.Explanation,
+		"recommendation":  a.Recommendation,
+		"real_case":       a.RealCase,
+		"false_positive":  a.FalsePositive,
+		"log_name":        a.LogName,
+		"rule_score":      a.RuleScore,
 	}
 	if a.ResolvedTime != nil {
 		m["resolved_time"] = *a.ResolvedTime
@@ -100,7 +106,7 @@ func ScanAlert(row interface{ Scan(...interface{}) error }) (*Alert, error) {
 	var a Alert
 	var eventIDsJSON, mitreJSON sql.NullString
 	var resolvedTime sql.NullInt64
-	var notes sql.NullString
+	var notes, explanation, recommendation, realCase sql.NullString
 
 	err := row.Scan(
 		&a.ID,
@@ -115,6 +121,9 @@ func ScanAlert(row interface{ Scan(...interface{}) error }) (*Alert, error) {
 		&a.Resolved,
 		&resolvedTime,
 		&notes,
+		&explanation,
+		&recommendation,
+		&realCase,
 		&a.FalsePositive,
 		&a.LogName,
 		&a.RuleScore,
@@ -135,6 +144,15 @@ func ScanAlert(row interface{ Scan(...interface{}) error }) (*Alert, error) {
 	}
 	if notes.Valid {
 		a.Notes = notes.String
+	}
+	if explanation.Valid {
+		a.Explanation = explanation.String
+	}
+	if recommendation.Valid {
+		a.Recommendation = recommendation.String
+	}
+	if realCase.Valid {
+		a.RealCase = realCase.String
 	}
 
 	return &a, nil

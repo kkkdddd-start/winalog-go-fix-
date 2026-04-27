@@ -2,6 +2,7 @@ package persistence
 
 import (
 	"encoding/json"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
@@ -44,31 +45,57 @@ func (s *WhitelistStore) Load() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	log.Printf("[WHITELIST_STORE] Loading user whitelist from: %s", s.filePath)
 	data, err := os.ReadFile(s.filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
+			log.Printf("[WHITELIST_STORE] Whitelist file not found (will use defaults): %s", s.filePath)
 			return nil
 		}
+		log.Printf("[WHITELIST_STORE] ERROR loading whitelist: %v", err)
 		return err
 	}
 
-	return json.Unmarshal(data, &s.data)
+	if err := json.Unmarshal(data, &s.data); err != nil {
+		log.Printf("[WHITELIST_STORE] ERROR parsing whitelist JSON: %v", err)
+		return err
+	}
+
+	log.Printf("[WHITELIST_STORE] Loaded whitelist: detectors=%d", len(s.data))
+	for name := range s.data {
+		cfg := s.data[name]
+		wlCount := 0
+		if cfg.UserWhitelist != nil {
+			wlCount = len(cfg.UserWhitelist)
+		}
+		log.Printf("[WHITELIST_STORE]   Detector=%s, UserWhitelist=%d", name, wlCount)
+	}
+	return nil
 }
 
 func (s *WhitelistStore) Save() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	log.Printf("[WHITELIST_STORE] Saving user whitelist to: %s", s.filePath)
 	if err := os.MkdirAll(s.dir, 0755); err != nil {
+		log.Printf("[WHITELIST_STORE] ERROR creating directory: %v", err)
 		return err
 	}
 
 	data, err := json.MarshalIndent(s.data, "", "  ")
 	if err != nil {
+		log.Printf("[WHITELIST_STORE] ERROR marshaling whitelist: %v", err)
 		return err
 	}
 
-	return os.WriteFile(s.filePath, data, 0644)
+	if err := os.WriteFile(s.filePath, data, 0644); err != nil {
+		log.Printf("[WHITELIST_STORE] ERROR writing whitelist file: %v", err)
+		return err
+	}
+
+	log.Printf("[WHITELIST_STORE] Save completed: detectors=%d", len(s.data))
+	return nil
 }
 
 func (s *WhitelistStore) Get(detectorName string) *UserWhitelistConfig {

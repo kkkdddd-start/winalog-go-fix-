@@ -1,6 +1,7 @@
 package parsers
 
 import (
+	"fmt"
 	"sort"
 	"sync"
 
@@ -40,9 +41,13 @@ var (
 )
 
 func GetGlobalRegistry() *ParserRegistry {
+	fmt.Printf("[PARSER] >>> GetGlobalRegistry ENTERED\n")
 	globalOnce.Do(func() {
+		fmt.Printf("[PARSER] >>> GetGlobalRegistry: initializing globalRegistry\n")
 		globalRegistry = NewParserRegistry()
+		fmt.Printf("[PARSER] >>> GetGlobalRegistry: globalRegistry initialized, registry=%p\n", globalRegistry)
 	})
+	fmt.Printf("[PARSER] >>> GetGlobalRegistry EXIT, returning %p\n", globalRegistry)
 	return globalRegistry
 }
 

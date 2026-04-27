@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-let requestTimeout = 120000
+let requestTimeout = 1800000 // 30 minutes default
 
 const api = axios.create({
   baseURL: '/api',
@@ -8,7 +8,9 @@ const api = axios.create({
 })
 
 api.interceptors.request.use(config => {
-  config.timeout = requestTimeout
+  if (!config.timeout || config.timeout === 120000) {
+    config.timeout = requestTimeout
+  }
   return config
 })
 

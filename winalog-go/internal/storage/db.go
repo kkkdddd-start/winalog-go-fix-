@@ -16,9 +16,9 @@ import (
 )
 
 type DB struct {
-	conn    *sql.DB
-	path    string
-	writeMu sync.Mutex
+	conn  *sql.DB
+	path  string
+	rwMu  sync.RWMutex
 }
 
 func NewDB(path string) (*DB, error) {
@@ -40,7 +40,7 @@ func NewDB(path string) (*DB, error) {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	conn.SetMaxOpenConns(4)
+	conn.SetMaxOpenConns(10)
 	conn.SetMaxIdleConns(2)
 	conn.SetConnMaxLifetime(time.Hour)
 
@@ -80,39 +80,50 @@ func (d *DB) Path() string {
 }
 
 func (d *DB) Exec(query string, args ...interface{}) (sql.Result, error) {
-	d.writeMu.Lock()
-	defer d.writeMu.Unlock()
+	d.rwMu.Lock()
+	defer d.rwMu.Unlock()
 	return d.conn.Exec(query, args...)
 }
 
 func (d *DB) Query(query string, args ...interface{}) (*sql.Rows, error) {
+	d.rwMu.RLock()
+	defer d.rwMu.RUnlock()
 	return d.conn.Query(query, args...)
 }
 
 func (d *DB) QueryWithContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+	d.rwMu.RLock()
+	defer d.rwMu.RUnlock()
 	return d.conn.QueryContext(ctx, query, args...)
 }
 
 func (d *DB) QueryRow(query string, args ...interface{}) *sql.Row {
+	d.rwMu.RLock()
+	defer d.rwMu.RUnlock()
 	return d.conn.QueryRow(query, args...)
 }
 
 func (d *DB) QueryRowWithContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
+	d.rwMu.RLock()
+	defer d.rwMu.RUnlock()
 	return d.conn.QueryRowContext(ctx, query, args...)
 }
 
 func (d *DB) Begin() (*sql.Tx, func(), error) {
+	d.rwMu.Lock()
 	tx, err := d.conn.Begin()
 	if err != nil {
+		d.rwMu.Unlock()
 		return nil, nil, err
 	}
 	return tx, func() {
 		_ = tx.Rollback()
+		d.rwMu.Unlock()
 	}, nil
 }
 
 func (d *DB) Unlock() {
-	d.writeMu.Unlock()
+	d.rwMu.Unlock()
 }
 
 func (d *DB) CreateTables() error {
@@ -120,6 +131,8 @@ func (d *DB) CreateTables() error {
 }
 
 func (d *DB) createTables() error {
+	d.rwMu.Lock()
+	defer d.rwMu.Unlock()
 	statements := strings.Split(SchemaSQL, ";")
 	for _, stmt := range statements {
 		stmt = strings.TrimSpace(stmt)
@@ -149,6 +162,42 @@ func (d *DB) runMigrations() error {
 			},
 			exec: func() error {
 				_, err := d.conn.Exec("ALTER TABLE alerts ADD COLUMN event_db_ids TEXT")
+				return err
+			},
+		},
+		{
+			name: "add_explanation_to_alerts",
+			check: func() (bool, error) {
+				var count int
+				err := d.conn.QueryRow("SELECT COUNT(*) FROM pragma_table_info('alerts') WHERE name='explanation'").Scan(&count)
+				return count == 0, err
+			},
+			exec: func() error {
+				_, err := d.conn.Exec("ALTER TABLE alerts ADD COLUMN explanation TEXT")
+				return err
+			},
+		},
+		{
+			name: "add_recommendation_to_alerts",
+			check: func() (bool, error) {
+				var count int
+				err := d.conn.QueryRow("SELECT COUNT(*) FROM pragma_table_info('alerts') WHERE name='recommendation'").Scan(&count)
+				return count == 0, err
+			},
+			exec: func() error {
+				_, err := d.conn.Exec("ALTER TABLE alerts ADD COLUMN recommendation TEXT")
+				return err
+			},
+		},
+		{
+			name: "add_real_case_to_alerts",
+			check: func() (bool, error) {
+				var count int
+				err := d.conn.QueryRow("SELECT COUNT(*) FROM pragma_table_info('alerts') WHERE name='real_case'").Scan(&count)
+				return count == 0, err
+			},
+			exec: func() error {
+				_, err := d.conn.Exec("ALTER TABLE alerts ADD COLUMN real_case TEXT")
 				return err
 			},
 		},
@@ -209,20 +258,22 @@ func (d *DB) runMigrations() error {
 }
 
 func (d *DB) Vacuum() error {
-	d.writeMu.Lock()
-	defer d.writeMu.Unlock()
+	d.rwMu.Lock()
+	defer d.rwMu.Unlock()
 	_, err := d.conn.Exec("VACUUM")
 	return err
 }
 
 func (d *DB) Analyze() error {
-	d.writeMu.Lock()
-	defer d.writeMu.Unlock()
+	d.rwMu.Lock()
+	defer d.rwMu.Unlock()
 	_, err := d.conn.Exec("ANALYZE")
 	return err
 }
 
 func (d *DB) GetStats() (*DBStats, error) {
+	d.rwMu.RLock()
+	defer d.rwMu.RUnlock()
 	var eventCount, alertCount, importCount int64
 
 	if err := d.conn.QueryRow("SELECT COUNT(*) FROM events").Scan(&eventCount); err != nil {
@@ -249,6 +300,8 @@ func (d *DB) GetStats() (*DBStats, error) {
 }
 
 func (d *DB) GetStatsWithContext(ctx context.Context) (*DBStats, error) {
+	d.rwMu.RLock()
+	defer d.rwMu.RUnlock()
 	var eventCount, alertCount, importCount int64
 
 	if err := d.conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM events").Scan(&eventCount); err != nil {

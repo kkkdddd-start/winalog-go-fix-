@@ -206,7 +206,24 @@ func (h *CollectHandler) StartCollect(c *gin.Context) {
 		opts.Formats = req.Formats
 	}
 
-	ctx := context.Background()
+	reqCtx := c.Request.Context()
+	if reqCtx.Err() != nil {
+		c.JSON(http.StatusGatewayTimeout, LogCollectResponse{
+			Status:  "error",
+			Message: "request context already cancelled before collection started",
+		})
+		return
+	}
+
+	var cancel context.CancelFunc
+	ctx := reqCtx
+	if deadline, ok := reqCtx.Deadline(); ok {
+		ctx, cancel = context.WithDeadline(context.Background(), deadline)
+	} else {
+		ctx, cancel = context.WithCancel(context.Background())
+	}
+	defer cancel()
+
 	result, err := collectors.RunOneClickCollection(ctx, opts)
 
 	if err != nil {

@@ -79,6 +79,7 @@ func (e *DetectionEngine) Detect(ctx context.Context) *DetectionResult {
 	detectorCount := len(e.detectors)
 	log.Printf("[DEBUG] DetectionEngine.Detect started with %d detectors", detectorCount)
 
+	ResetWhitelistStats()
 	e.result = NewDetectionResult()
 
 	// 拷贝 detector 引用后立即释放锁
@@ -153,6 +154,43 @@ func (e *DetectionEngine) Detect(ctx context.Context) *DetectionResult {
 
 	log.Printf("[INFO] DetectionEngine.Detect completed: total=%d, errors=%d, duration=%v",
 		e.result.TotalCount, e.result.ErrorCount, e.result.Duration)
+
+	log.Printf("[INFO] Whitelist usage: %s", GetWhitelistStats().String())
+
+	highCount := 0
+	mediumCount := 0
+	lowCount := 0
+	infoCount := 0
+	for _, det := range e.result.Detections {
+		switch det.Severity {
+		case "high", "critical":
+			highCount++
+		case "medium":
+			mediumCount++
+		case "low":
+			lowCount++
+		default:
+			infoCount++
+		}
+	}
+
+	if highCount > 0 {
+		log.Printf("[ALERT] Detection summary: HIGH=%d, MEDIUM=%d, LOW=%d, INFO=%d (HIGH severity detected!)", highCount, mediumCount, lowCount, infoCount)
+	} else {
+		log.Printf("[INFO] Detection summary: HIGH=%d, MEDIUM=%d, LOW=%d, INFO=%d", highCount, mediumCount, lowCount, infoCount)
+	}
+
+	if len(e.result.Errors) > 0 {
+		log.Printf("[WARN] Detection completed with %d errors:", len(e.result.Errors))
+		for i, err := range e.result.Errors {
+			if i < 5 {
+				log.Printf("[WARN]   Error[%d]: %s", i+1, err)
+			}
+		}
+		if len(e.result.Errors) > 5 {
+			log.Printf("[WARN]   ... and %d more errors", len(e.result.Errors)-5)
+		}
+	}
 
 	return e.result
 }

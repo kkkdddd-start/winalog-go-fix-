@@ -1017,44 +1017,37 @@ func (h *ImportHandler) ImportLogs(c *gin.Context) {
 		}
 	}
 
-	const importBatchSize = 3
-
 	eng := engine.NewEngine(h.db)
 
 	totalResult := &engine.ImportResult{}
 
 	files := req.Files
-	for i := 0; i < len(files); i += importBatchSize {
-		end := i + importBatchSize
-		if end > len(files) {
-			end = len(files)
-		}
-		batch := files[i:end]
+	for i, file := range files {
+		log.Printf("[IMPORT] Processing file %d/%d: %s", i+1, len(files), file)
 
-		log.Printf("[IMPORT] Processing batch %d-%d (%d files)", i, end, len(batch))
-
-		batchReq := &engine.ImportRequest{
-			Paths:          batch,
+		fileReq := &engine.ImportRequest{
+			Paths:          []string{file},
 			BatchSize:      1000,
 			SkipPatterns:   req.SkipPatterns,
 			EnabledFormats: req.EnabledFormats,
 		}
 
-		result, err := eng.Import(c.Request.Context(), batchReq, nil)
+		log.Printf("[IMPORT] Calling eng.Import for file %d/%d, ctx=%p", i+1, len(files), c.Request.Context())
+		result, err := eng.Import(c.Request.Context(), fileReq, nil)
+		log.Printf("[IMPORT] eng.Import returned for file %d/%d, err=%v", i+1, len(files), err)
+
 		if err != nil {
-			log.Printf("[IMPORT] Batch %d-%d failed: %v", i, end, err)
-			for _, f := range batch {
-				totalResult.Errors = append(totalResult.Errors, &types.ImportError{
-					FilePath: f,
-					Error:    err.Error(),
-				})
-				totalResult.FileResults = append(totalResult.FileResults, &engine.FileResult{
-					FilePath: f,
-					Status:   "failed",
-					Error:    err.Error(),
-				})
-			}
-			totalResult.FilesFailed += len(batch)
+			log.Printf("[IMPORT] File %d/%d failed: %v", i+1, len(files), err)
+			totalResult.Errors = append(totalResult.Errors, &types.ImportError{
+				FilePath: file,
+				Error:    err.Error(),
+			})
+			totalResult.FileResults = append(totalResult.FileResults, &engine.FileResult{
+				FilePath: file,
+				Status:   "failed",
+				Error:    err.Error(),
+			})
+			totalResult.FilesFailed++
 			continue
 		}
 
@@ -1064,7 +1057,7 @@ func (h *ImportHandler) ImportLogs(c *gin.Context) {
 		totalResult.Errors = append(totalResult.Errors, result.Errors...)
 		totalResult.FileResults = append(totalResult.FileResults, result.FileResults...)
 		totalResult.Duration += result.Duration
-		if result.StartTime.Before(totalResult.StartTime) || totalResult.StartTime.IsZero() {
+		if result.StartTime.IsZero() == false && (result.StartTime.Before(totalResult.StartTime) || totalResult.StartTime.IsZero()) {
 			totalResult.StartTime = result.StartTime
 		}
 	}

@@ -32,9 +32,9 @@
 <body>
     <nav class="navbar navbar-dark bg-dark">
         <div class="container-fluid">
-            <span class="navbar-brand mb-0 h1">{{if eq .Language "zh"}}WinLogAnalyzer 安全报告{{else}}WinLogAnalyzer Security Report{{end}}</span>
+            <span class="navbar-brand mb-0 h1">{{.T.T "navbar_title"}}</span>
             <span class="navbar-text text-white-50">
-                {{if eq .Language "zh"}}生成时间{{else}}Generated{{end}}: {{.GeneratedAtStr}}
+                {{.T.T "generated"}}: {{.GeneratedAtStr}}
             </span>
         </div>
     </nav>
@@ -47,7 +47,7 @@
             <div class="col-md-3">
                 <div class="card stat-card">
                     <div class="card-body">
-                        <h6 class="card-title text-muted">{{if eq .Language "zh"}}事件总数{{else}}Total Events{{end}}</h6>
+                        <h6 class="card-title text-muted">{{.T.T "total_events"}}</h6>
                         <h2 class="mb-0">{{.Summary.TotalEvents}}</h2>
                     </div>
                 </div>
@@ -55,7 +55,7 @@
             <div class="col-md-3">
                 <div class="card stat-card stat-card-alerts">
                     <div class="card-body">
-                        <h6 class="card-title text-muted">{{if eq .Language "zh"}}告警总数{{else}}Total Alerts{{end}}</h6>
+                        <h6 class="card-title text-muted">{{.T.T "total_alerts"}}</h6>
                         <h2 class="mb-0">{{.Summary.TotalAlerts}}</h2>
                     </div>
                 </div>
@@ -63,7 +63,7 @@
             <div class="col-md-3">
                 <div class="card stat-card" style="border-left-color: #dc3545;">
                     <div class="card-body">
-                        <h6 class="card-title text-muted">{{if eq .Language "zh"}}严重事件{{else}}Critical Events{{end}}</h6>
+                        <h6 class="card-title text-muted">{{.T.T "critical_events"}}</h6>
                         <h2 class="mb-0">{{.Summary.CriticalEvents}}</h2>
                     </div>
                 </div>
@@ -71,7 +71,7 @@
             <div class="col-md-3">
                 <div class="card stat-card" style="border-left-color: #fd7e14;">
                     <div class="card-body">
-                        <h6 class="card-title text-muted">{{if eq .Language "zh"}}高危告警{{else}}High Alerts{{end}}</h6>
+                        <h6 class="card-title text-muted">{{.T.T "high_alerts"}}</h6>
                         <h2 class="mb-0">{{.Summary.HighAlerts}}</h2>
                     </div>
                 </div>
@@ -83,9 +83,9 @@
             <div class="col-12">
                 <div class="card">
                     <div class="card-body">
-                        <strong>{{if eq .Language "zh"}}分析时间段{{else}}Analysis Period{{end}}:</strong> 
-                        {{.StartTimeStr}} {{if eq .Language "zh"}}至{{else}}to{{end}} {{.EndTimeStr}}
-                        ({{printf "%.1f" .Summary.TimeRangeDays}} {{if eq .Language "zh"}}天{{else}}days{{end}})
+                        <strong>{{.T.T "analysis_period"}}:</strong>
+                        {{.StartTimeStr}} {{.T.T "to"}} {{.EndTimeStr}}
+                        ({{printf "%.1f" .Summary.TimeRangeDays}} {{.T.T "days"}})
                     </div>
                 </div>
             </div>
@@ -96,48 +96,48 @@
         <div class="row mt-3">
             <div class="col-12">
                 <div class="card">
-                    <div class="card-header">System Information</div>
+                    <div class="card-header">{{.T.T "system_info"}}</div>
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-3">
-                                <p><strong>Hostname:</strong> {{.SystemSnapshot.Hostname}}</p>
-                                <p><strong>Domain:</strong> {{.SystemSnapshot.Domain}}</p>
+                                <p><strong>{{.T.T "hostname"}}:</strong> {{.SystemSnapshot.Hostname}}</p>
+                                <p><strong>{{.T.T "domain"}}:</strong> {{.SystemSnapshot.Domain}}</p>
                             </div>
                             <div class="col-md-3">
-                                <p><strong>OS:</strong> {{.SystemSnapshot.OSName}} {{.SystemSnapshot.OSVersion}}</p>
-                                <p><strong>Architecture:</strong> {{.SystemSnapshot.Architecture}}</p>
+                                <p><strong>{{.T.T "os"}}:</strong> {{.SystemSnapshot.OSName}} {{.SystemSnapshot.OSVersion}}</p>
+                                <p><strong>{{.T.T "architecture"}}:</strong> {{.SystemSnapshot.Architecture}}</p>
                             </div>
                             <div class="col-md-3">
-                                <p><strong>CPU Cores:</strong> {{.SystemSnapshot.CPUCount}}</p>
-                                <p><strong>Admin:</strong> {{if .SystemSnapshot.IsAdmin}}Yes{{else}}No{{end}}</p>
+                                <p><strong>{{.T.T "cpu_cores"}}:</strong> {{.SystemSnapshot.CPUCount}}</p>
+                                <p><strong>{{.T.T "admin"}}:</strong> {{if .SystemSnapshot.IsAdmin}}{{.T.T "yes"}}{{else}}{{.T.T "no"}}{{end}}</p>
                             </div>
                             <div class="col-md-3">
-                                <p><strong>Memory Total:</strong> {{printf "%.2f" .SystemSnapshot.MemoryTotalGB}} GB</p>
-                                <p><strong>Memory Free:</strong> {{printf "%.2f" .SystemSnapshot.MemoryFreeGB}} GB</p>
+                                <p><strong>{{.T.T "memory_total"}}:</strong> {{printf "%.2f" .SystemSnapshot.MemoryTotalGB}} GB</p>
+                                <p><strong>{{.T.T "memory_free"}}:</strong> {{printf "%.2f" .SystemSnapshot.MemoryFreeGB}} GB</p>
                             </div>
                         </div>
                         <div class="row mt-2">
                             <div class="col-md-4">
-                                <p><strong>Timezone:</strong> {{.SystemSnapshot.Timezone}}</p>
+                                <p><strong>{{.T.T "timezone"}}:</strong> {{.SystemSnapshot.Timezone}}</p>
                             </div>
                             <div class="col-md-4">
-                                <p><strong>Local Time:</strong> {{.SystemSnapshot.LocalTime}}</p>
+                                <p><strong>{{.T.T "local_time"}}:</strong> {{.SystemSnapshot.LocalTime}}</p>
                             </div>
                             <div class="col-md-4">
-                                <p><strong>Uptime:</strong> {{.SystemSnapshot.UptimeSeconds}} seconds</p>
+                                <p><strong>{{.T.T "uptime"}}:</strong> {{.SystemSnapshot.UptimeSeconds}} {{.T.T "seconds"}}</p>
                             </div>
                         </div>
                         {{if .SystemSnapshot.TopProcesses}}
                         <div class="row mt-3">
                             <div class="col-12">
-                                <h6>Top Processes</h6>
+                                <h6>{{.T.T "top_processes"}}</h6>
                                 <table class="table table-sm table-striped">
                                     <thead>
                                         <tr>
-                                            <th>PID</th>
-                                            <th>Name</th>
-                                            <th>User</th>
-                                            <th>Signed</th>
+                                            <th>{{.T.T "pid"}}</th>
+                                            <th>{{.T.T "name"}}</th>
+                                            <th>{{.T.T "user"}}</th>
+                                            <th>{{.T.T "signed"}}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -146,7 +146,7 @@
                                             <td>{{.PID}}</td>
                                             <td>{{.Name}}</td>
                                             <td>{{.User}}</td>
-                                            <td>{{if .IsSigned}}Yes{{else}}No{{end}}</td>
+                                            <td>{{if .IsSigned}}{{$.T.T "yes"}}{{else}}{{$.T.T "no"}}{{end}}</td>
                                         </tr>
                                         {{end}}
                                     </tbody>
@@ -157,15 +157,15 @@
                         {{if .SystemSnapshot.NetworkConns}}
                         <div class="row mt-3">
                             <div class="col-12">
-                                <h6>Network Connections</h6>
+                                <h6>{{.T.T "network_connections"}}</h6>
                                 <table class="table table-sm table-striped">
                                     <thead>
                                         <tr>
-                                            <th>Protocol</th>
-                                            <th>Local Address</th>
-                                            <th>Remote Address</th>
-                                            <th>State</th>
-                                            <th>Process</th>
+                                            <th>{{.T.T "protocol"}}</th>
+                                            <th>{{.T.T "local_address"}}</th>
+                                            <th>{{.T.T "remote_address"}}</th>
+                                            <th>{{.T.T "state"}}</th>
+                                            <th>{{.T.T "process"}}</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -194,13 +194,13 @@
         <div class="row mt-3">
             <div class="col-12">
                 <div class="card">
-                    <div class="card-header">Persistence Detections</div>
+                    <div class="card-header">{{.T.T "persistence_detections"}}</div>
                     <div class="card-body">
                         <div class="row mb-3">
                             <div class="col-md-3">
                                 <div class="stat-card text-center">
                                     <h3>{{.PersistenceReport.TotalDetections}}</h3>
-                                    <p class="text-muted mb-0">Total Detections</p>
+                                    <p class="text-muted mb-0">{{.T.T "total_detections"}}</p>
                                 </div>
                             </div>
                             {{range $severity, $count := .PersistenceReport.BySeverity}}
@@ -212,17 +212,17 @@
                             </div>
                             {{end}}
                         </div>
-                        
+
                         {{if .PersistenceReport.ByCategory}}
                         <div class="row mb-3">
                             <div class="col-12">
-                                <h6>By Category</h6>
+                                <h6>{{.T.T "by_category"}}</h6>
                                 <div class="table-responsive">
                                     <table class="table table-sm">
                                         <thead>
                                             <tr>
-                                                <th>Category</th>
-                                                <th>Count</th>
+                                                <th>{{.T.T "category"}}</th>
+                                                <th>{{.T.T "count"}}</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -238,17 +238,17 @@
                             </div>
                         </div>
                         {{end}}
-                        
+
                         {{if .PersistenceReport.ByTechnique}}
                         <div class="row mb-3">
                             <div class="col-12">
-                                <h6>By Technique</h6>
+                                <h6>{{.T.T "by_technique"}}</h6>
                                 <div class="table-responsive">
                                     <table class="table table-sm">
                                         <thead>
                                             <tr>
-                                                <th>Technique</th>
-                                                <th>Count</th>
+                                                <th>{{.T.T "technique"}}</th>
+                                                <th>{{.T.T "count"}}</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -264,21 +264,21 @@
                             </div>
                         </div>
                         {{end}}
-                        
+
                         {{if .PersistenceReport.Detections}}
                         <div class="row">
                             <div class="col-12">
-                                <h6>Detection Details</h6>
+                                <h6>{{.T.T "detection_details"}}</h6>
                                 <div class="table-responsive">
                                     <table class="table table-sm table-striped">
                                         <thead>
                                             <tr>
-                                                <th>Time</th>
-                                                <th>Technique</th>
-                                                <th>Category</th>
-                                                <th>Severity</th>
-                                                <th>Title</th>
-                                                <th>Description</th>
+                                                <th>{{.T.T "time"}}</th>
+                                                <th>{{.T.T "technique"}}</th>
+                                                <th>{{.T.T "category"}}</th>
+                                                <th>{{.T.T "severity"}}</th>
+                                                <th>{{.T.T "title"}}</th>
+                                                <th>{{.T.T "description"}}</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -309,7 +309,7 @@
         <div class="row mt-3">
             <div class="col-md-6">
                 <div class="card">
-                    <div class="card-header">Events by Level</div>
+                    <div class="card-header">{{.T.T "events_by_level"}}</div>
                     <div class="card-body">
                         <canvas id="levelChart" height="200"></canvas>
                     </div>
@@ -317,7 +317,7 @@
             </div>
             <div class="col-md-6">
                 <div class="card">
-                    <div class="card-header">Events by Log Name</div>
+                    <div class="card-header">{{.T.T "events_by_log_name"}}</div>
                     <div class="card-body">
                         <canvas id="logNameChart" height="200"></canvas>
                     </div>
@@ -329,15 +329,15 @@
         <div class="row mt-3">
             <div class="col-12">
                 <div class="card">
-                    <div class="card-header">Top Event IDs</div>
+                    <div class="card-header">{{.T.T "top_event_ids"}}</div>
                     <div class="card-body">
                         <div class="table-responsive">
                             <table class="table table-sm">
                                 <thead>
                                     <tr>
-                                        <th>Event ID</th>
-                                        <th>Count</th>
-                                        <th>Percentage</th>
+                                        <th>{{.T.T "event_id"}}</th>
+                                        <th>{{.T.T "count"}}</th>
+                                        <th>{{.T.T "percentage"}}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -362,12 +362,12 @@
         <div class="row mt-3">
             <div class="col-md-4">
                 <div class="card">
-                    <div class="card-header">Login Statistics</div>
+                    <div class="card-header">{{.T.T "login_statistics"}}</div>
                     <div class="card-body">
                         <table class="table table-sm">
-                            <tr><td>Successful Logins</td><td class="text-success">{{.Stats.LoginStats.Successful}}</td></tr>
-                            <tr><td>Failed Logins</td><td class="text-danger">{{.Stats.LoginStats.Failed}}</td></tr>
-                            <tr><td>Total Login Events</td><td>{{.Stats.LoginStats.Total}}</td></tr>
+                            <tr><td>{{.T.T "successful_logins"}}</td><td class="text-success">{{.Stats.LoginStats.Successful}}</td></tr>
+                            <tr><td>{{.T.T "failed_logins"}}</td><td class="text-danger">{{.Stats.LoginStats.Failed}}</td></tr>
+                            <tr><td>{{.T.T "total_login_events"}}</td><td>{{.Stats.LoginStats.Total}}</td></tr>
                         </table>
                     </div>
                 </div>
@@ -380,18 +380,18 @@
         <div class="row mt-3">
             <div class="col-12">
                 <div class="card">
-                    <div class="card-header">Top Alerts</div>
+                    <div class="card-header">{{.T.T "top_alerts"}}</div>
                     <div class="card-body">
                         <div class="table-responsive">
                             <table class="table table-sm">
                                 <thead>
                                     <tr>
                                         <th>ID</th>
-                                        <th>Rule</th>
-                                        <th>Severity</th>
-                                        <th>Message</th>
-                                        <th>Count</th>
-                                        <th>Last Seen</th>
+                                        <th>{{.T.T "rule"}}</th>
+                                        <th>{{.T.T "severity"}}</th>
+                                        <th>{{.T.T "message"}}</th>
+                                        <th>{{.T.T "count"}}</th>
+                                        <th>{{.T.T "last_seen"}}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -419,7 +419,7 @@
         <div class="row mt-3">
             <div class="col-md-4">
                 <div class="card">
-                    <div class="card-header">IP Addresses</div>
+                    <div class="card-header">{{.T.T "ip_addresses"}}</div>
                     <div class="card-body">
                         <ul class="list-unstyled">
                             {{range .IOCs.IPAddresses}}<li><code>{{.}}</code></li>{{end}}
@@ -429,7 +429,7 @@
             </div>
             <div class="col-md-4">
                 <div class="card">
-                    <div class="card-header">Users</div>
+                    <div class="card-header">{{.T.T "users"}}</div>
                     <div class="card-body">
                         <ul class="list-unstyled">
                             {{range .IOCs.Users}}<li><code>{{.}}</code></li>{{end}}
@@ -439,7 +439,7 @@
             </div>
             <div class="col-md-4">
                 <div class="card">
-                    <div class="card-header">Computers</div>
+                    <div class="card-header">{{.T.T "computers"}}</div>
                     <div class="card-body">
                         <ul class="list-unstyled">
                             {{range .IOCs.Computers}}<li><code>{{.}}</code></li>{{end}}
@@ -455,10 +455,10 @@
         <div class="row mt-3">
             <div class="col-md-6">
                 <div class="card">
-                    <div class="card-header">MITRE ATT&CK by Tactic</div>
+                    <div class="card-header">{{.T.T "mitre_by_tactic"}}</div>
                     <div class="card-body">
                         <table class="table table-sm">
-                            <thead><tr><th>Tactic</th><th>Count</th></tr></thead>
+                            <thead><tr><th>{{.T.T "tactic"}}</th><th>{{.T.T "count"}}</th></tr></thead>
                             <tbody>
                                 {{range $tactic, $count := .MITREDist.ByTactic}}
                                 <tr><td>{{$tactic}}</td><td>{{$count}}</td></tr>
@@ -470,10 +470,10 @@
             </div>
             <div class="col-md-6">
                 <div class="card">
-                    <div class="card-header">MITRE ATT&CK by Technique</div>
+                    <div class="card-header">{{.T.T "mitre_by_technique"}}</div>
                     <div class="card-body">
                         <table class="table table-sm">
-                            <thead><tr><th>Technique</th><th>Count</th></tr></thead>
+                            <thead><tr><th>{{.T.T "technique"}}</th><th>{{.T.T "count"}}</th></tr></thead>
                             <tbody>
                                 {{range $tech, $count := .MITREDist.ByTechnique}}
                                 <tr><td><code>{{$tech}}</code></td><td>{{$count}}</td></tr>
@@ -491,44 +491,44 @@
         <div class="row mt-3">
             <div class="col-12">
                 <div class="card">
-                    <div class="card-header">Executive Summary</div>
+                    <div class="card-header">{{.T.T "executive_summary"}}</div>
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-3">
                                 <div class="stat-card text-center">
                                     <h2>{{.ExecutiveSummary.RiskScore}}</h2>
-                                    <p class="text-muted mb-0">Risk Score</p>
+                                    <p class="text-muted mb-0">{{.T.T "risk_score"}}</p>
                                     <span class="badge badge-{{toLower .ExecutiveSummary.RiskLevel}}">{{.ExecutiveSummary.RiskLevel}}</span>
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="stat-card text-center">
                                     <h2>{{.ExecutiveSummary.TotalAlerts}}</h2>
-                                    <p class="text-muted mb-0">Total Alerts</p>
+                                    <p class="text-muted mb-0">{{.T.T "total_alerts"}}</p>
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="stat-card text-center">
                                     <h2>{{.ExecutiveSummary.ResolvedAlerts}}</h2>
-                                    <p class="text-muted mb-0">Resolved</p>
+                                    <p class="text-muted mb-0">{{.T.T "resolved"}}</p>
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="stat-card text-center">
                                     <h2>{{.ExecutiveSummary.UnresolvedAlerts}}</h2>
-                                    <p class="text-muted mb-0">Unresolved</p>
+                                    <p class="text-muted mb-0">{{.T.T "unresolved"}}</p>
                                 </div>
                             </div>
                         </div>
                         {{if .ExecutiveSummary.TopThreat}}
                         <div class="mt-3">
-                            <h6>Top Threat</h6>
+                            <h6>{{.T.T "top_threat"}}</h6>
                             <p class="text-danger">{{.ExecutiveSummary.TopThreat}}</p>
                         </div>
                         {{end}}
                         {{if .ExecutiveSummary.KeyFindings}}
                         <div class="mt-3">
-                            <h6>Key Findings</h6>
+                            <h6>{{.T.T "key_findings"}}</h6>
                             <ul>
                                 {{range .ExecutiveSummary.KeyFindings}}
                                 <li>{{.}}</li>
@@ -547,25 +547,25 @@
         <div class="row mt-3">
             <div class="col-md-6">
                 <div class="card">
-                    <div class="card-header">Peak Activity</div>
+                    <div class="card-header">{{.T.T "peak_activity"}}</div>
                     <div class="card-body">
-                        <p><strong>Peak Hour:</strong> {{.TimelineAnalysis.PeakActivityHour}}:00</p>
-                        <p><strong>Peak Day:</strong> {{.TimelineAnalysis.PeakActivityDay}}</p>
+                        <p><strong>{{.T.T "peak_hour"}}:</strong> {{.TimelineAnalysis.PeakActivityHour}}:00</p>
+                        <p><strong>{{.T.T "peak_day"}}:</strong> {{.TimelineAnalysis.PeakActivityDay}}</p>
                     </div>
                 </div>
             </div>
             <div class="col-md-6">
                 <div class="card">
-                    <div class="card-header">Activity Distribution</div>
+                    <div class="card-header">{{.T.T "activity_distribution"}}</div>
                     <div class="card-body">
                         <div class="table-responsive">
                             <table class="table table-sm">
-                                <thead><tr><th>Metric</th><th>Count</th></tr></thead>
+                                <thead><tr><th>{{.T.T "type"}}</th><th>{{.T.T "count"}}</th></tr></thead>
                                 <tbody>
-                                    <tr><td>Events by Hour</td><td>{{len .TimelineAnalysis.EventsByHour}}</td></tr>
-                                    <tr><td>Events by Day</td><td>{{len .TimelineAnalysis.EventsByDay}}</td></tr>
-                                    <tr><td>Alerts by Hour</td><td>{{len .TimelineAnalysis.AlertsByHour}}</td></tr>
-                                    <tr><td>Alerts by Day</td><td>{{len .TimelineAnalysis.AlertsByDay}}</td></tr>
+                                    <tr><td>{{.T.T "events_by_hour"}}</td><td>{{len .TimelineAnalysis.EventsByHour}}</td></tr>
+                                    <tr><td>{{.T.T "events_by_day"}}</td><td>{{len .TimelineAnalysis.EventsByDay}}</td></tr>
+                                    <tr><td>{{.T.T "alerts_by_hour"}}</td><td>{{len .TimelineAnalysis.AlertsByHour}}</td></tr>
+                                    <tr><td>{{.T.T "alerts_by_day"}}</td><td>{{len .TimelineAnalysis.AlertsByDay}}</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -580,40 +580,40 @@
         <div class="row mt-3">
             <div class="col-12">
                 <div class="card">
-                    <div class="card-header">Threat Landscape</div>
+                    <div class="card-header">{{.T.T "threat_landscape"}}</div>
                     <div class="card-body">
                         <div class="row mb-3">
                             <div class="col-md-3">
                                 <div class="stat-card text-center" style="border-left-color: #dc3545;">
                                     <h3>{{.ThreatLandscape.CriticalThreats}}</h3>
-                                    <p class="text-muted mb-0">Critical</p>
+                                    <p class="text-muted mb-0">{{.T.T "critical"}}</p>
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="stat-card text-center" style="border-left-color: #fd7e14;">
                                     <h3>{{.ThreatLandscape.HighThreats}}</h3>
-                                    <p class="text-muted mb-0">High</p>
+                                    <p class="text-muted mb-0">{{.T.T "high"}}</p>
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="stat-card text-center" style="border-left-color: #ffc107;">
                                     <h3>{{.ThreatLandscape.MediumThreats}}</h3>
-                                    <p class="text-muted mb-0">Medium</p>
+                                    <p class="text-muted mb-0">{{.T.T "medium"}}</p>
                                 </div>
                             </div>
                             <div class="col-md-3">
                                 <div class="stat-card text-center" style="border-left-color: #0dcaf0;">
                                     <h3>{{.ThreatLandscape.LowThreats}}</h3>
-                                    <p class="text-muted mb-0">Low</p>
+                                    <p class="text-muted mb-0">{{.T.T "low"}}</p>
                                 </div>
                             </div>
                         </div>
                         {{if .ThreatLandscape.TopAttackVectors}}
                         <div class="mt-3">
-                            <h6>Top Attack Vectors</h6>
+                            <h6>{{.T.T "top_attack_vectors"}}</h6>
                             <div class="table-responsive">
                                 <table class="table table-sm">
-                                    <thead><tr><th>Vector</th><th>Count</th><th>Percentage</th></tr></thead>
+                                    <thead><tr><th>{{.T.T "vector"}}</th><th>{{.T.T "count"}}</th><th>{{.T.T "percentage"}}</th></tr></thead>
                                     <tbody>
                                         {{range .ThreatLandscape.TopAttackVectors}}
                                         <tr>
@@ -629,7 +629,7 @@
                         {{end}}
                         {{if .ThreatLandscape.AffectedSystems}}
                         <div class="mt-3">
-                            <h6>Affected Systems</h6>
+                            <h6>{{.T.T "affected_systems"}}</h6>
                             <ul class="list-inline">
                                 {{range .ThreatLandscape.AffectedSystems}}
                                 <li class="list-inline-item"><span class="badge bg-danger">{{.}}</span></li>
@@ -648,17 +648,17 @@
         <div class="row mt-3">
             <div class="col-12">
                 <div class="card">
-                    <div class="card-header">Attack Patterns (MITRE ATT&CK)</div>
+                    <div class="card-header">{{.T.T "attack_patterns"}}</div>
                     <div class="card-body">
                         <div class="table-responsive">
                             <table class="table table-sm table-striped">
                                 <thead>
                                     <tr>
-                                        <th>Technique</th>
-                                        <th>Name</th>
-                                        <th>Count</th>
-                                        <th>Severity</th>
-                                        <th>Indicators</th>
+                                        <th>{{.T.T "technique"}}</th>
+                                        <th>{{.T.T "name"}}</th>
+                                        <th>{{.T.T "count"}}</th>
+                                        <th>{{.T.T "severity"}}</th>
+                                        <th>{{.T.T "indicators"}}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -685,7 +685,7 @@
         <div class="row mt-3">
             <div class="col-12">
                 <div class="card">
-                    <div class="card-header">Recommendations</div>
+                    <div class="card-header">{{.T.T "recommendations"}}</div>
                     <div class="card-body">
                         <div class="accordion" id="recommendationsAccordion">
                             {{range $i, $rec := .Recommendations}}
@@ -698,10 +698,10 @@
                                 </h2>
                                 <div id="collapse{{$i}}" class="accordion-collapse collapse" data-bs-parent="#recommendationsAccordion">
                                     <div class="accordion-body">
-                                        <p><strong>Category:</strong> {{$rec.Category}}</p>
-                                        <p><strong>Description:</strong> {{$rec.Description}}</p>
+                                        <p><strong>{{$.T.T "category"}}:</strong> {{$rec.Category}}</p>
+                                        <p><strong>{{$.T.T "description"}}:</strong> {{$rec.Description}}</p>
                                         {{if $rec.Actionable}}
-                                        <p><strong>Actionable Steps:</strong> {{$rec.Actionable}}</p>
+                                        <p><strong>{{$.T.T "actionable_steps"}}:</strong> {{$rec.Actionable}}</p>
                                         {{end}}
                                     </div>
                                 </div>
@@ -720,7 +720,7 @@
             <div class="col-12">
                 <div class="card">
                     <div class="card-header">
-                        Compliance Status
+                        {{.T.T "compliance_status"}}
                         <span class="badge bg-{{if eq .ComplianceStatus.OverallStatus "PASS"}}success{{else}}danger{{end}} ms-2">{{.ComplianceStatus.OverallStatus}}</span>
                     </div>
                     <div class="card-body">
@@ -729,7 +729,7 @@
                                 <div class="card bg-success text-white">
                                     <div class="card-body">
                                         <h3>{{len .ComplianceStatus.PassedChecks}}</h3>
-                                        <p class="mb-0">Passed Checks</p>
+                                        <p class="mb-0">{{.T.T "passed_checks"}}</p>
                                     </div>
                                 </div>
                             </div>
@@ -737,7 +737,7 @@
                                 <div class="card bg-danger text-white">
                                     <div class="card-body">
                                         <h3>{{len .ComplianceStatus.FailedChecks}}</h3>
-                                        <p class="mb-0">Failed Checks</p>
+                                        <p class="mb-0">{{.T.T "failed_checks"}}</p>
                                     </div>
                                 </div>
                             </div>
@@ -745,14 +745,14 @@
                                 <div class="card bg-warning text-dark">
                                     <div class="card-body">
                                         <h3>{{len .ComplianceStatus.Warnings}}</h3>
-                                        <p class="mb-0">Warnings</p>
+                                        <p class="mb-0">{{.T.T "warnings"}}</p>
                                     </div>
                                 </div>
                             </div>
                         </div>
                         {{if .ComplianceStatus.FailedChecks}}
                         <div class="mt-3">
-                            <h6>Failed Checks</h6>
+                            <h6>{{.T.T "failed_checks"}}</h6>
                             <ul class="list-group">
                                 {{range .ComplianceStatus.FailedChecks}}
                                 <li class="list-group-item list-group-item-danger">{{.}}</li>
@@ -762,7 +762,7 @@
                         {{end}}
                         {{if .ComplianceStatus.Warnings}}
                         <div class="mt-3">
-                            <h6>Warnings</h6>
+                            <h6>{{.T.T "warnings"}}</h6>
                             <ul class="list-group">
                                 {{range .ComplianceStatus.Warnings}}
                                 <li class="list-group-item list-group-item-warning">{{.}}</li>
@@ -781,17 +781,17 @@
         <div class="row mt-3">
             <div class="col-12">
                 <div class="card">
-                    <div class="card-header">Event Timeline</div>
+                    <div class="card-header">{{.T.T "event_timeline"}}</div>
                     <div class="card-body">
                         <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
                             <table class="table table-sm table-striped">
                                 <thead class="sticky-top bg-light">
                                     <tr>
-                                        <th>Timestamp</th>
-                                        <th>Type</th>
-                                        <th>Source</th>
-                                        <th>Message</th>
-                                        <th>Severity</th>
+                                        <th>{{.T.T "timestamp"}}</th>
+                                        <th>{{.T.T "type"}}</th>
+                                        <th>{{.T.T "source"}}</th>
+                                        <th>{{.T.T "message"}}</th>
+                                        <th>{{.T.T "severity"}}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -815,7 +815,7 @@
 
         <!-- Footer -->
         <footer class="mt-5 text-center text-muted">
-            <p>WinLogAnalyzer v{{.Version}} | Windows Security Log Analysis Report</p>
+            <p>{{printf .T.T "footer" .Version}}</p>
         </footer>
     </div>
 
