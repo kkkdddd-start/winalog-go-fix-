@@ -36,23 +36,35 @@ function Alerts() {
   const navigate = useNavigate()
   const [alerts, setAlerts] = useState<Alert[]>([])
   const [loading, setLoading] = useState(true)
-  const [page, _setPage] = useState(1)
+  const [page, setPage] = useState(1)
+  const [total, setTotal] = useState(0)
+  const [totalPages, setTotalPages] = useState(0)
+  const [pageSize, setPageSize] = useState(100)
   const [severityFilter, setSeverityFilter] = useState('')
   const [selectedAlerts, setSelectedAlerts] = useState<number[]>([])
   const [showAnalyzeModal, setShowAnalyzeModal] = useState(false)
   const [analyzing, setAnalyzing] = useState(false)
   const [analysisResult, setAnalysisResult] = useState<RunAnalysisResponse | null>(null)
+  const [showExportModal, setShowExportModal] = useState(false)
+  const [exporting, setExporting] = useState(false)
+  const [exportFormat, setExportFormat] = useState<'csv' | 'json'>('csv')
+  const [exportSeverity, setExportSeverity] = useState('')
+  const [exportResolved, setExportResolved] = useState('')
+  const [exportFalsePositive, setExportFalsePositive] = useState('')
+  const [exportLimit, setExportLimit] = useState(100000)
 
   useEffect(() => {
     setLoading(true)
-    alertsAPI.list(page, 100, severityFilter || undefined)
+    alertsAPI.list(page, pageSize, severityFilter || undefined)
       .then(res => {
         const data = res.data as ListResponse
         setAlerts(data.alerts || [])
+        setTotal(data.total || 0)
+        setTotalPages(data.total_pages || 0)
         setLoading(false)
       })
       .catch(() => setLoading(false))
-  }, [page, severityFilter])
+  }, [page, severityFilter, pageSize])
 
   const handleResolve = (id: number) => {
     alertsAPI.resolve(id, 'Resolved via Web UI')
@@ -159,6 +171,33 @@ function Alerts() {
       })
   }
 
+  const handleExport = () => {
+    setExporting(true)
+    alertsAPI.export({
+      format: exportFormat,
+      severity: exportSeverity || undefined,
+      resolved: exportResolved || undefined,
+      false_positive: exportFalsePositive || undefined,
+      limit: exportLimit,
+    })
+      .then(res => {
+        const blob = new Blob([res.data], { type: res.headers['content-type'] || 'text/csv' })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `alerts_export.${exportFormat}`
+        link.click()
+        URL.revokeObjectURL(url)
+        setExporting(false)
+        setShowExportModal(false)
+      })
+      .catch(err => {
+        console.error('Export failed:', err)
+        setExporting(false)
+        alert('Export failed: ' + (err.response?.data?.error || err.message))
+      })
+  }
+
   const getSeverityClass = (severity: string) => {
     switch (severity) {
       case 'critical': return 'severity-critical'
@@ -170,7 +209,7 @@ function Alerts() {
   }
 
   const stats = {
-    total: alerts.length,
+    total: total,
     critical: alerts.filter(a => a.severity === 'critical').length,
     high: alerts.filter(a => a.severity === 'high').length,
     medium: alerts.filter(a => a.severity === 'medium').length,
@@ -185,7 +224,16 @@ function Alerts() {
           <p className="header-desc">{t('alerts.pageDesc')}</p>
         </div>
         <div className="header-actions">
-          <button 
+          <button
+            className="btn-export"
+            onClick={() => setShowExportModal(true)}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+            </svg>
+            {t('alerts.exportAlerts')}
+          </button>
+          <button
             className="btn-analyze"
             onClick={() => setShowAnalyzeModal(true)}
           >
@@ -267,6 +315,54 @@ function Alerts() {
             </div>
           )}
         </div>
+      </div>
+
+      <div className="pagination">
+        <button
+          className="btn-pagination"
+          onClick={() => setPage(p => Math.max(1, p - 1))}
+          disabled={page <= 1 || loading}
+        >
+          {t('common.prev')}
+        </button>
+        <span className="page-info">
+          {t('common.page')} {page} / {totalPages} ({total} {t('alerts.total')})
+        </span>
+        <button
+          className="btn-pagination"
+          onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+          disabled={page >= totalPages || loading}
+        >
+          {t('common.next')}
+        </button>
+        <select
+          className="page-select"
+          value={page}
+          onChange={e => setPage(Number(e.target.value))}
+          disabled={loading}
+        >
+          {Array.from({ length: Math.min(10, totalPages) }, (_, i) => {
+            const startPage = Math.max(1, page - 5)
+            const p = startPage + i
+            if (p > totalPages) return null
+            return <option key={p} value={p}>{p}</option>
+          })}
+        </select>
+        <span className="page-size-label">{t('alerts.pageSize')}:</span>
+        <select
+          className="page-size-select"
+          value={pageSize}
+          onChange={e => {
+            setPageSize(Number(e.target.value))
+            setPage(1)
+          }}
+          disabled={loading}
+        >
+          <option value={100}>100</option>
+          <option value={200}>200</option>
+          <option value={500}>500</option>
+          <option value={1000}>1000</option>
+        </select>
       </div>
 
       {loading ? (
@@ -439,9 +535,89 @@ function Alerts() {
                     <button className="btn-primary" onClick={() => { setShowAnalyzeModal(false); setAnalysisResult(null); navigate('/alerts'); }}>
                       {t('common.done')}
                     </button>
-                  </div>
+</div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showExportModal && (
+        <div className="modal-overlay" onClick={() => setShowExportModal(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>{t('alerts.exportAlerts')}</h3>
+              <button className="close-btn" onClick={() => setShowExportModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label>{t('alerts.exportFormat')}</label>
+                <select
+                  value={exportFormat}
+                  onChange={e => setExportFormat(e.target.value as 'csv' | 'json')}
+                >
+                  <option value="csv">CSV</option>
+                  <option value="json">JSON</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>{t('alerts.exportSeverity')}</label>
+                <select
+                  value={exportSeverity}
+                  onChange={e => setExportSeverity(e.target.value)}
+                >
+                  <option value="">{t('alerts.allSeverities')}</option>
+                  <option value="critical">{t('dashboard.critical')}</option>
+                  <option value="high">{t('dashboard.high')}</option>
+                  <option value="medium">{t('dashboard.medium')}</option>
+                  <option value="low">{t('dashboard.low')}</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>{t('alerts.exportResolved')}</label>
+                <select
+                  value={exportResolved}
+                  onChange={e => setExportResolved(e.target.value)}
+                >
+                  <option value="">{t('alerts.allStatus')}</option>
+                  <option value="true">{t('alerts.resolved')}</option>
+                  <option value="false">{t('alerts.active')}</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>{t('alerts.exportFalsePositive')}</label>
+                <select
+                  value={exportFalsePositive}
+                  onChange={e => setExportFalsePositive(e.target.value)}
+                >
+                  <option value="">{t('alerts.allStatus')}</option>
+                  <option value="true">{t('alerts.yes')}</option>
+                  <option value="false">{t('alerts.no')}</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>{t('alerts.exportLimit')}</label>
+                <select
+                  value={exportLimit}
+                  onChange={e => setExportLimit(Number(e.target.value))}
+                >
+                  <option value={1000}>1,000</option>
+                  <option value={10000}>10,000</option>
+                  <option value={50000}>50,000</option>
+                  <option value={100000}>100,000</option>
+                  <option value={500000}>500,000</option>
+                  <option value={1000000}>1,000,000</option>
+                </select>
+              </div>
+              <div className="modal-actions">
+                <button className="btn-cancel" onClick={() => setShowExportModal(false)}>
+                  {t('common.cancel')}
+                </button>
+                <button className="btn-primary" onClick={handleExport} disabled={exporting}>
+                  {exporting ? t('alerts.exporting') : t('alerts.startExport')}
+                </button>
+              </div>
             </div>
           </div>
         </div>

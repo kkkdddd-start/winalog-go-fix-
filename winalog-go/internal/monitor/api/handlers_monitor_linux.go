@@ -22,6 +22,8 @@ type MonitorHandler struct {
 		Subscribe(ch chan *types.MonitorEvent) func()
 		IsRunning() bool
 	}
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func NewMonitorHandler(engine *monitor.MonitorEngine) *MonitorHandler {

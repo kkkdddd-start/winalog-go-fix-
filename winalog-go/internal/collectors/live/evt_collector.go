@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	EvtSubscribeActionStartAtOldestRecord = 2
-	EvtSubscribeActionStartAfterBookmark  = 3
+	EvtSubscribeActionStartAtOldestRecord = 0
+	EvtSubscribeActionStartAfterBookmark  = 1
 
 	EvtRenderEventXML = 1
 
@@ -123,31 +123,36 @@ func (c *EvtLiveCollector) subscribe() error {
 
 	log.Printf("[INFO] [EvtSubscribe] Attempting to subscribe to channel: name=%s, query=%s", c.channelName, c.query)
 
-	channelPtr, _ := windows.UTF16PtrFromString(c.channelName)
-	if channelPtr == nil {
-		log.Printf("[ERROR] [EvtSubscribe] channelPtr is nil for channel: %s", c.channelName)
+	channelPtr, err := windows.UTF16PtrFromString(c.channelName)
+	if err != nil {
+		log.Printf("[ERROR] [EvtSubscribe] Failed to convert channel name to UTF16 for channel %s: %v", c.channelName, err)
+		return fmt.Errorf("failed to convert channel name: %w", err)
 	}
 
 	var queryPtr *uint16
 	if c.query != "" {
-		queryPtr, _ = windows.UTF16PtrFromString(c.query)
+		var err error
+		queryPtr, err = windows.UTF16PtrFromString(c.query)
+		if err != nil {
+			log.Printf("[ERROR] [EvtSubscribe] Failed to convert query to UTF16 for channel %s: %v", c.channelName, err)
+			return fmt.Errorf("failed to convert query: %w", err)
+		}
 	}
 
 	flags := EvtSubscribeActionStartAtOldestRecord
-	signalEventToUse := uintptr(0)
 	if bookmark != 0 {
 		flags = EvtSubscribeActionStartAfterBookmark
-		signalEventToUse = uintptr(signalEvent)
 	}
 
-	log.Printf("[DEBUG] [EvtSubscribe] Calling EvtSubscribe: channel=%s, signalEventHandle=0x%x, signalEventPassed=%d, bookmark=0x%x, flags=%d, useBookmark=%v",
-		c.channelName, signalEvent, signalEventToUse, bookmark, flags, bookmark != 0)
+	log.Printf("[DEBUG] [EvtSubscribe] Calling EvtSubscribe: channel=%s, signalEvent=0x%x, bookmark=0x%x, flags=%d",
+		c.channelName, signalEvent, bookmark, flags)
 
 	ret, _, err := procEvtSubscribe.Call(
 		0,
 		uintptr(unsafe.Pointer(channelPtr)),
 		uintptr(unsafe.Pointer(queryPtr)),
-		signalEventToUse,
+		uintptr(signalEvent),
+		0,
 		uintptr(bookmark),
 		uintptr(flags),
 	)
@@ -215,6 +220,7 @@ func (c *EvtLiveCollector) runLoop() {
 
 		waitResult, err := windows.WaitForSingleObject(signalEvent, INFINITE)
 		if err != nil {
+			log.Printf("[ERROR] [EvtLiveCollector] WaitForSingleObject failed for channel %s: err=%v", c.channelName, err)
 			return
 		}
 
@@ -264,7 +270,8 @@ func (c *EvtLiveCollector) fetchNext(timeout uint32) ([]*types.Event, error) {
 	)
 
 	if ret == 0 && err != nil && err != windows.ERROR_NO_MORE_ITEMS {
-		observability.LogServiceError("evt_live_collector", fmt.Sprintf("EvtNext failed: %v", err))
+		log.Printf("[ERROR] [EvtLiveCollector] EvtNext failed for channel %s: err=%v", c.channelName, err)
+		observability.LogServiceError("evt_live_collector", fmt.Sprintf("EvtNext failed for channel %s: %v", c.channelName, err))
 		return nil, err
 	}
 
@@ -372,6 +379,8 @@ func renderEvent(eventHandle windows.Handle) *types.Event {
 	)
 
 	if ret == 0 {
+		errCode := windows.GetLastError()
+		log.Printf("[ERROR] [EvtLiveCollector] EvtRender failed: bufferSize=%d, errCode=%d", bufferSize, errCode)
 		return nil
 	}
 

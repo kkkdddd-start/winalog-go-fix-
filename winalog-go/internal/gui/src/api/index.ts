@@ -101,6 +101,28 @@ export const alertsAPI = {
     api.post('/alerts/batch', { ids, action, notes }),
   runAnalysis: () =>
     api.post('/alerts/run-analysis'),
+  export: (params: {
+    format?: 'csv' | 'json'
+    severity?: string
+    resolved?: string
+    false_positive?: string
+    rule_name?: string
+    start_time?: string
+    end_time?: string
+    limit?: number
+  }) => {
+    const queryParams = new URLSearchParams()
+    if (params.format) queryParams.append('format', params.format)
+    if (params.severity) queryParams.append('severity', params.severity)
+    if (params.resolved) queryParams.append('resolved', params.resolved)
+    if (params.false_positive) queryParams.append('false_positive', params.false_positive)
+    if (params.rule_name) queryParams.append('rule_name', params.rule_name)
+    if (params.start_time) queryParams.append('start_time', params.start_time)
+    if (params.end_time) queryParams.append('end_time', params.end_time)
+    if (params.limit) queryParams.append('limit', String(params.limit))
+    const query = queryParams.toString()
+    return api.get(`/alerts/export${query ? `?${query}` : ''}`, { responseType: 'blob' })
+  },
 }
 
 export interface CollectParams {

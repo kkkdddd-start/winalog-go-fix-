@@ -216,6 +216,7 @@ func (e *MonitorEngine) logMonitorEvent(event *types.MonitorEvent) {
 		Timestamp:   time.Now().Format(time.RFC3339),
 		Level:       string(event.Severity),
 		Message:     "[MONITOR]",
+		Category:    "monitor",
 		MonitorType: string(event.Type),
 		ProcessName: event.Data["process_name"],
 		CommandLine: event.Data["command"],

@@ -163,9 +163,9 @@ func NewReportsHandler(db *storage.DB) *ReportsHandler {
 // @Router /api/reports [get]
 func (h *ReportsHandler) ListReports(c *gin.Context) {
 	rows, err := h.db.Query(`
-		SELECT id, report_type, format, title, description, status, generated_at, completed_at, file_path, file_size
-		FROM reports 
-		ORDER BY generated_at DESC 
+		SELECT id, report_type, format, title, description, status, generated_at, completed_at, file_path, file_size, error_message
+		FROM reports
+		ORDER BY generated_at DESC
 		LIMIT 100
 	`)
 	if err != nil {
@@ -182,8 +182,9 @@ func (h *ReportsHandler) ListReports(c *gin.Context) {
 		var filePath sql.NullString
 		var fileSize sql.NullInt64
 		var title, description sql.NullString
+		var errorMessage sql.NullString
 
-		if err := rows.Scan(&r.ID, &r.Type, &r.Format, &title, &description, &r.Status, &generatedAtStr, &completedAtStr, &filePath, &fileSize); err != nil {
+		if err := rows.Scan(&r.ID, &r.Type, &r.Format, &title, &description, &r.Status, &generatedAtStr, &completedAtStr, &filePath, &fileSize, &errorMessage); err != nil {
 			continue
 		}
 
@@ -204,6 +205,9 @@ func (h *ReportsHandler) ListReports(c *gin.Context) {
 		}
 		if fileSize.Valid {
 			r.FileSize = fileSize.Int64
+		}
+		if errorMessage.Valid {
+			r.Error = errorMessage.String
 		}
 
 		reports = append(reports, r)
@@ -270,6 +274,8 @@ func (h *ReportsHandler) GenerateReport(c *gin.Context) {
 }
 
 func (h *ReportsHandler) generateReportAsync(reportID string, req ReportRequest, generatedAt time.Time) {
+	log.Printf("[REPORT] Starting async report generation: id=%s, type=%s, format=%s", reportID, req.Type, req.Format)
+
 	defer func() {
 		if r := recover(); r != nil {
 			errMsg := fmt.Sprintf("panic recovered: %v", r)
@@ -292,10 +298,13 @@ func (h *ReportsHandler) generateReportAsync(reportID string, req ReportRequest,
 		Description:  req.Description,
 	})
 	if err != nil {
+		log.Printf("[ERROR] generateReportAsync GenerateFromAPIRequest failed: id=%s, err=%v", reportID, err)
 		_, _ = h.db.Exec(`UPDATE reports SET status = 'failed', error_message = ?, completed_at = ? WHERE id = ?`,
 			err.Error(), time.Now(), reportID)
 		return
 	}
+
+	log.Printf("[REPORT] Report data generated successfully: id=%s, type=%s", reportID, req.Type)
 
 	reportDir := filepath.Join(os.TempDir(), "winalog_reports")
 	_ = os.MkdirAll(reportDir, 0755)
@@ -324,11 +333,13 @@ func (h *ReportsHandler) generateReportAsync(reportID string, req ReportRequest,
 			err = h.svc.ExportPDF(pdfReq, f)
 			f.Close()
 			if err != nil {
+				log.Printf("[ERROR] generateReportAsync ExportPDF failed: id=%s, err=%v", reportID, err)
 				_, _ = h.db.Exec(`UPDATE reports SET status = 'failed', error_message = ?, completed_at = ? WHERE id = ?`,
 					err.Error(), time.Now(), reportID)
 				return
 			}
 		} else {
+			log.Printf("[ERROR] generateReportAsync Create file failed: id=%s, path=%s, err=%v", reportID, filePath, err)
 			_, _ = h.db.Exec(`UPDATE reports SET status = 'failed', error_message = ?, completed_at = ? WHERE id = ?`,
 				err.Error(), time.Now(), reportID)
 			return
@@ -338,11 +349,13 @@ func (h *ReportsHandler) generateReportAsync(reportID string, req ReportRequest,
 			err = h.svc.ExportHTMLFromReport(report, f)
 			f.Close()
 			if err != nil {
+				log.Printf("[ERROR] generateReportAsync ExportHTML failed: id=%s, err=%v", reportID, err)
 				_, _ = h.db.Exec(`UPDATE reports SET status = 'failed', error_message = ?, completed_at = ? WHERE id = ?`,
 					err.Error(), time.Now(), reportID)
 				return
 			}
 		} else {
+			log.Printf("[ERROR] generateReportAsync Create file failed: id=%s, path=%s, err=%v", reportID, filePath, err)
 			_, _ = h.db.Exec(`UPDATE reports SET status = 'failed', error_message = ?, completed_at = ? WHERE id = ?`,
 				err.Error(), time.Now(), reportID)
 			return
@@ -351,6 +364,7 @@ func (h *ReportsHandler) generateReportAsync(reportID string, req ReportRequest,
 		apiContent := reports.AdaptReportToAPI(report)
 		data, _ := json.MarshalIndent(apiContent, "", "  ")
 		if err := os.WriteFile(filePath, data, 0644); err != nil {
+			log.Printf("[ERROR] generateReportAsync WriteFile failed: id=%s, path=%s, err=%v", reportID, filePath, err)
 			_, _ = h.db.Exec(`UPDATE reports SET status = 'failed', error_message = ?, completed_at = ? WHERE id = ?`,
 				err.Error(), time.Now(), reportID)
 			return
@@ -363,6 +377,7 @@ func (h *ReportsHandler) generateReportAsync(reportID string, req ReportRequest,
 		fileSize = fi.Size()
 	}
 
+	log.Printf("[REPORT] Report completed successfully: id=%s, path=%s, size=%d", reportID, filePath, fileSize)
 	_, _ = h.db.Exec(`UPDATE reports SET status = 'completed', completed_at = ?, file_path = ?, file_size = ? WHERE id = ?`,
 		time.Now(), filePath, fileSize, reportID)
 }

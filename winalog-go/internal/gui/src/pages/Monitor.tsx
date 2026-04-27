@@ -110,7 +110,7 @@ function Monitor() {
 
   const fetchEvents = useCallback(async () => {
     try {
-      const filter: { type?: string; limit?: number } = { limit: 100 }
+      const filter: { type?: string; limit?: number } = { limit: 1000 }
       if (activeTab !== 'all') {
         filter.type = activeTab
       }
@@ -118,8 +118,8 @@ function Monitor() {
       setEvents(response.data.events || [])
       setEventsError(null)
     } catch (error: any) {
-      const msg = error.response?.status === 404 
-        ? 'Monitor events not available (Windows only feature)' 
+      const msg = error.response?.status === 404
+        ? 'Monitor events not available (Windows only feature)'
         : error.message || 'Failed to fetch events'
       setEventsError(msg)
       console.error('Failed to fetch events:', error)
@@ -133,10 +133,13 @@ function Monitor() {
   }, [fetchStats])
 
   useEffect(() => {
+    if (!stats?.is_running) {
+      return
+    }
     fetchEvents()
     const interval = setInterval(fetchEvents, 5000)
     return () => clearInterval(interval)
-  }, [fetchEvents])
+  }, [fetchEvents, stats?.is_running])
 
   const handleToggle = async (key: keyof MonitorConfig) => {
     console.log('[MONITOR] handleToggle called:', key)
@@ -222,6 +225,64 @@ function Monitor() {
     if (activeTab === 'all') return true
     return event.type === activeTab
   })
+
+  const exportToCSV = () => {
+    if (filteredEvents.length === 0) return
+    const headers = ['ID', 'Timestamp', 'Type', 'Severity', 'PID', 'Process Name', 'PPID', 'Path', 'Command Line', 'Protocol', 'Source IP', 'Source Port', 'Dest IP', 'Dest Port', 'State', 'Is New']
+    const rows: string[][] = []
+    for (const event of filteredEvents) {
+      if (event.type === 'process') {
+        rows.push([
+          event.id,
+          event.timestamp,
+          event.type,
+          event.severity,
+          String(event.data.pid || ''),
+          event.data.process_name || '',
+          String(event.data.ppid || ''),
+          event.data.path || '',
+          event.data.command_line || '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          '',
+          String(event.data.is_new || false)
+        ])
+      } else if (event.type === 'network') {
+        rows.push([
+          event.id,
+          event.timestamp,
+          event.type,
+          event.severity,
+          '',
+          '',
+          '',
+          '',
+          '',
+          event.data.protocol || '',
+          event.data.source_ip || '',
+          String(event.data.source_port || ''),
+          event.data.dest_ip || '',
+          String(event.data.dest_port || ''),
+          event.data.state || '',
+          String(event.data.is_new || false)
+        ])
+      }
+    }
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    ].join('\n')
+    const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `monitor_events_${new Date().toISOString().slice(0,10)}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
 
   const renderEventSummary = (event: MonitorEvent) => {
     switch (event.type) {
@@ -434,6 +495,16 @@ function Monitor() {
               <span className="tab-count">{events.filter(e => e.type === 'network').length}</span>
             </button>
           </div>
+          <button
+            className="btn-export"
+            onClick={exportToCSV}
+            disabled={filteredEvents.length === 0}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+            </svg>
+            {t('monitor.exportCSV')}
+          </button>
         </div>
 
         <div className="events-list-modern">

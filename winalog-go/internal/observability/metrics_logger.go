@@ -27,6 +27,7 @@ type MetricsEntry struct {
 	Timestamp    string  `json:"timestamp"`
 	Level        string  `json:"level"`
 	Message      string  `json:"message"`
+	Category     string  `json:"category"`
 	MemAllocMB   float64 `json:"mem_alloc_mb"`
 	MemTotalMB   float64 `json:"mem_total_mb"`
 	MemSysMB     float64 `json:"mem_sys_mb"`
@@ -34,6 +35,39 @@ type MetricsEntry struct {
 	NumCPU       int     `json:"num_cpu"`
 	MemPauseUs   uint64  `json:"mem_pause_us"`
 	HeapObjects  int64   `json:"heap_objects"`
+}
+
+func (m *MetricsLogger) logMetrics() {
+	if m == nil || m.file == nil {
+		return
+	}
+
+	var memStats runtime.MemStats
+	runtime.ReadMemStats(&memStats)
+
+	metrics := MetricsEntry{
+		Timestamp:    time.Now().Format(time.RFC3339),
+		Level:        "info",
+		Message:      "[METRICS]",
+		Category:     "metrics",
+		MemAllocMB:   float64(memStats.Alloc) / 1024 / 1024,
+		MemTotalMB:   float64(memStats.TotalAlloc) / 1024 / 1024,
+		MemSysMB:     float64(memStats.Sys) / 1024 / 1024,
+		NumGoroutine: runtime.NumGoroutine(),
+		NumCPU:       runtime.NumCPU(),
+		MemPauseUs:   memStats.PauseTotalNs / 1000,
+		HeapObjects:  int64(memStats.HeapObjects),
+	}
+
+	jsonBytes, err := json.Marshal(metrics)
+	if err != nil {
+		return
+	}
+	jsonBytes = append(jsonBytes, '\n')
+
+	m.mu.Lock()
+	m.file.Write(jsonBytes)
+	m.mu.Unlock()
 }
 
 func GetMetricsLogger() *MetricsLogger {
@@ -93,38 +127,6 @@ func (m *MetricsLogger) Stop() {
 	}
 }
 
-func (m *MetricsLogger) logMetrics() {
-	if m == nil || m.file == nil {
-		return
-	}
-
-	var memStats runtime.MemStats
-	runtime.ReadMemStats(&memStats)
-
-	metrics := MetricsEntry{
-		Timestamp:    time.Now().Format(time.RFC3339),
-		Level:        "info",
-		Message:      "[METRICS]",
-		MemAllocMB:   float64(memStats.Alloc) / 1024 / 1024,
-		MemTotalMB:   float64(memStats.TotalAlloc) / 1024 / 1024,
-		MemSysMB:     float64(memStats.Sys) / 1024 / 1024,
-		NumGoroutine: runtime.NumGoroutine(),
-		NumCPU:       runtime.NumCPU(),
-		MemPauseUs:   memStats.PauseTotalNs / 1000,
-		HeapObjects:  int64(memStats.HeapObjects),
-	}
-
-	jsonBytes, err := json.Marshal(metrics)
-	if err != nil {
-		return
-	}
-	jsonBytes = append(jsonBytes, '\n')
-
-	m.mu.Lock()
-	m.file.Write(jsonBytes)
-	m.mu.Unlock()
-}
-
 func (m *MetricsLogger) LogStartup(reason string) {
 	if m == nil || m.file == nil {
 		return
@@ -134,11 +136,13 @@ func (m *MetricsLogger) LogStartup(reason string) {
 		Timestamp string `json:"timestamp"`
 		Level     string `json:"level"`
 		Message   string `json:"message"`
+		Category  string `json:"category"`
 		Reason    string `json:"reason"`
 	}{
 		Timestamp: time.Now().Format(time.RFC3339),
 		Level:     "info",
 		Message:   "[STARTUP]",
+		Category:  "startup",
 		Reason:    reason,
 	}
 
@@ -159,12 +163,14 @@ func (m *MetricsLogger) LogError(module, errMsg string) {
 		Timestamp string `json:"timestamp"`
 		Level     string `json:"level"`
 		Message   string `json:"message"`
+		Category  string `json:"category"`
 		Module    string `json:"module"`
 		Error     string `json:"error"`
 	}{
 		Timestamp: time.Now().Format(time.RFC3339),
 		Level:     "error",
 		Message:   "[ERROR]",
+		Category:  "error",
 		Module:    module,
 		Error:     errMsg,
 	}
@@ -403,6 +409,7 @@ type APILogEntry struct {
 	Timestamp string `json:"timestamp"`
 	Level     string `json:"level"`
 	Message   string `json:"message"`
+	Category  string `json:"category"`
 	Status    int    `json:"status"`
 	Latency   string `json:"latency"`
 	ClientIP  string `json:"client_ip"`
@@ -414,6 +421,7 @@ type MonitorLogEntry struct {
 	Timestamp   string                 `json:"timestamp"`
 	Level       string                 `json:"level"`
 	Message     string                 `json:"message"`
+	Category    string                 `json:"category"`
 	MonitorType string                 `json:"monitor_type"`
 	ProcessName interface{}            `json:"process_name,omitempty"`
 	CommandLine interface{}            `json:"command_line,omitempty"`

@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"encoding/csv"
 	"fmt"
 	"log"
 	"sort"
@@ -901,20 +900,32 @@ func (h *AlertHandler) BatchAlertAction(c *gin.Context) {
 
 // ExportAlerts godoc
 // @Summary Export alerts
-// @Description Export alerts in json or csv format
+// @Description Export alerts in various formats (json, csv, excel)
 // @Tags alerts
 // @Accept json
 // @Produce json
-// @Param format query string false "Export format (json/csv)" default(json)
-// @Param severity query string false "Filter by severity"
+// @Param format query string false "Export format (json/csv/excel)" default(json)
+// @Param severity query string false "Filter by severity (critical/high/medium/low/info)"
+// @Param resolved query string false "Filter by resolved status (true/false)"
+// @Param false_positive query string false "Filter by false positive status (true/false)"
+// @Param rule_name query string false "Filter by rule name"
+// @Param start_time query string false "Filter by start time (RFC3339 format)"
+// @Param end_time query string false "Filter by end time (RFC3339 format)"
+// @Param limit query int false "Maximum number of alerts to export (default 100000)"
 // @Success 200 {object} SuccessResponse
 // @Failure 400 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /api/alerts/export [get]
 func (h *AlertHandler) ExportAlerts(c *gin.Context) {
 	var req struct {
-		Format   string `form:"format"`
-		Severity string `form:"severity"`
+		Format       string `form:"format"`
+		Severity     string `form:"severity"`
+		Resolved     string `form:"resolved"`
+		FalsePositive string `form:"false_positive"`
+		RuleName     string `form:"rule_name"`
+		StartTime    string `form:"start_time"`
+		EndTime      string `form:"end_time"`
+		Limit        int    `form:"limit"`
 	}
 
 	if err := c.ShouldBindQuery(&req); err != nil {
@@ -927,50 +938,67 @@ func (h *AlertHandler) ExportAlerts(c *gin.Context) {
 		format = "json"
 	}
 
-	filter := &storage.AlertQuery{
-		Page:     1,
-		PageSize: 100000,
-	}
-	if req.Severity != "" {
-		filter.Severity = req.Severity
+	limit := req.Limit
+	if limit <= 0 || limit > 1000000 {
+		limit = 100000
 	}
 
-	alerts, _, err := h.db.AlertRepo().List(filter)
+	filter := &storage.AlertFilter{
+		Limit:    limit,
+		Severity: req.Severity,
+		RuleName: req.RuleName,
+	}
+
+	if req.Resolved != "" {
+		resolved := req.Resolved == "true"
+		filter.Resolved = &resolved
+	}
+
+	if req.FalsePositive != "" {
+		fp := req.FalsePositive == "true"
+		filter.FalsePositive = &fp
+	}
+
+	if req.StartTime != "" {
+		if t, err := time.Parse(time.RFC3339, req.StartTime); err == nil {
+			filter.StartTime = &t
+		}
+	}
+
+	if req.EndTime != "" {
+		if t, err := time.Parse(time.RFC3339, req.EndTime); err == nil {
+			filter.EndTime = &t
+		}
+	}
+
+	alerts, err := h.db.AlertRepo().Query(filter)
 	if err != nil {
+		log.Printf("[ERROR] ExportAlerts Query failed: %v", err)
 		c.JSON(500, ErrorResponse{Error: err.Error()})
 		return
 	}
 
+	log.Printf("[REPORT] ExportAlerts: format=%s, count=%d, filters=%+v", format, len(alerts), filter)
+
+	exporter := exporters.NewAlertExporter(format)
+
 	switch format {
-	case "csv":
-		c.Header("Content-Type", "text/csv")
-		c.Header("Content-Disposition", "attachment; filename=alerts.csv")
-		w := csv.NewWriter(c.Writer)
-		w.Write([]string{"ID", "RuleName", "Severity", "Message", "Count", "FirstSeen", "LastSeen", "Resolved"})
-		for _, a := range alerts {
-			resolved := "false"
-			if a.Resolved {
-				resolved = "true"
-			}
-			w.Write([]string{
-				fmt.Sprintf("%d", a.ID),
-				a.RuleName,
-				string(a.Severity),
-				a.Message,
-				fmt.Sprintf("%d", a.Count),
-				a.FirstSeen.Format(time.RFC3339),
-				a.LastSeen.Format(time.RFC3339),
-				resolved,
-			})
+	case "csv", "excel", "xlsx":
+		c.Header("Content-Type", exporter.ContentType())
+		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=alerts_export.%s", exporter.FileExtension()))
+		if err := exporter.Export(alerts, c.Writer); err != nil {
+			log.Printf("[ERROR] ExportAlerts Export failed: %v", err)
+			c.JSON(500, ErrorResponse{Error: err.Error()})
+			return
 		}
-		w.Flush()
 	default:
-		c.Header("Content-Type", "application/json")
-		c.Header("Content-Disposition", "attachment; filename=alerts.json")
-		c.JSON(200, gin.H{
-			"alerts": alerts,
-			"total":  len(alerts),
-		})
+		c.Header("Content-Type", exporter.ContentType())
+		c.Header("Content-Disposition", "attachment; filename=alerts_export.json")
+		if err := exporter.Export(alerts, c.Writer); err != nil {
+			log.Printf("[ERROR] ExportAlerts Export failed: %v", err)
+			c.JSON(500, ErrorResponse{Error: err.Error()})
+			return
+		}
 	}
 }
 

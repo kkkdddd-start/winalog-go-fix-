@@ -25,6 +25,8 @@ type MonitorHandler struct {
 		Subscribe(ch chan *types.MonitorEvent) func()
 		IsRunning() bool
 	}
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 func NewMonitorHandler(engine *monitor.MonitorEngine) *MonitorHandler {
@@ -142,9 +144,31 @@ func (h *MonitorHandler) StartStop(c *gin.Context) {
 
 	var err error
 	if req.Action == "start" {
-		err = h.engine.Start(c.Request.Context())
+		if h.engine.IsRunning() {
+			c.JSON(http.StatusOK, gin.H{
+				"message": "Monitor already running",
+				"stats":   h.engine.GetStats(),
+			})
+			return
+		}
+		if h.ctx == nil || h.ctx.Err() != nil {
+			h.ctx, h.cancel = context.WithCancel(context.Background())
+		}
+		err = h.engine.Start(h.ctx)
 	} else if req.Action == "stop" {
+		if !h.engine.IsRunning() {
+			c.JSON(http.StatusOK, gin.H{
+				"message": "Monitor already stopped",
+				"stats":   h.engine.GetStats(),
+			})
+			return
+		}
+		if h.cancel != nil {
+			h.cancel()
+		}
 		err = h.engine.Stop()
+		h.ctx = nil
+		h.cancel = nil
 	} else {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid action. Use 'start' or 'stop'"})
 		return

@@ -36,6 +36,7 @@ func requestLogger() gin.HandlerFunc {
 			Timestamp: start.Format(time.RFC3339),
 			Level:     getLogLevel(statusCode),
 			Message:   "[API]",
+			Category:  "api",
 			Status:    statusCode,
 			Latency:   latency.String(),
 			ClientIP:  clientIP,
@@ -151,23 +152,25 @@ func stringsJoin(elems []string, sep string) string {
 
 func recoveryMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		defer func() {
-			if err := recover(); err != nil {
-				log.Printf("[PANIC] %v", err)
+defer func() {
+		if err := recover(); err != nil {
+			log.Printf("[PANIC] %v", err)
 
-				panicEntry := struct {
-					Timestamp string `json:"timestamp"`
-					Level     string `json:"level"`
-					Message   string `json:"message"`
-					Error     string `json:"error"`
-					Path      string `json:"path"`
-				}{
-					Timestamp: time.Now().Format(time.RFC3339),
-					Level:     "fatal",
-					Message:   "[PANIC]",
-					Error:     fmt.Sprintf("%v", err),
-					Path:      c.Request.URL.Path,
-				}
+			panicEntry := struct {
+				Timestamp string `json:"timestamp"`
+				Level     string `json:"level"`
+				Message   string `json:"message"`
+				Category  string `json:"category"`
+				Error     string `json:"error"`
+				Path      string `json:"path"`
+			}{
+				Timestamp: time.Now().Format(time.RFC3339),
+				Level:     "fatal",
+				Message:   "[PANIC]",
+				Category:  "panic",
+				Error:     fmt.Sprintf("%v", err),
+				Path:      c.Request.URL.Path,
+			}
 
 				jsonBytes, _ := json.Marshal(panicEntry)
 				jsonBytes = append(jsonBytes, '\n')
