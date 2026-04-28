@@ -481,3 +481,12 @@ func (e *Engine) Clear() {
 
 	e.index = NewEventIndex(e.maxAge)
 }
+
+// findRelatedEvents 是 findRelatedEventsWithRule 的简化版本，用于测试和简单场景
+func (e *Engine) findRelatedEvents(base *types.Event, pattern *rules.Pattern) []*types.Event {
+	// 创建一个默认规则，确保 rule 不为 nil
+	rule := &rules.CorrelationRule{
+		Join: "", // 空字符串，确保 findRelatedEventsWithRule 中的 rule.Join 不会 panic
+	}
+	return e.findRelatedEventsWithRule(base, pattern, rule)
+}

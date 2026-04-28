@@ -415,11 +415,16 @@ func (h *AlertHandler) ExportEvents(c *gin.Context) {
 }
 
 type ListAlertsResponse struct {
-	Alerts     []*types.Alert `json:"alerts"`
-	Total      int64          `json:"total"`
-	Page       int            `json:"page"`
-	PageSize   int            `json:"page_size"`
-	TotalPages int            `json:"total_pages"`
+	Alerts     []*types.Alert       `json:"alerts"`
+	Total      int64                `json:"total"`
+	Page       int                  `json:"page"`
+	PageSize   int                  `json:"page_size"`
+	TotalPages int                  `json:"total_pages"`
+	Stats      *AlertStatsResponse  `json:"stats,omitempty"`
+}
+
+type AlertStatsResponse struct {
+	BySeverity map[string]int64 `json:"by_severity"`
 }
 
 type RunAnalysisResponse struct {
@@ -577,13 +582,22 @@ func (h *AlertHandler) ListAlerts(c *gin.Context) {
 		totalPages++
 	}
 
-	c.JSON(200, ListAlertsResponse{
+	resp := ListAlertsResponse{
 		Alerts:     alerts,
 		Total:      total,
 		Page:       req.Page,
 		PageSize:   req.PageSize,
 		TotalPages: totalPages,
-	})
+	}
+
+	if req.Severity == "" && req.Resolved == nil {
+		severityStats, _ := h.db.AlertRepo().CountBySeverity()
+		resp.Stats = &AlertStatsResponse{
+			BySeverity: severityStats,
+		}
+	}
+
+	c.JSON(200, resp)
 }
 
 // GetAlertStats godoc

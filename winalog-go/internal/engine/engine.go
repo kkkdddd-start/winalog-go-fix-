@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -339,9 +340,11 @@ type ImportRequest struct {
 }
 
 func decodeEvtxPath(path string) string {
-	path = strings.ReplaceAll(path, "%2F", "/")
-	path = strings.ReplaceAll(path, "%5C", "\\")
-	path = strings.ReplaceAll(path, "/", "\\")
+	if runtime.GOOS == "windows" {
+		path = strings.ReplaceAll(path, "%2F", "/")
+		path = strings.ReplaceAll(path, "%5C", "\\")
+		path = strings.ReplaceAll(path, "/", "\\")
+	}
 	return path
 }
 

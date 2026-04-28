@@ -149,7 +149,9 @@ var validConditionFields = map[string]bool{
 	"workstation":     true,
 	"domain":          true,
 	"target_username": true,
+	"target_object":   true,
 	"task_name":       true,
+	"destination_port": true,
 }
 
 var validOperators = map[string]bool{

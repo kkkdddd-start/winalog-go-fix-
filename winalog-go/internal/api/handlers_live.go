@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -20,7 +21,19 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		return true
+		origin := r.Header.Get("Origin")
+		// 允许的跨域来源（根据实际部署环境配置）
+		allowedOrigins := map[string]bool{
+			"http://localhost":        true,
+			"http://localhost:8080":   true,
+			"http://localhost:3000":   true,
+			"https://winalog.local":   true,
+		}
+		// 如果 Origin 为空（同源请求），允许
+		if origin == "" {
+			return true
+		}
+		return allowedOrigins[origin]
 	},
 }
 
@@ -282,10 +295,19 @@ func (c *WSClient) readPump(handler *LiveHandler) {
 		handler.manager.RemoveClient(c.ID)
 	}()
 
+	// 设置读超时时间（60秒无消息则断开连接）
+	readTimeout := 60 * time.Second
+
 	for {
+		// 设置读超时
+		c.Conn.SetReadDeadline(time.Now().Add(readTimeout))
+
 		_, message, err := c.Conn.ReadMessage()
 		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway) {
+			// 检查是否为超时错误
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				log.Printf("[INFO] WebSocket client %s read timeout", c.ID)
+			} else if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway) {
 				log.Printf("[INFO] WebSocket client %s read error: %v", c.ID, err)
 			}
 			return

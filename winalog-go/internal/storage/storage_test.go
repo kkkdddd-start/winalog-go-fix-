@@ -101,9 +101,18 @@ func TestGetImportLog(t *testing.T) {
 		t.Fatalf("InsertImportLog failed: %v", err)
 	}
 
-	_, err = db.GetImportLog("/path/to/file.evtx")
+	entry, err := db.GetImportLog("/path/to/file.evtx")
 	if err != nil {
-		t.Skip("Known issue: GetImportLog fails due to time.Time scanning bug")
+		t.Fatalf("GetImportLog failed: %v", err)
+	}
+	if entry == nil {
+		t.Fatal("GetImportLog returned nil entry")
+	}
+	if entry.FilePath != "/path/to/file.evtx" {
+		t.Errorf("FilePath = %s, want /path/to/file.evtx", entry.FilePath)
+	}
+	if entry.ImportTime.IsZero() {
+		t.Error("ImportTime should not be zero")
 	}
 }
 
@@ -119,7 +128,10 @@ func TestGetLastImportTime(t *testing.T) {
 
 	lastTime := db.GetLastImportTime(path)
 	if lastTime == nil {
-		t.Skip("Known issue: GetLastImportTime returns nil due to time parsing bug")
+		t.Fatal("GetLastImportTime returned nil, expected a valid time")
+	}
+	if lastTime.IsZero() {
+		t.Error("GetLastImportTime returned zero time")
 	}
 }
 

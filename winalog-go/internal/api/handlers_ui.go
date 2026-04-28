@@ -21,6 +21,7 @@ type DashboardOverview struct {
 	HighAlerts       int64            `json:"high_alerts"`
 	MediumAlerts     int64            `json:"medium_alerts"`
 	LowAlerts        int64            `json:"low_alerts"`
+	InfoAlerts       int64            `json:"info_alerts"`
 	ResolvedAlerts   int64            `json:"resolved_alerts"`
 	UnresolvedAlerts int64            `json:"unresolved_alerts"`
 	EventsLast24h    int64            `json:"events_last_24h"`
@@ -236,6 +237,9 @@ func (h *UIHandler) GetDashboardOverview(c *gin.Context) {
 		}
 		if bySev, ok := alertStats.BySeverity["low"]; ok {
 			overview.LowAlerts = bySev
+		}
+		if bySev, ok := alertStats.BySeverity["info"]; ok {
+			overview.InfoAlerts = bySev
 		}
 		if byStatus, ok := alertStats.ByStatus["resolved"]; ok {
 			overview.ResolvedAlerts = byStatus

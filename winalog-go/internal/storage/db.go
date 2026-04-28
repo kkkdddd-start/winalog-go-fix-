@@ -122,9 +122,6 @@ func (d *DB) Begin() (*sql.Tx, func(), error) {
 	}, nil
 }
 
-func (d *DB) Unlock() {
-	d.rwMu.Unlock()
-}
 
 func (d *DB) CreateTables() error {
 	return d.createTables()
@@ -365,18 +362,30 @@ func (d *DB) BeginTx() (*sql.Tx, func(), error) {
 }
 
 func (d *DB) GetLastImportTime(filePath string) *time.Time {
-	var importTime time.Time
+	var importTimeStr string
 	err := d.QueryRow(`
 		SELECT import_time FROM import_log 
 		WHERE file_path = ? AND status = 'success'
 		ORDER BY import_time DESC LIMIT 1`,
-		filePath).Scan(&importTime)
+		filePath).Scan(&importTimeStr)
 	if err != nil {
 		return nil
+	}
+	// 手动解析时间字符串，支持多种格式
+	// 格式1: RFC3339Nano (2006-01-02T15:04:05.999999999Z07:00)
+	// 格式2: Go 默认格式 (2026-04-28 03:50:10.027036595 +0000 UTC)
+	importTime, err := time.Parse(time.RFC3339Nano, importTimeStr)
+	if err != nil {
+		// 尝试 Go 默认格式（使用 monotext 格式，需要去除 monotonic component）
+		importTime, err = parseGoTimeString(importTimeStr)
+		if err != nil {
+			return nil
+		}
 	}
 	return &importTime
 }
 
+// GetImportLog retrieves the most recent import log entry for a file
 func (d *DB) GetImportLog(filePath string) (*ImportLogEntry, error) {
 	row := d.QueryRow(`
 		SELECT id, file_path, file_hash, events_count, import_time, import_duration, status, error_message
@@ -384,11 +393,14 @@ func (d *DB) GetImportLog(filePath string) (*ImportLogEntry, error) {
 		filePath)
 
 	var entry ImportLogEntry
+	var importTimeStr string
 	err := row.Scan(&entry.ID, &entry.FilePath, &entry.FileHash, &entry.EventsCount,
-		&entry.ImportTime, &entry.ImportDuration, &entry.Status, &entry.ErrorMessage)
+		&importTimeStr, &entry.ImportDuration, &entry.Status, &entry.ErrorMessage)
 	if err != nil {
 		return nil, err
 	}
+	// 手动解析时间字符串，支持多种格式
+	entry.ImportTime, _ = parseGoTimeString(importTimeStr)
 	return &entry, nil
 }
 

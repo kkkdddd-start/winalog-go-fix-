@@ -74,6 +74,15 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{4104},
 				Levels:   []string{"Info"},
 			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "-Enc"},
+					{Field: "command_line", Operator: "contains", Value: "-EncodedCommand"},
+				},
+				None: []*rules.Condition{
+					{Field: "command_line", Operator: "regex", Value: "^\\s*\\{.*\\}\\s*$"},
+				},
+			},
 			Message: "Encoded PowerShell command detected",
 			Tags:    []string{"powershell", "defense-evasion"},
 		},
@@ -130,6 +139,15 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{4697},
 				Levels:   []string{"Info"},
 			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "service_name", Operator: "contains", Value: "tmp"},
+					{Field: "service_name", Operator: "contains", Value: "temp"},
+					{Field: "service_name", Operator: "contains", Value: "update"},
+					{Field: "service_name", Operator: "contains", Value: "backup"},
+					{Field: "service_name", Operator: "regex", Value: "^\\d+$"},
+				},
+			},
 			Message: "Suspicious service created: {{.ServiceName}}",
 			Tags:    []string{"persistence", "service"},
 		},
@@ -143,6 +161,16 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{4698},
 				Levels:   []string{"Info"},
+			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "task_name", Operator: "contains", Value: "tmp"},
+					{Field: "task_name", Operator: "contains", Value: "temp"},
+					{Field: "task_name", Operator: "contains", Value: "update"},
+					{Field: "task_name", Operator: "contains", Value: "shadow"},
+					{Field: "task_name", Operator: "contains", Value: "backup"},
+					{Field: "task_name", Operator: "contains", Value: "persist"},
+				},
 			},
 			Message: "Suspicious scheduled task created: {{.TaskName}}",
 			Tags:    []string{"persistence", "scheduled-task"},
@@ -158,6 +186,14 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{4663},
 				Levels:   []string{"Info"},
 			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "target_object", Operator: "contains", Value: "USB"},
+					{Field: "target_object", Operator: "contains", Value: "Storage"},
+					{Field: "target_object", Operator: "contains", Value: "WPD"},
+					{Field: "target_object", Operator: "contains", Value: "Portable"},
+				},
+			},
 			Message: "USB device write detected on {{.Computer}}",
 			Tags:    []string{"initial-access", "physical"},
 		},
@@ -169,11 +205,21 @@ func GetAlertRules() []*rules.AlertRule {
 			Score:       85,
 			MitreAttack: "T1550.002",
 			Filter: &rules.Filter{
-				EventIDs: []int32{4624, 4672},
+				EventIDs: []int32{4624},
 				Levels:   []string{"Info"},
 			},
-			Message: "Possible Pass-the-Hash attack detected for {{.User}}",
-			Tags:    []string{"credential-access", "lateral-movement"},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "message", Operator: "contains", Value: "LogonType:\t3"},
+					{Field: "message", Operator: "contains", Value: "LogonType: 3"},
+					{Field: "message", Operator: "contains", Value: "LogonType 3"},
+				},
+			},
+			Threshold:      3,
+			TimeWindow:     10 * time.Minute,
+			AggregationKey: "ip_address",
+			Message:        "Possible Pass-the-Hash attack detected - {{.Count}} attempts from {{.IpAddress}}",
+			Tags:           []string{"credential-access", "lateral-movement"},
 		},
 		{
 			Name:        "mimikatz-suspect",
@@ -185,6 +231,23 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{1},
 				Levels:   []string{"Info"},
+			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "process_name", Operator: "contains", Value: "mimikatz"},
+					{Field: "process_name", Operator: "contains", Value: "mimidump"},
+					{Field: "process_name", Operator: "contains", Value: "lsass"},
+					{Field: "command_line", Operator: "contains", Value: "sekurlsa"},
+					{Field: "command_line", Operator: "contains", Value: "lsadump"},
+					{Field: "command_line", Operator: "contains", Value: "kerberos::"},
+					{Field: "command_line", Operator: "contains", Value: "privilege::debug"},
+					{Field: "command_line", Operator: "contains", Value: "credential manager"},
+					{Field: "command_line", Operator: "contains", Value: "wdigest"},
+				},
+				None: []*rules.Condition{
+					{Field: "process_name", Operator: "contains", Value: "tasklist"},
+					{Field: "process_name", Operator: "contains", Value: "procexp"},
+				},
 			},
 			Message: "Mimikatz or credential dumping tool detected",
 			Tags:    []string{"credential-access", "malware"},
@@ -200,6 +263,15 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{4104},
 				Levels:   []string{"Info"},
 			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "-Enc"},
+					{Field: "command_line", Operator: "contains", Value: "-EncodedCommand"},
+					{Field: "command_line", Operator: "contains", Value: "Remote-"},
+					{Field: "command_line", Operator: "contains", Value: "Invoke-Command"},
+					{Field: "command_line", Operator: "contains", Value: "New-PSSession"},
+				},
+			},
 			Message: "Encoded PowerShell remote command detected",
 			Tags:    []string{"powershell", "execution"},
 		},
@@ -214,6 +286,16 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{4698},
 				Levels:   []string{"Info"},
 			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "/s"},
+					{Field: "command_line", Operator: "contains", Value: "/schedule"},
+					{Field: "command_line", Operator: "contains", Value: "/tn"},
+					{Field: "command_line", Operator: "contains", Value: "/sc"},
+					{Field: "command_line", Operator: "contains", Value: "/tr"},
+					{Field: "command_line", Operator: "contains", Value: "\\\\"},
+				},
+			},
 			Message: "Remote scheduled task creation detected",
 			Tags:    []string{"persistence", "remote-execution"},
 		},
@@ -227,6 +309,14 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{4657},
 				Levels:   []string{"Info"},
+			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "target_object", Operator: "contains", Value: "CurrentVersion\\Run"},
+					{Field: "target_object", Operator: "contains", Value: "CurrentVersion\\Windows\\Run"},
+					{Field: "target_object", Operator: "contains", Value: "CurrentVersion\\Explorer\\Run"},
+					{Field: "target_object", Operator: "regex", Value: "Software\\\\Microsoft\\\\Windows\\\\CurrentVersion\\\\Run"},
+				},
 			},
 			Message: "Suspicious Run key modification detected",
 			Tags:    []string{"persistence", "registry"},
@@ -270,6 +360,14 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{13},
 				Levels:   []string{"Info"},
 			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "target_object", Operator: "contains", Value: "CurrentVersion\\Run"},
+					{Field: "target_object", Operator: "contains", Value: "CurrentVersion\\Windows\\Run"},
+					{Field: "target_object", Operator: "contains", Value: "CurrentVersion\\Explorer\\Run"},
+					{Field: "target_object", Operator: "contains", Value: "Wow6432Node\\CurrentVersion\\Run"},
+				},
+			},
 			Message: "Registry Run key modified: {{.TargetObject}}",
 			Tags:    []string{"persistence", "registry"},
 		},
@@ -283,6 +381,13 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{13},
 				Levels:   []string{"Info"},
+			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "target_object", Operator: "contains", Value: "Services\\"},
+					{Field: "target_object", Operator: "contains", Value: "Control\\ServiceType"},
+					{Field: "target_object", Operator: "contains", Value: "Control\\Start"},
+				},
 			},
 			Message: "Service registry modified: {{.TargetObject}}",
 			Tags:    []string{"persistence", "registry"},
@@ -298,6 +403,14 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{13},
 				Levels:   []string{"Info"},
 			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "target_object", Operator: "contains", Value: "SAM\\SAM"},
+					{Field: "target_object", Operator: "contains", Value: "SECURITY\\SAM"},
+					{Field: "target_object", Operator: "contains", Value: "System\\CurrentControlSet\\Services"},
+					{Field: "target_object", Operator: "contains", Value: "LSA"},
+				},
+			},
 			Message: "Critical registry hive modification: {{.TargetObject}}",
 			Tags:    []string{"credential-access", "registry"},
 		},
@@ -311,6 +424,14 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{13},
 				Levels:   []string{"Info"},
+			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "target_object", Operator: "contains", Value: "Subscription"},
+					{Field: "target_object", Operator: "contains", Value: "EventFilter"},
+					{Field: "target_object", Operator: "contains", Value: "Consumer"},
+					{Field: "target_object", Operator: "contains", Value: "NT TASK"},
+				},
 			},
 			Message: "WMI registry persistence modification detected",
 			Tags:    []string{"persistence", "wmi"},
@@ -326,6 +447,14 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{13},
 				Levels:   []string{"Info"},
 			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "target_object", Operator: "contains", Value: "AlwaysInstallElevated"},
+					{Field: "target_object", Operator: "contains", Value: "EnableLUA"},
+					{Field: "target_object", Operator: "contains", Value: "FilterAdministratorToken"},
+					{Field: "target_object", Operator: "contains", Value: "ConsentPromptBehaviorAdmin"},
+				},
+			},
 			Message: "UAC bypass technique via registry detected",
 			Tags:    []string{"privilege-escalation", "defense-evasion"},
 		},
@@ -340,6 +469,15 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{4688},
 				Levels:   []string{"Info"},
 			},
+			Conditions: &rules.Conditions{
+				All: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "wmic"},
+				},
+				None: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "process call"},
+					{Field: "command_line", Operator: "contains", Value: "service list"},
+				},
+			},
 			Message: "Suspicious WMIC command executed",
 			Tags:    []string{"execution", "wmi"},
 		},
@@ -353,6 +491,15 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{4688},
 				Levels:   []string{"Info"},
+			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "winrm"},
+					{Field: "command_line", Operator: "contains", Value: "Invoke-Command"},
+					{Field: "command_line", Operator: "contains", Value: "Enter-PSSession"},
+					{Field: "command_line", Operator: "contains", Value: "New-PSSession"},
+					{Field: "command_line", Operator: "contains", Value: "WSMan"},
+				},
 			},
 			Message: "Suspicious WinRM activity detected",
 			Tags:    []string{"lateral-movement", "remote-execution"},
@@ -382,6 +529,18 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{4688},
 				Levels:   []string{"Info"},
 			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "dsquery"},
+					{Field: "command_line", Operator: "contains", Value: "net user /domain"},
+					{Field: "command_line", Operator: "contains", Value: "net group /domain"},
+					{Field: "command_line", Operator: "contains", Value: "nltest"},
+					{Field: "command_line", Operator: "contains", Value: "ldp"},
+					{Field: "command_line", Operator: "contains", Value: "adfind"},
+					{Field: "command_line", Operator: "contains", Value: "bloodhound"},
+					{Field: "command_line", Operator: "contains", Value: "sharp hound"},
+				},
+			},
 			Message: "Domain reconnaissance activity detected",
 			Tags:    []string{"discovery", "active-directory"},
 		},
@@ -396,8 +555,21 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{4624},
 				Levels:   []string{"Info"},
 			},
-			Message: "Domain administrator login detected from {{.IpAddress}}",
-			Tags:    []string{"privilege-access", "lateral-movement"},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "target_username", Operator: "contains", Value: "Administrator"},
+					{Field: "target_username", Operator: "contains", Value: "Domain Admin"},
+					{Field: "target_username", Operator: "contains", Value: "Domain-Admin"},
+					{Field: "target_username", Operator: "contains", Value: "Admin"},
+					{Field: "message", Operator: "contains", Value: "TargetUserName: Administrator"},
+					{Field: "message", Operator: "contains", Value: "TargetUserName: DOMAIN\\Administrator"},
+				},
+			},
+			Threshold:      3,
+			TimeWindow:     30 * time.Minute,
+			AggregationKey: "ip_address",
+			Message:       "Domain administrator login detected from {{.IpAddress}}",
+			Tags:          []string{"privilege-access", "lateral-movement"},
 		},
 		{
 			Name:        "dc-sync-attack",
@@ -407,8 +579,16 @@ func GetAlertRules() []*rules.AlertRule {
 			Score:       100,
 			MitreAttack: "T1003.004",
 			Filter: &rules.Filter{
-				EventIDs: []int32{4624, 4672},
+				EventIDs: []int32{4662},
 				Levels:   []string{"Info"},
+			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "message", Operator: "contains", Value: "DS-Replication-Get-Changes-All"},
+					{Field: "message", Operator: "contains", Value: "Replicate-Update"},
+					{Field: "message", Operator: "contains", Value: "samAccountName"},
+					{Field: "message", Operator: "contains", Value: "nTSecurityDescriptor"},
+				},
 			},
 			Message: "Possible DCSync attack detected - domain replication",
 			Tags:    []string{"credential-access", "lateral-movement"},
@@ -438,6 +618,13 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{4624},
 				Levels:   []string{"Info"},
 			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "message", Operator: "contains", Value: "krbtgt"},
+					{Field: "target_username", Operator: "contains", Value: "krbtgt"},
+					{Field: "user", Operator: "contains", Value: "krbtgt"},
+				},
+			},
 			Message: "Golden ticket attack特征 detected - krbtgt login from unusual source",
 			Tags:    []string{"credential-access", "persistence"},
 		},
@@ -451,6 +638,17 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{4688},
 				Levels:   []string{"Info"},
+			},
+			Conditions: &rules.Conditions{
+				All: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "powershell"},
+				},
+				Any: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "PSSession"},
+					{Field: "command_line", Operator: "contains", Value: "Invoke-Command"},
+					{Field: "command_line", Operator: "contains", Value: "Enter-PSSession"},
+					{Field: "command_line", Operator: "contains", Value: "New-PSSession"},
+				},
 			},
 			Message: "PowerShell remoting session detected",
 			Tags:    []string{"lateral-movement", "powershell"},
@@ -466,6 +664,16 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{4104},
 				Levels:   []string{"Info"},
 			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "Invoke-WebRequest"},
+					{Field: "command_line", Operator: "contains", Value: "iwr"},
+					{Field: "command_line", Operator: "contains", Value: "WebClient"},
+					{Field: "command_line", Operator: "contains", Value: "DownloadFile"},
+					{Field: "command_line", Operator: "contains", Value: "DownloadString"},
+					{Field: "command_line", Operator: "contains", Value: "Start-BitsTransfer"},
+				},
+			},
 			Message: "Malicious PowerShell download detected",
 			Tags:    []string{"command-and-control", "powershell"},
 		},
@@ -479,6 +687,17 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{4688},
 				Levels:   []string{"Info"},
+			},
+			Conditions: &rules.Conditions{
+				All: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "certutil"},
+				},
+				Any: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "-urlcache"},
+					{Field: "command_line", Operator: "contains", Value: "-decode"},
+					{Field: "command_line", Operator: "contains", Value: "-encode"},
+					{Field: "command_line", Operator: "contains", Value: "-verifyctl"},
+				},
 			},
 			Message: "CertUtil used for malicious download detected",
 			Tags:    []string{"command-and-control", "defense-evasion"},
@@ -522,6 +741,15 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{4624},
 				Levels:   []string{"Info"},
 			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "message", Operator: "contains", Value: "LogonType:\t10"},
+					{Field: "message", Operator: "contains", Value: "LogonType: 10"},
+					{Field: "message", Operator: "contains", Value: "LogonType 10"},
+					{Field: "message", Operator: "contains", Value: "RemoteDesktop"},
+					{Field: "message", Operator: "contains", Value: "Remote Interactive"},
+				},
+			},
 			Message: "RDP lateral movement detected from external IP: {{.IpAddress}}",
 			Tags:    []string{"lateral-movement", "rdp"},
 		},
@@ -564,6 +792,16 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{13},
 				Levels:   []string{"Info"},
 			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "target_object", Operator: "contains", Value: "InternetExplorer\\BLah"},
+					{Field: "target_object", Operator: "contains", Value: "InternetExplorer\\DOMStore"},
+					{Field: "target_object", Operator: "contains", Value: "CLSID\\{"},
+					{Field: "target_object", Operator: "contains", Value: "InprocServer32"},
+					{Field: "target_object", Operator: "contains", Value: "TreatAs"},
+					{Field: "target_object", Operator: "contains", Value: "Miscellaneous"},
+				},
+			},
 			Message: "COM object hijacking detected: {{.TargetObject}}",
 			Tags:    []string{"persistence", "defense-evasion"},
 		},
@@ -577,6 +815,16 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{4688},
 				Levels:   []string{"Info"},
+			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: ".tmp"},
+					{Field: "command_line", Operator: "contains", Value: ".dll"},
+					{Field: "command_line", Operator: "contains", Value: "temp\\"},
+					{Field: "command_line", Operator: "contains", Value: "tmp\\"},
+					{Field: "command_line", Operator: "contains", Value: "appdata\\"},
+					{Field: "command_line", Operator: "contains", Value: "remote\\"},
+				},
 			},
 			Message: "DLL search order hijacking detected",
 			Tags:    []string{"persistence", "defense-evasion"},
@@ -592,6 +840,16 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{4697},
 				Levels:   []string{"Info"},
 			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: ".dll"},
+					{Field: "command_line", Operator: "contains", Value: "temp\\"},
+					{Field: "command_line", Operator: "contains", Value: "tmp\\"},
+					{Field: "command_line", Operator: "contains", Value: "appdata\\"},
+					{Field: "command_line", Operator: "contains", Value: "System32\\"},
+					{Field: "command_line", Operator: "contains", Value: "SysWOW64\\"},
+				},
+			},
 			Message: "Service DLL hijacking detected: {{.ServiceName}}",
 			Tags:    []string{"persistence", "privilege-escalation"},
 		},
@@ -606,6 +864,14 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{4688, 3},
 				Levels:   []string{"Info"},
 			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "dns2tcp"},
+					{Field: "command_line", Operator: "contains", Value: "iodine"},
+					{Field: "command_line", Operator: "contains", Value: "dnscat"},
+					{Field: "command_line", Operator: "contains", Value: "tunnel"},
+				},
+			},
 			Message: "DNS tunneling特征 detected - possible C2 communication",
 			Tags:    []string{"command-and-control", "exfiltration"},
 		},
@@ -619,6 +885,16 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{4688},
 				Levels:   []string{"Info"},
+			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "cobalt"},
+					{Field: "command_line", Operator: "contains", Value: "beacon"},
+					{Field: "command_line", Operator: "contains", Value: "mimikatz"},
+					{Field: "command_line", Operator: "regex", Value: "(?i)(sleep|https|http)-c"},
+					{Field: "command_line", Operator: "regex", Value: "(?i)-Enc(?:odedCommand)?"},
+					{Field: "process_name", Operator: "contains", Value: "beacon.exe"},
+				},
 			},
 			Message: "Cobalt Strike beacon特征 detected - {{.Computer}} may be compromised",
 			Tags:    []string{"malware", "command-and-control"},
@@ -648,6 +924,16 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{4104},
 				Levels:   []string{"Info"},
 			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "while"},
+					{Field: "command_line", Operator: "contains", Value: "for"},
+					{Field: "command_line", Operator: "contains", Value: "do {",},
+					{Field: "command_line", Operator: "contains", Value: "loop"},
+					{Field: "command_line", Operator: "contains", Value: "DownloadFile"},
+					{Field: "command_line", Operator: "contains", Value: "WebClient"},
+				},
+			},
 			Message: "PowerShell loop execution detected - possible download cycle",
 			Tags:    []string{"persistence", "powershell"},
 		},
@@ -661,6 +947,12 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{4104},
 				Levels:   []string{"Info"},
+			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "NoProfile"},
+					{Field: "command_line", Operator: "contains", Value: "-Nop"},
+				},
 			},
 			Message: "PowerShell execution without profile - possible evasion",
 			Tags:    []string{"defense-evasion", "powershell"},
@@ -786,9 +1078,20 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{4624},
 				Levels:   []string{"Info"},
+				LogonTypes: []int{3, 8, 10, 11},
 			},
-			Message: "Off-hours login detected for {{.User}}",
-			Tags:    []string{"authentication", "anomaly-detection"},
+			Conditions: &rules.Conditions{
+				None: []*rules.Condition{
+					{Field: "target_username", Operator: "contains", Value: "SYSTEM"},
+					{Field: "target_username", Operator: "contains", Value: "ANONYMOUS"},
+					{Field: "message", Operator: "contains", Value: "TargetUserName=SYSTEM"},
+				},
+			},
+			Threshold:      3,
+			TimeWindow:     1 * time.Hour,
+			AggregationKey: "ip_address",
+			Message:        "Off-hours login detected for {{.User}} from {{.IpAddress}} - {{.Count}} attempts",
+			Tags:           []string{"authentication", "anomaly-detection"},
 		},
 		{
 			Name:        "ueba-massive-file-access",
@@ -801,13 +1104,22 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{4663},
 				Levels:   []string{"Info"},
 			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "target_object", Operator: "contains", Value: "\\Users\\"},
+					{Field: "target_object", Operator: "contains", Value: "\\Documents\\"},
+					{Field: "target_object", Operator: "contains", Value: "\\Desktop\\"},
+					{Field: "target_object", Operator: "contains", Value: "\\Shares\\"},
+					{Field: "target_object", Operator: "contains", Value: "\\\\server\\"},
+				},
+			},
 			Message: "Massive file access by {{.User}} - possible data exfiltration",
 			Tags:    []string{"exfiltration", "anomaly-detection"},
 		},
 		{
 			Name:        "ueba-privilege-escalation",
-			Description: "用户权限提升行为(UEBA)",
-			Enabled:     true,
+			Description: "用户权限提升行为(UEBA) - 已禁用: 与 mass-privilege-assignment 重复",
+			Enabled:     false,
 			Severity:    types.SeverityHigh,
 			Score:       75,
 			MitreAttack: "T1068",
@@ -815,8 +1127,28 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{4672, 4673, 4674},
 				Levels:   []string{"Info"},
 			},
-			Message: "Privilege escalation detected for {{.User}}",
-			Tags:    []string{"privilege-escalation", "anomaly-detection"},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "message", Operator: "contains", Value: "SeSecurityPrivilege"},
+					{Field: "message", Operator: "contains", Value: "SeBackupPrivilege"},
+					{Field: "message", Operator: "contains", Value: "SeRestorePrivilege"},
+					{Field: "message", Operator: "contains", Value: "SeTakeOwnershipPrivilege"},
+					{Field: "message", Operator: "contains", Value: "SeDebugPrivilege"},
+					{Field: "message", Operator: "contains", Value: "SeSystemEnvironmentPrivilege"},
+					{Field: "message", Operator: "contains", Value: "SeLoadDriverPrivilege"},
+					{Field: "message", Operator: "contains", Value: "SeTcbPrivilege"},
+					{Field: "message", Operator: "contains", Value: "SeCreateTokenPrivilege"},
+					{Field: "message", Operator: "contains", Value: "SeImpersonatePrivilege"},
+				},
+				None: []*rules.Condition{
+					{Field: "message", Operator: "contains", Value: "SubjectUserName=SYSTEM"},
+				},
+			},
+			Threshold:      3,
+			TimeWindow:     10 * time.Minute,
+			AggregationKey: "user",
+			Message:        "Privilege escalation detected for {{.User}} - unusual privilege assignment pattern",
+			Tags:           []string{"privilege-escalation", "anomaly-detection"},
 		},
 		{
 			Name:        "amsi-bypass",
@@ -828,6 +1160,16 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{4104},
 				Levels:   []string{"Info"},
+			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "AmsiInitParameter"},
+					{Field: "command_line", Operator: "contains", Value: "AmsiUtils"},
+					{Field: "command_line", Operator: "contains", Value: "System.Reflection.AssemblyName"},
+					{Field: "command_line", Operator: "contains", Value: "Unsafe.NeativeBytes"},
+					{Field: "command_line", Operator: "contains", Value: "amsi.dll"},
+					{Field: "command_line", Operator: "regex", Value: "(?i)patch.*amsi"},
+				},
 			},
 			Message: "AMSI bypass attempt detected - attacker trying to disable antivirus",
 			Tags:    []string{"defense-evasion", "anti-antivirus"},
@@ -843,6 +1185,15 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{4104, 4688},
 				Levels:   []string{"Info"},
 			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "Disable-WindowsOptionalFeature"},
+					{Field: "command_line", Operator: "contains", Value: "-EtwTrace"},
+					{Field: "command_line", Operator: "contains", Value: "NtTraceControl"},
+					{Field: "command_line", Operator: "regex", Value: "(?i)patch.*etw"},
+					{Field: "command_line", Operator: "contains", Value: "etw-disable"},
+				},
+			},
 			Message: "ETW tampering detected - possible defense evasion",
 			Tags:    []string{"defense-evasion", "clearing-logs"},
 		},
@@ -856,6 +1207,14 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{4688, 4657},
 				Levels:   []string{"Info"},
+			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "Set-MpPreference"},
+					{Field: "command_line", Operator: "contains", Value: "DisableRealtimeMonitoring"},
+					{Field: "command_line", Operator: "contains", Value: "-DisableIOAVProtection"},
+					{Field: "command_line", Operator: "contains", Value: "Add-MpPreference"},
+				},
 			},
 			Message: "Windows Defender real-time protection disabled",
 			Tags:    []string{"defense-evasion", "malware"},
@@ -871,6 +1230,13 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{4688},
 				Levels:   []string{"Info"},
 			},
+			Conditions: &rules.Conditions{
+				All: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "vssadmin"},
+					{Field: "command_line", Operator: "contains", Value: "delete"},
+					{Field: "command_line", Operator: "contains", Value: "shadow"},
+				},
+			},
 			Message: "Volume shadow copy deleted - possible ransomware preparation",
 			Tags:    []string{"impact", "ransomware"},
 		},
@@ -884,6 +1250,15 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{4688, 4104},
 				Levels:   []string{"Info"},
+			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "Add-MpPreference"},
+					{Field: "command_line", Operator: "contains", Value: "-ExclusionPath"},
+					{Field: "command_line", Operator: "contains", Value: "-ExclusionExtension"},
+					{Field: "command_line", Operator: "contains", Value: "-ExclusionProcess"},
+					{Field: "command_line", Operator: "contains", Value: "MpPreference"},
+				},
 			},
 			Message: "Antivirus exclusion added: {{.CommandLine}}",
 			Tags:    []string{"defense-evasion", "malware"},
@@ -904,14 +1279,20 @@ func GetAlertRules() []*rules.AlertRule {
 		},
 		{
 			Name:        "ntlm-v1-authentication",
-			Description: "NTLMv1降级认证(易受中继攻击)",
-			Enabled:     true,
+			Description: "NTLMv1降级认证(易受中继攻击) - 已禁用: KeyLength=0 不是 NTLM v1 特征",
+			Enabled:     false,
 			Severity:    types.SeverityHigh,
 			Score:       75,
 			MitreAttack: "T1550.002",
 			Filter: &rules.Filter{
 				EventIDs: []int32{4624},
 				Levels:   []string{"Info"},
+			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "message", Operator: "contains", Value: "LmLevel=NTLM"},
+					{Field: "message", Operator: "contains", Value: "NTLMLevel=v1"},
+				},
 			},
 			Message: "NTLMv1 authentication detected - vulnerable to relay attack",
 			Tags:    []string{"credential-access", "relay-attack"},
@@ -927,6 +1308,18 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{4688, 4104},
 				Levels:   []string{"Info"},
 			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "bloodhound"},
+					{Field: "command_line", Operator: "contains", Value: "sharp hound"},
+					{Field: "command_line", Operator: "contains", Value: "sharphound"},
+					{Field: "command_line", Operator: "contains", Value: "collect"},
+					{Field: "command_line", Operator: "contains", Value: "-All"},
+				},
+				None: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "python"},
+				},
+			},
 			Message: "BloodHound/SharpHound AD reconnaissance tool detected",
 			Tags:    []string{"discovery", "active-directory"},
 		},
@@ -940,6 +1333,14 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{4688, 5145},
 				Levels:   []string{"Info"},
+			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "psexec"},
+					{Field: "command_line", Operator: "contains", Value: "-accepteula"},
+					{Field: "command_line", Operator: "contains", Value: "PsExec"},
+					{Field: "command_line", Operator: "contains", Value: "PSEXESVC"},
+				},
 			},
 			Message: "PsExec remote execution detected",
 			Tags:    []string{"lateral-movement", "remote-execution"},
@@ -955,6 +1356,18 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{4688},
 				Levels:   []string{"Info"},
 			},
+			Conditions: &rules.Conditions{
+				All: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "certutil"},
+				},
+				Any: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "-urlcache"},
+					{Field: "command_line", Operator: "contains", Value: "-decode"},
+					{Field: "command_line", Operator: "contains", Value: "-encode"},
+					{Field: "command_line", Operator: "contains", Value: "download"},
+					{Field: "command_line", Operator: "contains", Value: "http"},
+				},
+			},
 			Message: "CertUtil used for download: {{.CommandLine}}",
 			Tags:    []string{"command-and-control", "defense-evasion"},
 		},
@@ -968,6 +1381,17 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{4688},
 				Levels:   []string{"Info"},
+			},
+			Conditions: &rules.Conditions{
+				All: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "bcdedit"},
+				},
+				Any: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "/set"},
+					{Field: "command_line", Operator: "contains", Value: "bootstatuspolicy"},
+					{Field: "command_line", Operator: "contains", Value: "recoveryenabled"},
+					{Field: "command_line", Operator: "contains", Value: "disable"},
+				},
 			},
 			Message: "Boot Configuration Data modified - possible stealth technique",
 			Tags:    []string{"defense-evasion", "persistence"},
@@ -1010,6 +1434,18 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{4688, 1},
 				Levels:   []string{"Info"},
+			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "frpc"},
+					{Field: "command_line", Operator: "contains", Value: "frps"},
+					{Field: "command_line", Operator: "contains", Value: "ngrok"},
+					{Field: "command_line", Operator: "contains", Value: "chisel"},
+					{Field: "command_line", Operator: "contains", Value: "ssh-reverse"},
+					{Field: "command_line", Operator: "contains", Value: "lcx"},
+					{Field: "command_line", Operator: "contains", Value: "portmap"},
+					{Field: "command_line", Operator: "contains", Value: "socat"},
+				},
 			},
 			Message: "Tunneling tool detected: {{.Image}}",
 			Tags:    []string{"command-and-control", "exfiltration"},
@@ -1066,6 +1502,15 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{13},
 				Levels:   []string{"Info"},
+			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "target_object", Operator: "contains", Value: "System\\CurrentControlSet\\Services\\"},
+					{Field: "target_object", Operator: "contains", Value: "Parameters\\Service"},
+					{Field: "target_object", Operator: "contains", Value: "ImagePath"},
+					{Field: "target_object", Operator: "contains", Value: "Type"},
+					{Field: "target_object", Operator: "contains", Value: "Start"},
+				},
 			},
 			Message: "Service registry key modified for persistence",
 			Tags:    []string{"persistence", "privilege-escalation"},
@@ -1151,6 +1596,15 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{4624},
 				Levels:   []string{"Info"},
 			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "message", Operator: "contains", Value: "WinRM"},
+					{Field: "message", Operator: "contains", Value: "WSMan"},
+					{Field: "message", Operator: "contains", Value: "RemoteManagement"},
+					{Field: "message", Operator: "contains", Value: "PSSession"},
+					{Field: "message", Operator: "contains", Value: "Invoke-Command"},
+				},
+			},
 			Message: "WinRM lateral movement from external IP: {{.IpAddress}}",
 			Tags:    []string{"lateral-movement", "remote-execution"},
 		},
@@ -1162,8 +1616,20 @@ func GetAlertRules() []*rules.AlertRule {
 			Score:       95,
 			MitreAttack: "T1028.004",
 			Filter: &rules.Filter{
-				EventIDs: []int32{4624, 30},
+				EventIDs: []int32{4624},
 				Levels:   []string{"Info"},
+			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "message", Operator: "contains", Value: "WinRM"},
+					{Field: "message", Operator: "contains", Value: "WSMan"},
+					{Field: "message", Operator: "contains", Value: "RemoteManagement"},
+				},
+				None: []*rules.Condition{
+					{Field: "ip_address", Operator: "==", Value: "127.0.0.1"},
+					{Field: "ip_address", Operator: "==", Value: "::1"},
+					{Field: "ip_address", Operator: "==", Value: "localhost"},
+				},
 			},
 			Message: "Admin account WinRM lateral movement detected",
 			Tags:    []string{"lateral-movement", "privilege-access"},
@@ -1277,8 +1743,32 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{4672},
 				Levels:   []string{"Info"},
 			},
-			Message: "Mass privilege assignment detected - {{.Count}} events",
-			Tags:    []string{"privilege-escalation", "persistence"},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "message", Operator: "contains", Value: "SeSecurityPrivilege"},
+					{Field: "message", Operator: "contains", Value: "SeBackupPrivilege"},
+					{Field: "message", Operator: "contains", Value: "SeRestorePrivilege"},
+					{Field: "message", Operator: "contains", Value: "SeTakeOwnershipPrivilege"},
+					{Field: "message", Operator: "contains", Value: "SeDebugPrivilege"},
+					{Field: "message", Operator: "contains", Value: "SeSystemEnvironmentPrivilege"},
+					{Field: "message", Operator: "contains", Value: "SeLoadDriverPrivilege"},
+					{Field: "message", Operator: "contains", Value: "SeRemoteShutdownPrivilege"},
+					{Field: "message", Operator: "contains", Value: "SeAuditPrivilege"},
+					{Field: "message", Operator: "contains", Value: "SeChangeNotifyPrivilege"},
+					{Field: "message", Operator: "contains", Value: "SeImpersonatePrivilege"},
+					{Field: "message", Operator: "contains", Value: "SeCreateGlobalPrivilege"},
+					{Field: "message", Operator: "contains", Value: "SeTrustedCredManAccessPrivilege"},
+					{Field: "message", Operator: "contains", Value: "SeTcbPrivilege"},
+				},
+				None: []*rules.Condition{
+					{Field: "message", Operator: "contains", Value: "SubjectUserName=SYSTEM"},
+				},
+			},
+			Threshold:      5,
+			TimeWindow:     5 * time.Minute,
+			AggregationKey: "computer",
+			Message:        "Mass privilege assignment detected - {{.Count}} privilege assignments on {{.Computer}}",
+			Tags:           []string{"privilege-escalation", "persistence"},
 		},
 		{
 			Name:        "key-operations-alert",
@@ -1291,6 +1781,19 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{5058, 5059, 5061},
 				Levels:   []string{"Info"},
 			},
+			Conditions: &rules.Conditions{
+				None: []*rules.Condition{
+					{Field: "message", Operator: "contains", Value: "SubjectUserName=LOCAL SERVICE"},
+					{Field: "message", Operator: "contains", Value: "SubjectUserName=NETWORK SERVICE"},
+					{Field: "message", Operator: "contains", Value: "SubjectUserName=SYSTEM"},
+					{Field: "message", Operator: "contains", Value: "KeyName=ChromeMetricsTest"},
+					{Field: "message", Operator: "contains", Value: "KeyName=Microsoft Connected Devices"},
+					{Field: "message", Operator: "contains", Value: "KeyName=CtxEndpointKey"},
+					{Field: "message", Operator: "contains", Value: "com.bytedance"},
+					{Field: "message", Operator: "contains", Value: "feishu"},
+					{Field: "message", Operator: "contains", Value: "KeyName={"},
+				},
+			},
 			Message: "Cryptographic key operation detected",
 			Tags:    []string{"credential-access", "discovery"},
 		},
@@ -1302,9 +1805,10 @@ func GetAlertRules() []*rules.AlertRule {
 			Score:       70,
 			MitreAttack: "T1078",
 			Filter: &rules.Filter{
-				EventIDs: []int32{4624},
-				Levels:   []string{"Info"},
-				Keywords: "LogonType 3",
+				EventIDs:    []int32{4624},
+				Levels:      []string{"Info"},
+				Keywords:    "LogonType 3",
+				KeywordMode: rules.OpOr,
 			},
 			Message: "Logon type 3 (network login) to local account detected for {{.User}} on {{.Computer}}",
 			Tags:    []string{"authentication", "anomaly"},
@@ -1317,9 +1821,10 @@ func GetAlertRules() []*rules.AlertRule {
 			Score:       90,
 			MitreAttack: "T1078.004",
 			Filter: &rules.Filter{
-				EventIDs: []int32{4624},
-				Levels:   []string{"Info"},
-				Keywords: "Administrator,Domain Admin",
+				EventIDs:    []int32{4624},
+				Levels:      []string{"Info"},
+				Keywords:    "Administrator,Domain Admin",
+				KeywordMode: rules.OpOr,
 			},
 			Message: "Admin account login from unusual location: {{.User}} on {{.Computer}} from {{.IpAddress}}",
 			Tags:    []string{"authentication", "privilege", "lateral-movement"},
@@ -1337,6 +1842,13 @@ func GetAlertRules() []*rules.AlertRule {
 				Keywords:    "rar,.docx,.xlsx,.pdf,.zip,.bak",
 				KeywordMode: rules.OpAnd,
 			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: " rar "},
+					{Field: "command_line", Operator: "contains", Value: ".exe\" rar"},
+					{Field: "command_line", Operator: "contains", Value: " a "},
+				},
+			},
 			Message: "RAR compression with sensitive file detected: {{.Message}}",
 			Tags:    []string{"exfiltration", "collection"},
 		},
@@ -1348,9 +1860,24 @@ func GetAlertRules() []*rules.AlertRule {
 			Score:       80,
 			MitreAttack: "T1218",
 			Filter: &rules.Filter{
-				EventIDs: []int32{4688},
-				Levels:   []string{"Info"},
-				Keywords: "wmic.exe,bitsadmin.exe,certutil.exe,mshta.exe",
+				EventIDs:    []int32{4688},
+				Levels:      []string{"Info"},
+				Keywords:    "wmic.exe,bitsadmin.exe,certutil.exe,mshta.exe",
+				KeywordMode: rules.OpOr,
+			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "mshta"},
+					{Field: "command_line", Operator: "contains", Value: "rundll32"},
+					{Field: "command_line", Operator: "contains", Value: "regsvr32"},
+					{Field: "command_line", Operator: "contains", Value: "bitsadmin"},
+					{Field: "command_line", Operator: "contains", Value: "wmic os"},
+					{Field: "command_line", Operator: "contains", Value: "wmic process"},
+					{Field: "command_line", Operator: "contains", Value: "certutil -urlcache"},
+					{Field: "command_line", Operator: "contains", Value: "certutil -decode"},
+					{Field: "command_line", Operator: "contains", Value: "msxsl"},
+					{Field: "command_line", Operator: "contains", Value: "cmstp"},
+				},
 			},
 			Message: "LOLBAS attack detected: {{.Message}}",
 			Tags:    []string{"defense-evasion", "execution"},
@@ -1363,9 +1890,10 @@ func GetAlertRules() []*rules.AlertRule {
 			Score:       95,
 			MitreAttack: "T1003.006",
 			Filter: &rules.Filter{
-				EventIDs: []int32{4662},
-				Levels:   []string{"Info"},
-				Keywords: "DS-Replication-Get-Changes-All,0x3e7",
+				EventIDs:    []int32{4662},
+				Levels:      []string{"Info"},
+				Keywords:    "DS-Replication-Get-Changes-All,0x3e7",
+				KeywordMode: rules.OpOr,
 			},
 			Message: "AD replication operation detected - potential DCSync attack",
 			Tags:    []string{"credential-access", "lateral-movement"},
