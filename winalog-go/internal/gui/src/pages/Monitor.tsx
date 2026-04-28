@@ -221,6 +221,12 @@ function Monitor() {
     }
   }
 
+  const formatEventField = (value: any): string => {
+    if (value === null || value === undefined) return ''
+    if (typeof value === 'object') return JSON.stringify(value)
+    return String(value)
+  }
+
   const filteredEvents = events.filter(event => {
     if (activeTab === 'all') return true
     return event.type === activeTab
@@ -290,21 +296,21 @@ function Monitor() {
         return (
           <div className="event-summary-content">
             <span className="event-main">
-              {event.data.process_name || 'Unknown Process'}
+              {formatEventField(event.data.process_name) || 'Unknown Process'}
               {event.data.is_new && <span className="new-badge">NEW</span>}
             </span>
-            <span className="event-sub">PID: {event.data.pid || 'N/A'} | PPID: {event.data.ppid || 'N/A'}</span>
+            <span className="event-sub">PID: {formatEventField(event.data.pid) || 'N/A'} | PPID: {formatEventField(event.data.ppid) || 'N/A'}</span>
           </div>
         )
       case 'network':
         return (
           <div className="event-summary-content">
             <span className="event-main">
-              {event.data.protocol} Connection
+              {formatEventField(event.data.protocol)} Connection
               {event.data.is_new && <span className="new-badge">NEW</span>}
             </span>
             <span className="event-sub">
-              {event.data.source_ip}:{event.data.source_port} → {event.data.dest_ip}:{event.data.dest_port}
+              {formatEventField(event.data.source_ip)}:{formatEventField(event.data.source_port)} → {formatEventField(event.data.dest_ip)}:{formatEventField(event.data.dest_port)}
             </span>
           </div>
         )
@@ -567,11 +573,11 @@ function Monitor() {
                         <>
                           <div className="detail-item">
                             <span className="detail-label">{t('monitor.pid')}</span>
-                            <span className="detail-value">{event.data.pid || 'N/A'}</span>
+                            <span className="detail-value">{formatEventField(event.data.pid) || 'N/A'}</span>
                           </div>
                           <div className="detail-item">
                             <span className="detail-label">{t('monitor.ppid')}</span>
-                            <span className="detail-value">{event.data.ppid || 'N/A'}</span>
+                            <span className="detail-value">{formatEventField(event.data.ppid) || 'N/A'}</span>
                           </div>
                           <div className="detail-item">
                             <span className="detail-label">{t('monitor.isNew')}</span>
@@ -579,11 +585,11 @@ function Monitor() {
                           </div>
                           <div className="detail-item full-width">
                             <span className="detail-label">{t('monitor.path')}</span>
-                            <span className="detail-value code">{event.data.path || 'N/A'}</span>
+                            <span className="detail-value code">{formatEventField(event.data.path) || 'N/A'}</span>
                           </div>
                           <div className="detail-item full-width">
                             <span className="detail-label">{t('monitor.commandLine')}</span>
-                            <span className="detail-value code">{event.data.command_line || 'N/A'}</span>
+                            <span className="detail-value code">{formatEventField(event.data.command_line) || 'N/A'}</span>
                           </div>
                         </>
                       )}
@@ -591,11 +597,11 @@ function Monitor() {
                         <>
                           <div className="detail-item">
                             <span className="detail-label">{t('monitor.protocol')}</span>
-                            <span className="detail-value">{event.data.protocol || 'N/A'}</span>
+                            <span className="detail-value">{formatEventField(event.data.protocol) || 'N/A'}</span>
                           </div>
                           <div className="detail-item">
                             <span className="detail-label">{t('monitor.state')}</span>
-                            <span className="detail-value">{event.data.state || 'N/A'}</span>
+                            <span className="detail-value">{formatEventField(event.data.state) || 'N/A'}</span>
                           </div>
                           <div className="detail-item">
                             <span className="detail-label">{t('monitor.isNew')}</span>
@@ -603,19 +609,19 @@ function Monitor() {
                           </div>
                           <div className="detail-item">
                             <span className="detail-label">{t('monitor.sourceIp')}</span>
-                            <span className="detail-value">{event.data.source_ip || 'N/A'}</span>
+                            <span className="detail-value">{formatEventField(event.data.source_ip) || 'N/A'}</span>
                           </div>
                           <div className="detail-item">
                             <span className="detail-label">{t('monitor.sourcePort')}</span>
-                            <span className="detail-value">{event.data.source_port || 'N/A'}</span>
+                            <span className="detail-value">{formatEventField(event.data.source_port) || 'N/A'}</span>
                           </div>
                           <div className="detail-item">
                             <span className="detail-label">{t('monitor.destIp')}</span>
-                            <span className="detail-value">{event.data.dest_ip || 'N/A'}</span>
+                            <span className="detail-value">{formatEventField(event.data.dest_ip) || 'N/A'}</span>
                           </div>
                           <div className="detail-item">
                             <span className="detail-label">{t('monitor.destPort')}</span>
-                            <span className="detail-value">{event.data.dest_port || 'N/A'}</span>
+                            <span className="detail-value">{formatEventField(event.data.dest_port) || 'N/A'}</span>
                           </div>
                           </>
                         )}

@@ -144,17 +144,18 @@ func (c *EvtLiveCollector) subscribe() error {
 		flags = EvtSubscribeActionStartAfterBookmark
 	}
 
-	log.Printf("[DEBUG] [EvtSubscribe] Calling EvtSubscribe: channel=%s, signalEvent=0x%x, bookmark=0x%x, flags=%d",
-		c.channelName, signalEvent, bookmark, flags)
+	log.Printf("[DEBUG] [EvtSubscribe] Calling EvtSubscribe: session=0, signalEvent=0x%x, channel=%s, query=%s, bookmark=0x%x, context=0, callback=0, flags=%d",
+		signalEvent, c.channelName, c.query, bookmark, flags)
 
 	ret, _, err := procEvtSubscribe.Call(
-		0,
-		uintptr(unsafe.Pointer(channelPtr)),
-		uintptr(unsafe.Pointer(queryPtr)),
-		uintptr(signalEvent),
-		0,
-		uintptr(bookmark),
-		uintptr(flags),
+		0,                                      // Session
+		uintptr(signalEvent),                  // SignalEvent
+		uintptr(unsafe.Pointer(channelPtr)),    // ChannelPath
+		uintptr(unsafe.Pointer(queryPtr)),     // Query
+		uintptr(bookmark),                     // Bookmark
+		0,                                      // Context
+		0,                                      // Callback (NULL when using SignalEvent)
+		uintptr(flags),                        // Flags
 	)
 
 	if ret == 0 {
