@@ -106,6 +106,7 @@ type PowerShellAnomaly struct {
 	Command     string
 	Severity    string
 	Description string
+	Event       *types.Event
 }
 
 func (a *PowerShellAnalyzer) Analyze(events []*types.Event) (*Result, error) {
@@ -167,6 +168,7 @@ func (a *PowerShellAnalyzer) performAnalysis(events []*types.Event) *PowerShellA
 				Command:     command,
 				Severity:    "high",
 				Description: "PowerShell encoded command detected",
+				Event:       e,
 			})
 		}
 
@@ -185,6 +187,7 @@ func (a *PowerShellAnalyzer) performAnalysis(events []*types.Event) *PowerShellA
 					Command:     command,
 					Severity:    "critical",
 					Description: "Suspicious PowerShell script detected: " + pattern,
+					Event:       e,
 				})
 				break
 			}
@@ -247,12 +250,25 @@ func (a *PowerShellAnalyzer) detectAnomalies(analysis *PowerShellAnalysis) []Fin
 	findings := make([]Finding, 0)
 
 	if analysis.EncodedCommands > 0 {
+		evidence := make([]EvidenceItem, 0)
+		for _, a := range analysis.Anomalies {
+			if a.Type == "Encoded Command" && a.Event != nil {
+				evidence = append(evidence, EvidenceItem{
+					EventID:   a.Event.EventID,
+					Timestamp: a.Event.Timestamp.Format(time.RFC3339),
+					User:      getUserIdentifier(a.Event),
+					Computer:  a.Event.Computer,
+					Message:   a.Event.Message,
+				})
+			}
+		}
 		findings = append(findings, Finding{
 			Description: "PowerShell encoded command detected - common in attacks",
 			RuleName:    "PowerShell - Encoded Command",
 			MitreAttack: "T1059.001",
 			Severity:    "high",
 			Score:       75,
+			Evidence:    evidence,
 			Metadata: map[string]interface{}{
 				"count": analysis.EncodedCommands,
 			},
@@ -260,12 +276,25 @@ func (a *PowerShellAnalyzer) detectAnomalies(analysis *PowerShellAnalysis) []Fin
 	}
 
 	if analysis.SuspiciousScripts > 0 {
+		evidence := make([]EvidenceItem, 0)
+		for _, a := range analysis.Anomalies {
+			if a.Type == "Suspicious Script" && a.Event != nil {
+				evidence = append(evidence, EvidenceItem{
+					EventID:   a.Event.EventID,
+					Timestamp: a.Event.Timestamp.Format(time.RFC3339),
+					User:      getUserIdentifier(a.Event),
+					Computer:  a.Event.Computer,
+					Message:   a.Event.Message,
+				})
+			}
+		}
 		findings = append(findings, Finding{
 			Description: "Suspicious PowerShell script detected - possible attacker tool",
 			RuleName:    "PowerShell - Suspicious Script",
 			MitreAttack: "T1059.001",
 			Severity:    "critical",
 			Score:       90,
+			Evidence:    evidence,
 			Metadata: map[string]interface{}{
 				"count": analysis.SuspiciousScripts,
 			},

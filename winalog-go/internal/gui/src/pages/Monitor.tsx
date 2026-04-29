@@ -4,12 +4,16 @@ import { monitorAPI } from '../api'
 import { message } from 'antd'
 
 interface MonitorStats {
-  is_running: boolean
-  process_enabled: boolean
-  network_enabled: boolean
-  process_count: number
-  network_count: number
-  alert_count: number
+  is_collecting: boolean
+  total_events: number
+  buffer_size: number
+  last_event_id: number
+  channels: string[]
+  process_enabled?: boolean
+  network_enabled?: boolean
+  process_count?: number
+  network_count?: number
+  alert_count?: number
   start_time?: string
 }
 
@@ -133,21 +137,21 @@ function Monitor() {
   }, [fetchStats])
 
   useEffect(() => {
-    if (!stats?.is_running) {
+    if (!stats?.is_collecting) {
       return
     }
     fetchEvents()
     const interval = setInterval(fetchEvents, 5000)
     return () => clearInterval(interval)
-  }, [fetchEvents, stats?.is_running])
+  }, [fetchEvents, stats?.is_collecting])
 
   const handleToggle = async (key: keyof MonitorConfig) => {
     console.log('[MONITOR] handleToggle called:', key)
     console.log('[MONITOR] stats:', stats)
-    console.log('[MONITOR] stats?.is_running:', stats?.is_running)
+    console.log('[MONITOR] stats?.is_collecting:', stats?.is_collecting)
     console.log('[MONITOR] config:', config)
 
-    if (!stats?.is_running) {
+    if (!stats?.is_collecting) {
       console.warn('[MONITOR] Cannot toggle: monitor is not running, need to start monitor first')
       message.warning('请先启动监控')
       return
@@ -175,13 +179,13 @@ function Monitor() {
   }
 
   const handleStartStop = async () => {
-    const action = stats?.is_running ? 'stop' : 'start'
+    const action = stats?.is_collecting ? 'stop' : 'start'
     console.log('[MONITOR] handleStartStop called, action:', action)
-    console.log('[MONITOR] stats?.is_running:', stats?.is_running)
+    console.log('[MONITOR] stats?.is_collecting:', stats?.is_collecting)
 
     setLoading(true)
     try {
-      if (stats?.is_running) {
+      if (stats?.is_collecting) {
         console.log('[MONITOR] Stopping monitor...')
         await monitorAPI.updateConfig({
           process_enabled: false,
@@ -326,9 +330,9 @@ function Monitor() {
           <h2>{t('monitor.title')}</h2>
           <p className="page-desc">{t('monitor.pageDesc')}</p>
         </div>
-        <div className={`status-badge ${stats?.is_running ? 'running' : 'stopped'}`}>
+        <div className={`status-badge ${stats?.is_collecting ? 'running' : 'stopped'}`}>
           <span className="status-dot-animated"></span>
-          {stats?.is_running ? t('monitor.running') : t('monitor.stopped')}
+          {stats?.is_collecting ? t('monitor.running') : t('monitor.stopped')}
         </div>
       </div>
 
@@ -446,13 +450,13 @@ function Monitor() {
             </div>
 
             <button
-              className={`btn-monitor-action ${stats?.is_running ? 'btn-stop' : 'btn-start'}`}
+              className={`btn-monitor-action ${stats?.is_collecting ? 'btn-stop' : 'btn-start'}`}
               onClick={handleStartStop}
               disabled={loading}
             >
               {loading ? (
                 <LoadingSpinner />
-              ) : stats?.is_running ? (
+              ) : stats?.is_collecting ? (
                 <>
                   <StopIcon />
                   {t('monitor.stop')}

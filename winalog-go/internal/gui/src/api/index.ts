@@ -352,17 +352,30 @@ export interface TimelineResponse {
   total_count: number
   event_count: number
   alert_count: number
+  has_more?: boolean
+  next_offset?: number
 }
 
 export const timelineAPI = {
-  get: (limit = 200, startTime?: string, endTime?: string) => {
+  get: (limit = 200, startTime?: string, endTime?: string, offset?: number, eventIds?: string, sortOrder?: string, alertStatus?: string) => {
     let url = `/timeline?limit=${limit}`
     if (startTime) url += `&start_time=${startTime}`
     if (endTime) url += `&end_time=${endTime}`
+    if (offset !== undefined && offset > 0) url += `&offset=${offset}`
+    if (eventIds) url += `&event_ids=${encodeURIComponent(eventIds)}`
+    if (sortOrder) url += `&sort_order=${sortOrder}`
+    if (alertStatus) url += `&alert_status=${alertStatus}`
     return api.get(url)
   },
   deleteAlert: (id: number) =>
     api.delete(`/timeline/alerts/${id}`),
+  export: (format: 'csv' | 'json' | 'html', startTime?: string, endTime?: string, eventIds?: string) => {
+    let url = `/timeline/export?format=${format}`
+    if (startTime) url += `&start_time=${startTime}`
+    if (endTime) url += `&end_time=${endTime}`
+    if (eventIds) url += `&event_ids=${encodeURIComponent(eventIds)}`
+    return api.get(url, { responseType: format === 'csv' || format === 'html' ? 'blob' : 'json' })
+  },
 }
 
 export interface CollectionStats {
@@ -403,7 +416,7 @@ export interface AnalyzeResult {
 }
 
 export const analyzeAPI = {
-  run: (analyzerType: string, params?: { hours?: number }) =>
+  run: (analyzerType: string, params?: { hours?: number; start_time?: string; end_time?: string; limit?: number }) =>
     api.post(`/analyze/${analyzerType}`, params || {}),
   list: () =>
     api.get('/analyzers'),
@@ -542,6 +555,8 @@ export interface RuleInfo {
 export interface CorrelationParams {
   time_window?: string
   rules?: string[]
+  start_time?: string
+  end_time?: string
 }
 
 export interface CorrelationResult {

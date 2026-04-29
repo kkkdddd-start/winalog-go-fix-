@@ -103,6 +103,7 @@ type SuspiciousLogin struct {
 	Reason    string
 	Severity  string
 	LogonType int
+	Event     *types.Event
 }
 
 func (a *LoginAnalyzer) Analyze(events []*types.Event) (*Result, error) {
@@ -163,6 +164,7 @@ func (a *LoginAnalyzer) performAnalysis(events []*types.Event) *LoginAnalysis {
 					Reason:    "Successful login from unusual source or time",
 					Severity:  "medium",
 					LogonType: logonType,
+					Event:     e,
 				})
 			}
 
@@ -178,6 +180,7 @@ func (a *LoginAnalyzer) performAnalysis(events []*types.Event) *LoginAnalysis {
 					Reason:    "Failed login attempt - possible brute force",
 					Severity:  "high",
 					LogonType: logonType,
+					Event:     e,
 				})
 			}
 		}
@@ -300,7 +303,7 @@ func (a *LoginAnalyzer) detectSuspiciousLogins(analysis *LoginAnalysis) []Findin
 	}
 
 	for _, sl := range analysis.SuspiciousLogins {
-		findings = append(findings, Finding{
+		f := Finding{
 			Description: sl.Reason,
 			RuleName:    "Login - Suspicious Activity",
 			Severity:    sl.Severity,
@@ -311,7 +314,19 @@ func (a *LoginAnalyzer) detectSuspiciousLogins(analysis *LoginAnalysis) []Findin
 				"logon_type": sl.LogonType,
 				"time":       sl.Time.Format(time.RFC3339),
 			},
-		})
+		}
+		if sl.Event != nil {
+			f.Evidence = []EvidenceItem{
+				{
+					EventID:   sl.Event.EventID,
+					Timestamp: sl.Event.Timestamp.Format(time.RFC3339),
+					User:      sl.User,
+					Computer:  sl.Event.Computer,
+					Message:   sl.Event.Message,
+				},
+			}
+		}
+		findings = append(findings, f)
 	}
 
 	return findings

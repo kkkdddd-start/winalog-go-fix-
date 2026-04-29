@@ -1247,14 +1247,16 @@ type TimelineResponse struct {
 // @Param offset query int false "Offset for pagination" default(0)
 // @Param start_time query string false "Start time (RFC3339 format)"
 // @Param end_time query string false "End time (RFC3339 format)"
+// @Param event_ids query string false "Comma-separated list of event IDs to filter"
+// @Param sort_order query string false "Sort order (desc/asc)" default(desc)
 // @Success 200 {object} TimelineResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /api/timeline [get]
 func (h *TimelineHandler) GetTimeline(c *gin.Context) {
 	limitStr := c.DefaultQuery("limit", "200")
 	limit, _ := strconv.Atoi(limitStr)
-	if limit <= 0 || limit > 1000 {
-		limit = 200
+	if limit <= 0 || limit > 50000 {
+		limit = 5000
 	}
 
 	offsetStr := c.DefaultQuery("offset", "0")
@@ -1265,6 +1267,12 @@ func (h *TimelineHandler) GetTimeline(c *gin.Context) {
 
 	startTime := c.Query("start_time")
 	endTime := c.Query("end_time")
+	eventIDsStr := c.Query("event_ids")
+	sortOrder := c.DefaultQuery("sort_order", "desc")
+	alertStatus := c.Query("alert_status")
+	if sortOrder != "asc" && sortOrder != "desc" {
+		sortOrder = "desc"
+	}
 
 	var start, end *time.Time
 	if startTime != "" {
@@ -1275,6 +1283,17 @@ func (h *TimelineHandler) GetTimeline(c *gin.Context) {
 	if endTime != "" {
 		if t, err := time.Parse(time.RFC3339, endTime); err == nil {
 			end = &t
+		}
+	}
+
+	var eventIDs []int32
+	if eventIDsStr != "" {
+		parts := strings.Split(eventIDsStr, ",")
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			if id, err := strconv.ParseInt(p, 10, 32); err == nil {
+				eventIDs = append(eventIDs, int32(id))
+			}
 		}
 	}
 
@@ -1289,26 +1308,16 @@ func (h *TimelineHandler) GetTimeline(c *gin.Context) {
 	if end != nil {
 		eventFilter.EndTime = end
 	}
+	if len(eventIDs) > 0 {
+		eventFilter.EventIDs = eventIDs
+	}
 
-	maxEvents := limit + offset + 100
+	maxEvents := limit + offset + 10000
 	eventFilter.Limit = int(maxEvents)
 	eventFilter.Offset = 0
-	events, _, err := h.db.ListEvents(eventFilter)
+	events, totalEvents, err := h.db.ListEvents(eventFilter)
 	if err != nil {
 		log.Printf("[ERROR] failed to fetch events for timeline: %v", err)
-	}
-	for _, e := range events {
-		entries = append(entries, &TimelineEntry{
-			ID:        e.ID,
-			Timestamp: e.Timestamp,
-			Type:      "event",
-			EventID:   e.EventID,
-			Level:     e.Level.String(),
-			Source:    e.Source,
-			Message:   e.Message,
-			Computer:  e.Computer,
-			LogName:   e.LogName,
-		})
 	}
 
 	alertFilter := &storage.AlertFilter{
@@ -1321,15 +1330,48 @@ func (h *TimelineHandler) GetTimeline(c *gin.Context) {
 		alertFilter.EndTime = end
 	}
 
-	maxAlerts := limit + offset + 100
+	if alertStatus != "" {
+		switch alertStatus {
+		case "active":
+			resolved := false
+			alertFilter.Resolved = &resolved
+		case "resolved":
+			resolved := true
+			alertFilter.Resolved = &resolved
+		case "false_positive":
+			fp := true
+			alertFilter.FalsePositive = &fp
+		}
+	}
+
+	maxAlerts := limit + offset + 10000
 	alertFilter.Limit = int(maxAlerts)
 	alertFilter.Offset = 0
 	alerts, err := h.db.AlertRepo().Query(alertFilter)
 	if err != nil {
 		log.Printf("[ERROR] failed to fetch alerts for timeline: %v", err)
 	}
+
+	totalAlerts, _ := h.db.AlertRepo().CountAlertsWithFilter(alertFilter)
+
+	eventEntries := make([]*TimelineEntry, 0, len(events))
+	for _, e := range events {
+		eventEntries = append(eventEntries, &TimelineEntry{
+			ID:        e.ID,
+			Timestamp: e.Timestamp,
+			Type:      "event",
+			EventID:   e.EventID,
+			Level:     e.Level.String(),
+			Source:    e.Source,
+			Message:   e.Message,
+			Computer:  e.Computer,
+			LogName:   e.LogName,
+		})
+	}
+
+	alertEntries := make([]*TimelineEntry, 0, len(alerts))
 	for _, a := range alerts {
-		entries = append(entries, &TimelineEntry{
+		alertEntries = append(alertEntries, &TimelineEntry{
 			ID:         a.ID,
 			Timestamp:  a.FirstSeen,
 			Type:       "alert",
@@ -1343,10 +1385,11 @@ func (h *TimelineHandler) GetTimeline(c *gin.Context) {
 		})
 	}
 
-	sortTimeline(entries)
+	entries = mergeTimelineEntries(eventEntries, alertEntries)
+	sortTimeline(entries, sortOrder)
 
-	eventCount := len(events)
-	alertCount := len(alerts)
+	eventCount := int(totalEvents)
+	alertCount := int(totalAlerts)
 
 	if offset > 0 && offset < len(entries) {
 		entries = entries[offset:]
@@ -1402,10 +1445,34 @@ func (h *TimelineHandler) DeleteAlert(c *gin.Context) {
 	c.JSON(200, SuccessResponse{Message: "Alert deleted"})
 }
 
-func sortTimeline(entries []*TimelineEntry) {
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].Timestamp.After(entries[j].Timestamp)
-	})
+func mergeTimelineEntries(events, alerts []*TimelineEntry) []*TimelineEntry {
+	result := make([]*TimelineEntry, 0, len(events)+len(alerts))
+	eventIdx, alertIdx := 0, 0
+
+	for eventIdx < len(events) || alertIdx < len(alerts) {
+		if eventIdx < len(events) {
+			result = append(result, events[eventIdx])
+			eventIdx++
+		}
+		if alertIdx < len(alerts) {
+			result = append(result, alerts[alertIdx])
+			alertIdx++
+		}
+	}
+
+	return result
+}
+
+func sortTimeline(entries []*TimelineEntry, sortOrder string) {
+	if sortOrder == "asc" {
+		sort.Slice(entries, func(i, j int) bool {
+			return entries[i].Timestamp.Before(entries[j].Timestamp)
+		})
+	} else {
+		sort.Slice(entries, func(i, j int) bool {
+			return entries[i].Timestamp.After(entries[j].Timestamp)
+		})
+	}
 }
 
 // TimelineStats represents timeline statistics
@@ -1467,19 +1534,19 @@ func (h *TimelineHandler) GetTimelineStats(c *gin.Context) {
 		eventFilter.EndTime = end
 	}
 
-	events, _, err := h.db.ListEvents(eventFilter)
+	events, totalEvents, err := h.db.ListEvents(eventFilter)
 	if err != nil {
 		log.Printf("[ERROR] failed to fetch events for timeline stats: %v", err)
 	}
 
 	stats := &TimelineStats{
 		ByLevel:     make(map[string]int64),
-		ByCategory:  make(map[string]int64),
-		BySource:    make(map[string]int64),
+		ByCategory: make(map[string]int64),
+		BySource:   make(map[string]int64),
 		TopEventIDs: make(map[int32]int64),
 	}
 
-	stats.TotalEvents = int64(len(events))
+	stats.TotalEvents = totalEvents
 
 	for _, e := range events {
 		stats.ByLevel[e.Level.String()]++
@@ -1495,11 +1562,12 @@ func (h *TimelineHandler) GetTimelineStats(c *gin.Context) {
 	if end != nil {
 		alertFilter.EndTime = end
 	}
-	alerts, err := h.db.AlertRepo().Query(alertFilter)
+	_, err = h.db.AlertRepo().Query(alertFilter)
 	if err != nil {
 		log.Printf("[ERROR] failed to fetch alerts for timeline stats: %v", err)
 	}
-	stats.TotalAlerts = int64(len(alerts))
+	totalAlerts, _ := h.db.AlertRepo().CountAlerts()
+	stats.TotalAlerts = totalAlerts
 
 	if len(events) > 0 {
 		stats.TimeRange = fmt.Sprintf("%.1f hours", events[len(events)-1].Timestamp.Sub(events[0].Timestamp).Hours())
@@ -1641,21 +1709,24 @@ func detectAttackChains(events []*types.Event) []*AttackChainInfo {
 
 // ExportTimeline godoc
 // @Summary Export timeline
-// @Description Export timeline events in various formats (json, csv, html)
+// @Description Export timeline events and alerts in various formats (json, csv, html)
 // @Tags timeline
 // @Accept json
 // @Produce json
 // @Param format query string false "Export format (json/csv/html)" default(json)
 // @Param start_time query string false "Start time (RFC3339 format)"
 // @Param end_time query string false "End time (RFC3339 format)"
+// @Param event_ids query string false "Comma-separated list of event IDs to filter"
 // @Success 200 {object} SuccessResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /api/timeline/export [get]
 func (h *TimelineHandler) ExportTimeline(c *gin.Context) {
 	format := c.DefaultQuery("format", "json")
+	sortOrder := c.DefaultQuery("sort_order", "desc")
 
 	startTime := c.Query("start_time")
 	endTime := c.Query("end_time")
+	eventIDsStr := c.Query("event_ids")
 
 	var start, end *time.Time
 	if startTime != "" {
@@ -1669,6 +1740,17 @@ func (h *TimelineHandler) ExportTimeline(c *gin.Context) {
 		}
 	}
 
+	var eventIDs []int32
+	if eventIDsStr != "" {
+		parts := strings.Split(eventIDsStr, ",")
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			if id, err := strconv.ParseInt(p, 10, 32); err == nil {
+				eventIDs = append(eventIDs, int32(id))
+			}
+		}
+	}
+
 	eventFilter := &storage.EventFilter{Limit: 5000}
 	if start != nil {
 		eventFilter.StartTime = start
@@ -1676,44 +1758,103 @@ func (h *TimelineHandler) ExportTimeline(c *gin.Context) {
 	if end != nil {
 		eventFilter.EndTime = end
 	}
+	if len(eventIDs) > 0 {
+		eventFilter.EventIDs = eventIDs
+	}
 
 	events, _, err := h.db.ListEvents(eventFilter)
 	if err != nil {
 		log.Printf("[ERROR] failed to fetch events for timeline export: %v", err)
 	}
 
+	alertFilter := &storage.AlertFilter{Limit: 5000}
+	if start != nil {
+		alertFilter.StartTime = start
+	}
+	if end != nil {
+		alertFilter.EndTime = end
+	}
+	alerts, err := h.db.AlertRepo().Query(alertFilter)
+	if err != nil {
+		log.Printf("[ERROR] failed to fetch alerts for timeline export: %v", err)
+	}
+
+	eventEntries := make([]*TimelineEntry, 0, len(events))
+	for _, e := range events {
+		eventEntries = append(eventEntries, &TimelineEntry{
+			ID:        e.ID,
+			Timestamp: e.Timestamp,
+			Type:      "event",
+			EventID:   e.EventID,
+			Level:     e.Level.String(),
+			Source:    e.Source,
+			Message:   e.Message,
+			Computer:  e.Computer,
+			LogName:   e.LogName,
+		})
+	}
+
+	alertEntries := make([]*TimelineEntry, 0, len(alerts))
+	for _, a := range alerts {
+		alertEntries = append(alertEntries, &TimelineEntry{
+			ID:         a.ID,
+			Timestamp:  a.FirstSeen,
+			Type:       "alert",
+			AlertID:    a.ID,
+			Severity:   string(a.Severity),
+			Message:    a.Message,
+			RuleName:   a.RuleName,
+			MITRE:      a.MITREAttack,
+			LogName:    a.LogName,
+			EventDBIDs: a.EventDBIDs,
+		})
+	}
+
+	entries := mergeTimelineEntries(eventEntries, alertEntries)
+	sortTimeline(entries, sortOrder)
+
 	switch format {
 	case "csv":
 		c.Header("Content-Type", "text/csv")
 		c.Header("Content-Disposition", "attachment; filename=timeline.csv")
-		h.exportTimelineCSV(events, c.Writer)
+		h.exportTimelineCSV(entries, c.Writer)
 	case "html":
 		c.Header("Content-Type", "text/html")
 		c.Header("Content-Disposition", "attachment; filename=timeline.html")
-		h.exportTimelineHTML(events, c.Writer)
+		h.exportTimelineHTML(entries, c.Writer)
 	default:
 		c.JSON(200, gin.H{
-			"events": events,
-			"total":  len(events),
+			"entries": entries,
+			"total":    len(entries),
 		})
 	}
 }
 
-func (h *TimelineHandler) exportTimelineCSV(events []*types.Event, w gin.ResponseWriter) {
-	fmt.Fprintf(w, "ID,Timestamp,EventID,Level,Source,LogName,Computer,User,Message\n")
-	for _, e := range events {
-		user := ""
-		if e.User != nil {
-			user = *e.User
-		}
-		fmt.Fprintf(w, "%d,%s,%d,%s,%s,%s,%s,%s,%s\n",
-			e.ID, e.Timestamp.Format(time.RFC3339), e.EventID,
-			e.Level.String(), e.Source, e.LogName, e.Computer,
-			user, e.Message)
+func (h *TimelineHandler) exportTimelineCSV(entries []*TimelineEntry, w gin.ResponseWriter) {
+	fmt.Fprintf(w, "ID,Timestamp,Type,EventID,Level,Source,LogName,Computer,Message,RuleName,Severity,MITRE\n")
+	for _, e := range entries {
+		mitre := strings.Join(e.MITRE, ";")
+		fmt.Fprintf(w, "%d,%s,%s,%d,%s,%s,%s,%s,%s,%s,%s,%s\n",
+			e.ID, e.Timestamp.Format(time.RFC3339), e.Type,
+			e.EventID, h.csvEscape(e.Level), h.csvEscape(e.Source), h.csvEscape(e.LogName), h.csvEscape(e.Computer),
+			h.csvEscape(e.Message), h.csvEscape(e.RuleName), h.csvEscape(e.Severity), h.csvEscape(mitre))
 	}
 }
 
-func (h *TimelineHandler) exportTimelineHTML(events []*types.Event, w gin.ResponseWriter) {
+func (h *TimelineHandler) csvEscape(s string) string {
+	if s == "" {
+		return s
+	}
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.ReplaceAll(s, "\r", " ")
+	needsQuote := strings.ContainsAny(s, ",\"\n\r")
+	if needsQuote {
+		return "\"" + strings.ReplaceAll(s, "\"", "\"\"") + "\""
+	}
+	return s
+}
+
+func (h *TimelineHandler) exportTimelineHTML(entries []*TimelineEntry, w gin.ResponseWriter) {
 	html := `<!DOCTYPE html>
 <html>
 <head>
@@ -1724,31 +1865,49 @@ func (h *TimelineHandler) exportTimelineHTML(events []*types.Event, w gin.Respon
         body { background-color: #1a1a2e; color: #eee; padding: 20px; }
         .timeline { position: relative; padding-left: 30px; }
         .timeline::before { content: ''; position: absolute; left: 10px; top: 0; bottom: 0; width: 2px; background: #3498db; }
-        .event { position: relative; margin-bottom: 20px; padding: 10px 15px; background: #16213e; border-radius: 5px; }
-        .event::before { content: ''; position: absolute; left: -25px; top: 15px; width: 10px; height: 10px; border-radius: 50%; background: #3498db; }
-        .level-critical { border-left: 3px solid #dc3545; }
-        .level-error { border-left: 3px solid #fd7e14; }
-        .level-warning { border-left: 3px solid #ffc107; }
-        .level-info { border-left: 3px solid #3498db; }
+        .entry { position: relative; margin-bottom: 20px; padding: 10px 15px; background: #16213e; border-radius: 5px; }
+        .entry::before { content: ''; position: absolute; left: -25px; top: 15px; width: 10px; height: 10px; border-radius: 50%%; background: #3498db; }
+        .entry.event { background: #16213e; }
+        .entry.event::before { background: #3498db; }
+        .entry.alert { background: #2d1f3d; }
+        .entry.alert::before { background: #9b59b6; }
+        .severity-critical { border-left: 3px solid #dc3545; }
+        .severity-high { border-left: 3px solid #fd7e14; }
+        .severity-medium { border-left: 3px solid #ffc107; }
+        .severity-low { border-left: 3px solid #28a745; }
         .event-id { color: #00d9ff; font-weight: bold; }
         .timestamp { color: #888; font-size: 0.85em; }
+        .rule-name { color: #9b59b6; }
     </style>
 </head>
 <body>
     <h2>WinLogAnalyzer Timeline</h2>
-    <p>Total Events: %d</p>
+    <p>Total Entries: %d</p>
     <div class="timeline">
 `
-	fmt.Fprintf(w, html, len(events))
+	fmt.Fprintf(w, html, len(entries))
 
-	for _, e := range events {
-		level := strings.ToLower(e.Level.String())
-		fmt.Fprintf(w, `        <div class="event level-%s">
+	for _, e := range entries {
+		sevClass := ""
+		if e.Type == "alert" && e.Severity != "" {
+			sevClass = " severity-" + strings.ToLower(e.Severity)
+		}
+		if e.Type == "event" && e.Level != "" {
+			sevClass = " severity-" + strings.ToLower(e.Level)
+		}
+		fmt.Fprintf(w, `        <div class="entry %s%s">
             <div class="timestamp">%s</div>
-            <div><span class="event-id">EventID: %d</span> - %s</div>
+`, e.Type, sevClass, e.Timestamp.Format("2006-01-02 15:04:05"))
+		if e.Type == "event" {
+			fmt.Fprintf(w, `            <div><span class="event-id">EventID: %d</span> - %s</div>
             <div>Source: %s | Computer: %s</div>
-        </div>
-`, level, e.Timestamp.Format("2006-01-02 15:04:05"), e.EventID, e.Message, e.Source, e.Computer)
+`, e.EventID, e.Message, e.Source, e.Computer)
+		} else {
+			fmt.Fprintf(w, `            <div><span class="rule-name">Rule: %s</span> [%s] - %s</div>
+`, e.RuleName, e.Severity, e.Message)
+		}
+		fmt.Fprintf(w, `        </div>
+`)
 	}
 
 	fmt.Fprint(w, `

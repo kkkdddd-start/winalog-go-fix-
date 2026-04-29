@@ -114,7 +114,7 @@ func (e *MonitorEngine) Start(ctx context.Context) error {
 	}()
 
 	e.isRunning = true
-	e.stats.IsRunning = true
+	e.stats.IsCollecting = true
 	e.stats.StartTime = e.startTime
 
 	e.updateConfigStats()
@@ -297,7 +297,7 @@ func (e *MonitorEngine) GetStats() *types.MonitorStats {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	stats := *e.stats
-	stats.IsRunning = e.isRunning
+	stats.IsCollecting = e.isRunning
 	return &stats
 }
 

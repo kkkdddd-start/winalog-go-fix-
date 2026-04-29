@@ -12,8 +12,23 @@ import (
 
 	_ "modernc.org/sqlite"
 
+	"github.com/kkkdddd-start/winalog-go/internal/collectors/live"
 	"github.com/kkkdddd-start/winalog-go/internal/types"
 )
+
+type LiveEventRow struct {
+	ID           int64
+	EventID      int
+	Timestamp    string
+	Level        int
+	LevelName    string
+	Source       string
+	LogName      string
+	Computer     string
+	User         string
+	Message      string
+	ProviderName string
+}
 
 type DB struct {
 	conn  *sql.DB
@@ -639,4 +654,254 @@ func (d *DB) AlertRepo() *AlertRepo {
 
 func (d *DB) EventRepo() *EventRepo {
 	return NewEventRepo(d)
+}
+
+type LiveEventFilter struct {
+	Channel   string
+	EventID   string
+	Level     string
+	StartTime string
+	EndTime   string
+	Keyword   string
+}
+
+func (d *DB) QueryLiveEvents(sinceID int64, limit int, filter *LiveEventFilter) ([]LiveEventRow, int64, int64, error) {
+	query := `
+		SELECT id, event_id, timestamp, level, level_name, source, log_name, computer, user, message, provider_name
+		FROM live_events
+		WHERE id > ?
+	`
+	countQuery := `SELECT COUNT(*) FROM live_events WHERE id > ?`
+	args := []interface{}{sinceID}
+	countArgs := []interface{}{sinceID}
+
+	if filter != nil {
+		if filter.Channel != "" {
+			query += ` AND log_name = ?`
+			countQuery += ` AND log_name = ?`
+			args = append(args, filter.Channel)
+			countArgs = append(countArgs, filter.Channel)
+		}
+		if filter.EventID != "" {
+			query += ` AND event_id = ?`
+			countQuery += ` AND event_id = ?`
+			args = append(args, filter.EventID)
+			countArgs = append(countArgs, filter.EventID)
+		}
+		if filter.Level != "" {
+			query += ` AND level_name = ?`
+			countQuery += ` AND level_name = ?`
+			args = append(args, filter.Level)
+			countArgs = append(countArgs, filter.Level)
+		}
+		if filter.StartTime != "" {
+			query += ` AND timestamp >= ?`
+			countQuery += ` AND timestamp >= ?`
+			args = append(args, filter.StartTime)
+			countArgs = append(countArgs, filter.StartTime)
+		}
+		if filter.EndTime != "" {
+			query += ` AND timestamp <= ?`
+			countQuery += ` AND timestamp <= ?`
+			args = append(args, filter.EndTime)
+			countArgs = append(countArgs, filter.EndTime)
+		}
+		if filter.Keyword != "" {
+			query += ` AND message LIKE ?`
+			countQuery += ` AND message LIKE ?`
+			keywordPattern := "%" + filter.Keyword + "%"
+			args = append(args, keywordPattern)
+			countArgs = append(countArgs, keywordPattern)
+		}
+	}
+
+	query += ` ORDER BY id DESC LIMIT ?`
+	args = append(args, limit)
+
+	rows, err := d.Query(query, args...)
+	if err != nil {
+		return nil, 0, 0, err
+	}
+	defer rows.Close()
+
+	events := make([]LiveEventRow, 0)
+	for rows.Next() {
+		var e LiveEventRow
+		var user, providerName sql.NullString
+		err := rows.Scan(&e.ID, &e.EventID, &e.Timestamp, &e.Level, &e.LevelName, &e.Source, &e.LogName, &e.Computer, &user, &e.Message, &providerName)
+		if err != nil {
+			continue
+		}
+		if user.Valid {
+			e.User = user.String
+		}
+		if providerName.Valid {
+			e.ProviderName = providerName.String
+		}
+		events = append(events, e)
+	}
+
+	var total int64
+	d.QueryRow(countQuery, countArgs...).Scan(&total)
+
+	nextID := sinceID
+	if len(events) > 0 {
+		nextID = events[0].ID
+	}
+
+	return events, total, nextID, nil
+}
+
+func (d *DB) GetLiveEventsCount() (int64, error) {
+	var count int64
+	err := d.QueryRow("SELECT COUNT(*) FROM live_events").Scan(&count)
+	return count, err
+}
+
+func (d *DB) ClearLiveEvents() (int64, error) {
+	result, err := d.Exec("DELETE FROM live_events")
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
+func (d *DB) InsertLiveEvents(events []interface{}) error {
+	if len(events) == 0 {
+		return nil
+	}
+
+	tx, rollback, err := d.BeginTx()
+	if err != nil {
+		return err
+	}
+	defer rollback()
+
+	stmt, err := tx.Prepare(`
+		INSERT INTO live_events (event_id, timestamp, level, level_name, source, log_name, computer, user, message, raw_xml, provider_name)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for _, e := range events {
+		event, ok := e.(*types.Event)
+		if !ok {
+			continue
+		}
+
+		level := int(0)
+		levelName := ""
+	switch event.Level {
+	case types.EventLevelCritical:
+		level = 1
+		levelName = "Critical"
+	case types.EventLevelError:
+		level = 2
+		levelName = "Error"
+	case types.EventLevelWarning:
+		level = 3
+		levelName = "Warning"
+	case types.EventLevelInfo:
+		level = 4
+		levelName = "Info"
+	default:
+		level = 4
+		levelName = "Info"
+	}
+
+		var userStr, rawXMLStr string
+		if event.User != nil {
+			userStr = *event.User
+		}
+		if event.RawXML != nil {
+			rawXMLStr = *event.RawXML
+		}
+
+		_, err := stmt.Exec(
+			event.EventID,
+			event.Timestamp.Format("2006-01-02T15:04:05.000Z"),
+			level,
+			levelName,
+			event.Source,
+			event.LogName,
+			event.Computer,
+			userStr,
+			event.Message,
+			rawXMLStr,
+			event.Source,
+		)
+		if err != nil {
+			return err
+		}
+	}
+
+	_, err = tx.Exec("COMMIT")
+	return err
+}
+
+func (d *DB) GetLiveChannels() ([]live.ChannelConfig, error) {
+	query := `SELECT name, description, event_ids, enabled FROM live_channels`
+	rows, err := d.Query(query)
+	if err != nil {
+		return live.DefaultChannels(), nil
+	}
+	defer rows.Close()
+
+	channels := make([]live.ChannelConfig, 0)
+	for rows.Next() {
+		var ch live.ChannelConfig
+		var desc, eventIDs sql.NullString
+		err := rows.Scan(&ch.Name, &desc, &eventIDs, &ch.Enabled)
+		if err != nil {
+			continue
+		}
+		if desc.Valid {
+			ch.Description = desc.String
+		}
+		if eventIDs.Valid {
+			ch.EventIDs = eventIDs.String
+		}
+		channels = append(channels, ch)
+	}
+
+	if len(channels) == 0 {
+		return live.DefaultChannels(), nil
+	}
+
+	return channels, nil
+}
+
+func (d *DB) SaveLiveChannels(channels []live.ChannelConfig) error {
+	tx, rollback, err := d.BeginTx()
+	if err != nil {
+		return err
+	}
+	defer rollback()
+
+	_, err = tx.Exec("DELETE FROM live_channels")
+	if err != nil {
+		return err
+	}
+
+	stmt, err := tx.Prepare(`
+		INSERT INTO live_channels (name, description, event_ids, enabled)
+		VALUES (?, ?, ?, ?)
+	`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+
+	for _, ch := range channels {
+		_, err := stmt.Exec(ch.Name, ch.Description, ch.EventIDs, ch.Enabled)
+		if err != nil {
+			return err
+		}
+	}
+
+	_, err = tx.Exec("COMMIT")
+	return err
 }

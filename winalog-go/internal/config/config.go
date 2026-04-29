@@ -19,6 +19,9 @@ type Config struct {
 	Audit       AuditConfig       `yaml:"audit"`
 	Log         LogConfig         `yaml:"log"`
 	TUI         TUIConfig         `yaml:"tui"`
+	Monitor     MonitorConfig     `yaml:"monitor"`
+	Webhook     WebhookConfig     `yaml:"webhook"`
+	Poll        PollConfig        `yaml:"poll"`
 }
 
 type DatabaseConfig struct {
@@ -147,6 +150,46 @@ type TUIConfig struct {
 	Theme      string `yaml:"theme"`
 	KeyMode    string `yaml:"key_mode"`
 	AutoUpdate bool   `yaml:"auto_update"`
+}
+
+type MonitorConfig struct {
+	Enabled           bool             `yaml:"enabled"`
+	ProcessWatch      ProcessWatchConfig `yaml:"process_watch"`
+	NetworkPoll       NetworkPollConfig  `yaml:"network_poll"`
+}
+
+type ProcessWatchConfig struct {
+	Enabled  bool `yaml:"enabled"`
+	Interval int  `yaml:"interval"`
+}
+
+type NetworkPollConfig struct {
+	Enabled  bool `yaml:"enabled"`
+	Interval int  `yaml:"interval"`
+}
+
+type WebhookConfig struct {
+	Enabled    bool                `yaml:"enabled"`
+	Endpoints  []WebhookEndpoint   `yaml:"endpoints"`
+	RetryCount int                 `yaml:"retry_count"`
+	Timeout    int                 `yaml:"timeout"`
+	QueueSize  int                 `yaml:"queue_size"`
+}
+
+type WebhookEndpoint struct {
+	Name     string            `yaml:"name"`
+	URL      string            `yaml:"url"`
+	Method   string            `yaml:"method"`
+	Headers  map[string]string `yaml:"headers"`
+	Events   []string          `yaml:"events"`
+	Secret   string            `yaml:"secret"`
+	Enabled  bool              `yaml:"enabled"`
+}
+
+type PollConfig struct {
+	Enabled    bool `yaml:"enabled"`
+	Interval   int  `yaml:"interval"`
+	MaxResults int  `yaml:"max_results"`
 }
 
 type ValidationResult struct {
@@ -307,6 +350,29 @@ func DefaultConfig() *Config {
 			Theme:      "dark",
 			KeyMode:    "vi",
 			AutoUpdate: true,
+		},
+		Monitor: MonitorConfig{
+			Enabled: true,
+			ProcessWatch: ProcessWatchConfig{
+				Enabled:  true,
+				Interval: 5,
+			},
+			NetworkPoll: NetworkPollConfig{
+				Enabled:  true,
+				Interval: 10,
+			},
+		},
+		Webhook: WebhookConfig{
+			Enabled:    false,
+			Endpoints:  []WebhookEndpoint{},
+			RetryCount: 3,
+			Timeout:    10,
+			QueueSize:  1000,
+		},
+		Poll: PollConfig{
+			Enabled:    true,
+			Interval:   15,
+			MaxResults: 100,
 		},
 	}
 }

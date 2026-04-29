@@ -18,8 +18,10 @@ type CorrelationHandler struct {
 }
 
 type CorrelationRequest struct {
-	TimeWindow string   `json:"time_window"`
+	TimeWindow string `json:"time_window"`
 	Rules      []string `json:"rules"`
+	StartTime  string   `json:"start_time"`
+	EndTime    string   `json:"end_time"`
 }
 
 type CorrelationResponse struct {
@@ -61,7 +63,18 @@ func (h *CorrelationHandler) Analyze(c *gin.Context) {
 	startTime := time.Now().Add(-24 * time.Hour)
 	endTime := time.Now()
 
-	if req.TimeWindow != "" {
+	if req.StartTime != "" || req.EndTime != "" {
+		if req.StartTime != "" {
+			if t, err := time.Parse(time.RFC3339, req.StartTime); err == nil {
+				startTime = t
+			}
+		}
+		if req.EndTime != "" {
+			if t, err := time.Parse(time.RFC3339, req.EndTime); err == nil {
+				endTime = t
+			}
+		}
+	} else if req.TimeWindow != "" {
 		if tf, err := types.ParseTimeFilter(req.TimeWindow); err == nil && tf != nil {
 			startTime = tf.Start
 			endTime = tf.End

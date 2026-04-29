@@ -109,16 +109,20 @@ type UserBruteForceInfo struct {
 	LastAttempt   time.Time
 	SourceIPs     []string
 	IsCompromised bool
+	FailedEvents  []*types.Event
+	SuccessEvents []*types.Event
 }
 
 type IPBruteForceInfo struct {
-	IP           string
-	FailedCount  int
-	SuccessCount int
-	TargetUsers  []string
-	FirstAttempt time.Time
-	LastAttempt  time.Time
-	IsSuspicious bool
+	IP            string
+	FailedCount   int
+	SuccessCount  int
+	TargetUsers   []string
+	FirstAttempt  time.Time
+	LastAttempt   time.Time
+	IsSuspicious  bool
+	FailedEvents  []*types.Event
+	SuccessEvents []*types.Event
 }
 
 func (a *BruteForceAnalyzer) Analyze(events []*types.Event) (*Result, error) {
@@ -188,13 +192,16 @@ func (a *BruteForceAnalyzer) analyzeByUser(failed, success []*types.Event) map[s
 		info, ok := userInfo[user]
 		if !ok {
 			info = &UserBruteForceInfo{
-				User:         user,
-				FirstAttempt: e.Timestamp,
-				SourceIPs:    make([]string, 0),
+				User:          user,
+				FirstAttempt:  e.Timestamp,
+				SourceIPs:     make([]string, 0),
+				FailedEvents:  make([]*types.Event, 0),
+				SuccessEvents: make([]*types.Event, 0),
 			}
 			userInfo[user] = info
 		}
 		info.FailedCount++
+		info.FailedEvents = append(info.FailedEvents, e)
 		info.LastAttempt = e.Timestamp
 		if e.IPAddress != nil {
 			info.SourceIPs = append(info.SourceIPs, *e.IPAddress)
@@ -209,11 +216,15 @@ func (a *BruteForceAnalyzer) analyzeByUser(failed, success []*types.Event) map[s
 		info, ok := userInfo[user]
 		if !ok {
 			info = &UserBruteForceInfo{
-				User: user,
+				User:          user,
+				SourceIPs:     make([]string, 0),
+				FailedEvents:  make([]*types.Event, 0),
+				SuccessEvents: make([]*types.Event, 0),
 			}
 			userInfo[user] = info
 		}
 		info.SuccessCount++
+		info.SuccessEvents = append(info.SuccessEvents, e)
 	}
 
 	for _, info := range userInfo {
@@ -259,13 +270,16 @@ func (a *BruteForceAnalyzer) analyzeByIP(failed, success []*types.Event) map[str
 		info, ok := ipInfo[ip]
 		if !ok {
 			info = &IPBruteForceInfo{
-				IP:           ip,
-				FirstAttempt: e.Timestamp,
-				TargetUsers:  make([]string, 0),
+				IP:            ip,
+				FirstAttempt:  e.Timestamp,
+				TargetUsers:   make([]string, 0),
+				FailedEvents:  make([]*types.Event, 0),
+				SuccessEvents: make([]*types.Event, 0),
 			}
 			ipInfo[ip] = info
 		}
 		info.FailedCount++
+		info.FailedEvents = append(info.FailedEvents, e)
 		info.LastAttempt = e.Timestamp
 		user := getUserIdentifier(e)
 		if !containsUser(info.TargetUsers, user) {
@@ -286,6 +300,7 @@ func (a *BruteForceAnalyzer) analyzeByIP(failed, success []*types.Event) map[str
 			continue
 		}
 		info.SuccessCount++
+		info.SuccessEvents = append(info.SuccessEvents, e)
 	}
 
 	for _, info := range ipInfo {
@@ -308,7 +323,7 @@ func (a *BruteForceAnalyzer) generateFindings(userInfo map[string]*UserBruteForc
 
 	for user, info := range userInfo {
 		if info.IsCompromised {
-			findings = append(findings, Finding{
+			f := Finding{
 				Description: "Possible compromised account due to successful login after multiple failures",
 				RuleName:    "Brute Force - Compromised Account",
 				Severity:    "critical",
@@ -318,11 +333,15 @@ func (a *BruteForceAnalyzer) generateFindings(userInfo map[string]*UserBruteForc
 					"failed_count": info.FailedCount,
 					"source_ips":   info.SourceIPs,
 				},
-			})
+			}
+			if len(info.FailedEvents) > 0 {
+				f.Evidence = a.eventsToEvidence(info.FailedEvents)
+			}
+			findings = append(findings, f)
 		}
 
 		if info.FailedCount >= 10 {
-			findings = append(findings, Finding{
+			f := Finding{
 				Description: "High number of failed login attempts",
 				RuleName:    "Brute Force - High Failure Rate",
 				Severity:    "high",
@@ -331,27 +350,51 @@ func (a *BruteForceAnalyzer) generateFindings(userInfo map[string]*UserBruteForc
 					"user":         user,
 					"failed_count": info.FailedCount,
 				},
-			})
+			}
+			if len(info.FailedEvents) > 0 {
+				f.Evidence = a.eventsToEvidence(info.FailedEvents)
+			}
+			findings = append(findings, f)
 		}
 	}
 
 	for ip, info := range ipInfo {
 		if info.IsSuspicious {
-			findings = append(findings, Finding{
+			f := Finding{
 				Description: "Suspicious IP with high failed login count targeting multiple users",
 				RuleName:    "Brute Force - Suspicious IP",
 				Severity:    "high",
 				Score:       80,
 				Metadata: map[string]interface{}{
-					"ip":           ip,
-					"failed_count": info.FailedCount,
-					"target_users": info.TargetUsers,
+					"ip":            ip,
+					"failed_count":  info.FailedCount,
+					"target_users":  info.TargetUsers,
 				},
-			})
+			}
+			if len(info.FailedEvents) > 0 {
+				f.Evidence = a.eventsToEvidence(info.FailedEvents)
+			}
+			findings = append(findings, f)
 		}
 	}
 
 	return findings
+}
+
+func (a *BruteForceAnalyzer) eventsToEvidence(events []*types.Event) []EvidenceItem {
+	evidence := make([]EvidenceItem, 0)
+	for _, e := range events {
+		if e != nil {
+			evidence = append(evidence, EvidenceItem{
+				EventID:   e.EventID,
+				Timestamp: e.Timestamp.Format(time.RFC3339),
+				User:      getUserIdentifier(e),
+				Computer:  e.Computer,
+				Message:   e.Message,
+			})
+		}
+	}
+	return evidence
 }
 
 func (a *BruteForceAnalyzer) generateSummary(userInfo map[string]*UserBruteForceInfo, ipInfo map[string]*IPBruteForceInfo) string {

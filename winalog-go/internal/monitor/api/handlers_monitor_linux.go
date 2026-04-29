@@ -33,7 +33,7 @@ func NewMonitorHandler(engine *monitor.MonitorEngine) *MonitorHandler {
 func (h *MonitorHandler) GetStats(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"stats": &types.MonitorStats{
-			IsRunning: false,
+			IsCollecting: false,
 		},
 	})
 }

@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -38,12 +39,27 @@ var upgrader = websocket.Upgrader{
 }
 
 type LiveHandler struct {
-	db        *storage.DB
-	manager   *LiveStreamManager
-	startTime time.Time
-	lastCount int64
-	mu        sync.RWMutex
+	db            *storage.DB
+	manager       *LiveStreamManager
+	startTime     time.Time
+	lastCount     int64
+	mu            sync.RWMutex
 	lastStatsUpdate time.Time
+	pollCollector *livePollCollectorWrapper
+}
+
+type livePollCollectorWrapper struct {
+	collector interface {
+		Start(ctx context.Context) error
+		Stop()
+		IsRunning() bool
+		GetLastRecordID() uint64
+		SetChannels(channels []live.ChannelConfig)
+	}
+	buffer interface {
+		Size() int
+		Flush()
+	}
 }
 
 type duration time.Duration
@@ -58,6 +74,56 @@ type LiveStats struct {
 	Alerts       int64     `json:"alerts"`
 	Uptime       duration  `json:"uptime"`
 	Timestamp    time.Time `json:"timestamp"`
+}
+
+type LiveEvent struct {
+	ID           int64   `json:"id"`
+	EventID      int     `json:"event_id"`
+	Timestamp    string  `json:"timestamp"`
+	Level        int     `json:"level"`
+	LevelName    string  `json:"level_name"`
+	Source       string  `json:"source"`
+	LogName      string  `json:"log_name"`
+	Computer     string  `json:"computer"`
+	User         string  `json:"user"`
+	Message      string  `json:"message"`
+	ProviderName string  `json:"provider_name"`
+}
+
+type LiveEventsResponse struct {
+	Events    []LiveEvent `json:"events"`
+	SinceID   int64      `json:"since_id"`
+	NextID    int64      `json:"next_id"`
+	Total     int64      `json:"total"`
+	Timestamp string     `json:"timestamp"`
+}
+
+type LiveChannelConfig struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	EventIDs    string `json:"event_ids"`
+	Enabled     bool   `json:"enabled"`
+}
+
+type LiveChannelsResponse struct {
+	Channels []LiveChannelConfig `json:"channels"`
+}
+
+type LiveStatsResponse struct {
+	TotalEvents  int64    `json:"total_events"`
+	BufferSize   int      `json:"buffer_size"`
+	IsCollecting bool     `json:"is_collecting"`
+	LastEventID  int64    `json:"last_event_id"`
+	Channels     []string `json:"channels"`
+}
+
+type UpdateChannelsRequest struct {
+	Channels []LiveChannelConfig `json:"channels"`
+}
+
+type ClearResponse struct {
+	Message string `json:"message"`
+	Count   int64  `json:"count"`
 }
 
 type WSClient struct {
@@ -424,4 +490,202 @@ func (h *LiveHandler) GetLiveStats(c *gin.Context) {
 	}
 
 	c.JSON(200, stats)
+}
+
+func (h *LiveHandler) GetLiveEvents(c *gin.Context) {
+	sinceID, _ := strconv.ParseInt(c.DefaultQuery("since_id", "0"), 10, 64)
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "100"))
+
+	if limit > 500 {
+		limit = 500
+	}
+
+	filter := &storage.LiveEventFilter{
+		Channel:   c.Query("channel"),
+		EventID:   c.Query("event_id"),
+		Level:     c.Query("level"),
+		StartTime: c.Query("start_time"),
+		EndTime:   c.Query("end_time"),
+		Keyword:   c.Query("keyword"),
+	}
+
+	rows, total, nextID, err := h.db.QueryLiveEvents(sinceID, limit, filter)
+	if err != nil {
+		log.Printf("[ERROR] GetLiveEvents failed: sinceID=%d, limit=%d, error=%v", sinceID, limit, err)
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	events := make([]LiveEvent, len(rows))
+	for i, r := range rows {
+		events[i] = LiveEvent{
+			ID:           r.ID,
+			EventID:      r.EventID,
+			Timestamp:    r.Timestamp,
+			Level:        r.Level,
+			LevelName:    r.LevelName,
+			Source:       r.Source,
+			LogName:      r.LogName,
+			Computer:     r.Computer,
+			User:         r.User,
+			Message:      r.Message,
+			ProviderName: r.ProviderName,
+		}
+	}
+
+	c.JSON(200, LiveEventsResponse{
+		Events:    events,
+		SinceID:   sinceID,
+		NextID:    nextID,
+		Total:     total,
+		Timestamp: time.Now().Format(time.RFC3339),
+	})
+}
+
+func (h *LiveHandler) GetLiveChannels(c *gin.Context) {
+	channels, err := h.db.GetLiveChannels()
+	if err != nil {
+		log.Printf("[ERROR] GetLiveChannels failed: %v", err)
+		channels = live.DefaultChannels()
+	}
+
+	response := make([]LiveChannelConfig, len(channels))
+	for i, ch := range channels {
+		response[i] = LiveChannelConfig{
+			Name:        ch.Name,
+			Description: ch.Description,
+			EventIDs:    ch.EventIDs,
+			Enabled:     ch.Enabled,
+		}
+	}
+
+	c.JSON(200, LiveChannelsResponse{Channels: response})
+}
+
+type AvailableChannelsResponse struct {
+	Channels []string `json:"channels"`
+}
+
+func (h *LiveHandler) GetAvailableChannels(c *gin.Context) {
+	channels, err := live.ListAvailableChannels()
+	if err != nil {
+		c.JSON(500, gin.H{"error": fmt.Sprintf("failed to enumerate channels: %v", err)})
+		return
+	}
+	c.JSON(200, AvailableChannelsResponse{Channels: channels})
+}
+
+func (h *LiveHandler) UpdateLiveChannels(c *gin.Context) {
+	var req UpdateChannelsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Printf("[ERROR] UpdateLiveChannels invalid request: %v", err)
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+
+	channels := make([]live.ChannelConfig, len(req.Channels))
+	for i, ch := range req.Channels {
+		channels[i] = live.ChannelConfig{
+			Name:     ch.Name,
+			EventIDs: ch.EventIDs,
+			Enabled:  ch.Enabled,
+		}
+	}
+
+	if err := h.db.SaveLiveChannels(channels); err != nil {
+		log.Printf("[ERROR] UpdateLiveChannels SaveLiveChannels failed: %v", err)
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	if h.pollCollector != nil && h.pollCollector.collector != nil {
+		h.pollCollector.collector.SetChannels(channels)
+	}
+
+	c.JSON(200, gin.H{"message": "channels updated"})
+}
+
+func (h *LiveHandler) ClearLiveEvents(c *gin.Context) {
+	count, err := h.db.ClearLiveEvents()
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(200, ClearResponse{
+		Message: "cleared",
+		Count:   count,
+	})
+}
+
+func (h *LiveHandler) GetLiveMonitoringStats(c *gin.Context) {
+	total, err := h.db.GetLiveEventsCount()
+	if err != nil {
+		total = 0
+	}
+
+	bufferSize := 0
+	if h.pollCollector != nil && h.pollCollector.buffer != nil {
+		bufferSize = h.pollCollector.buffer.Size()
+	}
+
+	isCollecting := false
+	lastEventID := int64(0)
+	if h.pollCollector != nil && h.pollCollector.collector != nil {
+		isCollecting = h.pollCollector.collector.IsRunning()
+		lastEventID = int64(h.pollCollector.collector.GetLastRecordID())
+	}
+
+	channels, _ := h.db.GetLiveChannels()
+	channelNames := make([]string, 0)
+	for _, ch := range channels {
+		if ch.Enabled {
+			channelNames = append(channelNames, ch.Name)
+		}
+	}
+
+	c.JSON(200, LiveStatsResponse{
+		TotalEvents:  total,
+		BufferSize:   bufferSize,
+		IsCollecting: isCollecting,
+		LastEventID:  lastEventID,
+		Channels:     channelNames,
+	})
+}
+
+func (h *LiveHandler) ExportLiveEvents(c *gin.Context) {
+	sinceID, _ := strconv.ParseInt(c.DefaultQuery("since_id", "0"), 10, 64)
+	format := c.DefaultQuery("format", "csv")
+
+	filter := &storage.LiveEventFilter{
+		Channel:   c.Query("channel"),
+		EventID:   c.Query("event_id"),
+		Level:     c.Query("level"),
+		StartTime: c.Query("start_time"),
+		EndTime:   c.Query("end_time"),
+		Keyword:   c.Query("keyword"),
+	}
+
+	events, _, _, err := h.db.QueryLiveEvents(sinceID, 10000, filter)
+	if err != nil {
+		c.JSON(500, gin.H{"error": err.Error()})
+		return
+	}
+
+	if format == "json" {
+		c.JSON(200, events)
+		return
+	}
+
+	csv := "ID,EventID,Timestamp,Level,LevelName,Source,LogName,Computer,User,Message,ProviderName\n"
+	for _, e := range events {
+		csv += fmt.Sprintf("%d,%d,%s,%d,%s,%s,%s,%s,%s,%s,%s\n",
+			e.ID, e.EventID, e.Timestamp, e.Level, e.LevelName,
+			e.Source, e.LogName, e.Computer, e.User, e.Message, e.ProviderName)
+	}
+
+	filename := fmt.Sprintf("live_events_%s.csv", time.Now().Format("20060102_150405"))
+	c.Header("Content-Type", "text/csv")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	c.String(200, csv)
 }

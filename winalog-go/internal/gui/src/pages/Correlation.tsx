@@ -29,6 +29,9 @@ function Correlation() {
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<CorrelationResult[]>([])
   const [timeWindow, setTimeWindow] = useState('24h')
+  const [useCustomDate, setUseCustomDate] = useState(false)
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [error, setError] = useState('')
   const [hasRun, setHasRun] = useState(false)
   const [expandedCard, setExpandedCard] = useState<number | null>(null)
@@ -45,7 +48,14 @@ function Correlation() {
     setLoading(true)
     setError('')
     try {
-      const res = await correlationAPI.analyze({ time_window: timeWindow })
+      const params: { time_window?: string; start_time?: string; end_time?: string } = {}
+      if (useCustomDate && startDate && endDate) {
+        params.start_time = new Date(startDate).toISOString()
+        params.end_time = new Date(endDate).toISOString()
+      } else {
+        params.time_window = timeWindow
+      }
+      const res = await correlationAPI.analyze(params)
       setResults(res.data.results || [])
       setHasRun(true)
     } catch (err: any) {
@@ -142,13 +152,41 @@ function Correlation() {
             {timeWindows.map(tw => (
               <button
                 key={tw.value}
-                className={timeWindow === tw.value ? 'active' : ''}
-                onClick={() => setTimeWindow(tw.value)}
+                className={!useCustomDate && timeWindow === tw.value ? 'active' : ''}
+                onClick={() => { setTimeWindow(tw.value); setUseCustomDate(false); }}
               >
                 {tw.label}
               </button>
             ))}
+            <button
+              className={useCustomDate ? 'active' : ''}
+              onClick={() => setUseCustomDate(true)}
+            >
+              自定义
+            </button>
           </div>
+          {useCustomDate && (
+            <div className="date-range-selector">
+              <div className="date-input-group">
+                <label>{t('correlation.startDate') || '开始日期'}</label>
+                <input
+                  type="datetime-local"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="date-input"
+                />
+              </div>
+              <div className="date-input-group">
+                <label>{t('correlation.endDate') || '结束日期'}</label>
+                <input
+                  type="datetime-local"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="date-input"
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         <button

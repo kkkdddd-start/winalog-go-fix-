@@ -34,6 +34,8 @@ interface SystemInfoData {
   cpu_count: number
   memory_total_gb: number
   memory_free_gb: number
+  system_memory_total_gb: number
+  system_memory_free_gb: number
 }
 
 interface ProcessInfo {
@@ -895,29 +897,29 @@ function SystemInfo() {
               <h3>{t('systemInfo.systemResources') || '系统资源'}</h3>
             </div>
             
-            <div className="resource-bars">
+              <div className="resource-bars">
               <div className="resource-item">
                 <div className="resource-header">
                   <span className="resource-name">{t('systemInfo.memory') || '内存'}</span>
                   <span className="resource-value">
-                    {info.memory_free_gb ? (info.memory_total_gb - info.memory_free_gb).toFixed(1) : '0'} / {info.memory_total_gb?.toFixed(1) || '0'} GB
+                    {info.system_memory_free_gb ? (info.system_memory_total_gb - info.system_memory_free_gb).toFixed(1) : '0'} / {info.system_memory_total_gb?.toFixed(1) || '0'} GB
                   </span>
                 </div>
                 <div className="resource-bar">
                   <div className="resource-fill" style={{
-                    width: info.memory_total_gb ? `${((info.memory_total_gb - info.memory_free_gb) / info.memory_total_gb * 100)}%` : '0%'
+                    width: info.system_memory_total_gb ? `${((info.system_memory_total_gb - info.system_memory_free_gb) / info.system_memory_total_gb * 100)}%` : '0%'
                   }}></div>
                 </div>
               </div>
-              
+
               <div className="resource-item">
                 <div className="resource-header">
                   <span className="resource-name">{t('systemInfo.freeMemory') || '可用内存'}</span>
-                  <span className="resource-value">{info.memory_free_gb?.toFixed(1) || '0'} GB</span>
+                  <span className="resource-value">{info.system_memory_free_gb?.toFixed(1) || '0'} GB</span>
                 </div>
                 <div className="resource-bar">
                   <div className="resource-fill memory" style={{
-                    width: info.memory_total_gb ? `${(info.memory_free_gb / info.memory_total_gb * 100)}%` : '0%'
+                    width: info.system_memory_total_gb ? `${(info.system_memory_free_gb / info.system_memory_total_gb * 100)}%` : '0%'
                   }}></div>
                 </div>
               </div>

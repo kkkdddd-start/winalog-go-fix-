@@ -50,7 +50,7 @@ func (e *MonitorEngine) UpdateConfig(req *MonitorConfigRequest) error {
 
 func (e *MonitorEngine) GetStats() *types.MonitorStats {
 	return &types.MonitorStats{
-		IsRunning: false,
+		IsCollecting: false,
 	}
 }
 

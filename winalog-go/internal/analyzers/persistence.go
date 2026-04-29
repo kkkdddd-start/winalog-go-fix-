@@ -3,6 +3,7 @@ package analyzers
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/kkkdddd-start/winalog-go/internal/types"
 )
@@ -44,6 +45,7 @@ type PersistenceInfo struct {
 	Severity    string
 	Score       float64
 	MITREAttack []string
+	Event       *types.Event
 }
 
 func (a *PersistenceAnalyzer) Analyze(events []*types.Event) (*Result, error) {
@@ -126,11 +128,22 @@ func (a *PersistenceAnalyzer) analyzePersistence(events []*types.Event) []Findin
 
 	for user, creations := range userCreations {
 		if len(creations) > 2 {
+			evidence := make([]EvidenceItem, 0)
+			for _, e := range creations {
+				evidence = append(evidence, EvidenceItem{
+					EventID:   e.EventID,
+					Timestamp: e.Timestamp.Format(time.RFC3339),
+					User:      getEventUser(e),
+					Computer:  e.Computer,
+					Message:   e.Message,
+				})
+			}
 			findings = append(findings, Finding{
 				Description: "Multiple user accounts created in short period - possible account creation attack",
 				RuleName:    "Persistence - Suspicious Account Creation",
 				Severity:    "high",
 				Score:       80,
+				Evidence:    evidence,
 				Metadata: map[string]interface{}{
 					"user":      user,
 					"count":     len(creations),
@@ -149,6 +162,15 @@ func (a *PersistenceAnalyzer) analyzePersistence(events []*types.Event) []Findin
 				Severity:    "critical",
 				Score:       90,
 				MitreAttack: "T1543",
+				Evidence: []EvidenceItem{
+					{
+						EventID:   e.EventID,
+						Timestamp: e.Timestamp.Format(time.RFC3339),
+						User:      getEventUser(e),
+						Computer:  e.Computer,
+						Message:   e.Message,
+					},
+				},
 				Metadata: map[string]interface{}{
 					"service_name": serviceName,
 					"computer":     e.Computer,
@@ -162,6 +184,15 @@ func (a *PersistenceAnalyzer) analyzePersistence(events []*types.Event) []Findin
 				Severity:    "medium",
 				Score:       50,
 				MitreAttack: "T1543",
+				Evidence: []EvidenceItem{
+					{
+						EventID:   e.EventID,
+						Timestamp: e.Timestamp.Format(time.RFC3339),
+						User:      getEventUser(e),
+						Computer:  e.Computer,
+						Message:   e.Message,
+					},
+				},
 				Metadata: map[string]interface{}{
 					"service_name": serviceName,
 					"computer":     e.Computer,
@@ -186,6 +217,15 @@ func (a *PersistenceAnalyzer) analyzePersistence(events []*types.Event) []Findin
 				Severity:    severity,
 				Score:       score,
 				MitreAttack: "T1053",
+				Evidence: []EvidenceItem{
+					{
+						EventID:   e.EventID,
+						Timestamp: e.Timestamp.Format(time.RFC3339),
+						User:      getEventUser(e),
+						Computer:  e.Computer,
+						Message:   e.Message,
+					},
+				},
 				Metadata: map[string]interface{}{
 					"task_name": taskName,
 					"computer":  e.Computer,
@@ -209,6 +249,15 @@ func (a *PersistenceAnalyzer) analyzePersistence(events []*types.Event) []Findin
 				Severity:    "high",
 				Score:       85,
 				MitreAttack: "T1098",
+				Evidence: []EvidenceItem{
+					{
+						EventID:   e.EventID,
+						Timestamp: e.Timestamp.Format(time.RFC3339),
+						User:      user,
+						Computer:  e.Computer,
+						Message:   e.Message,
+					},
+				},
 				Metadata: map[string]interface{}{
 					"user":     user,
 					"group":    groupName,

@@ -42,6 +42,7 @@ type PrivilegeEvent struct {
 	Computer  string
 	Message   string
 	Severity  string
+	Event     *types.Event
 }
 
 func (a *PrivilegeEscalationAnalyzer) Analyze(events []*types.Event) (*Result, error) {
@@ -119,6 +120,7 @@ func (a *PrivilegeEscalationAnalyzer) analyzeSpecialPrivileges(events []*types.E
 						Computer:  e.Computer,
 						Message:   e.Message,
 						Severity:  "high",
+						Event:     e,
 					})
 				}
 			}
@@ -133,6 +135,7 @@ func (a *PrivilegeEscalationAnalyzer) analyzeSpecialPrivileges(events []*types.E
 					Computer:  e.Computer,
 					Message:   e.Message,
 					Severity:  "medium",
+					Event:     e,
 				})
 			}
 		}
@@ -140,7 +143,7 @@ func (a *PrivilegeEscalationAnalyzer) analyzeSpecialPrivileges(events []*types.E
 
 	for user, logins := range adminLogins {
 		if len(logins) > 5 {
-			findings = append(findings, Finding{
+			f := Finding{
 				Description: "User assigned multiple sensitive privileges - potential privilege escalation",
 				RuleName:    "Privilege Escalation - Excessive Privileges",
 				Severity:    "critical",
@@ -151,7 +154,19 @@ func (a *PrivilegeEscalationAnalyzer) analyzeSpecialPrivileges(events []*types.E
 					"privilege_count": len(logins),
 					"privileges":      extractPrivilegeNames(logins),
 				},
-			})
+			}
+			if logins[0].Event != nil {
+				f.Evidence = []EvidenceItem{
+					{
+						EventID:   logins[0].Event.EventID,
+						Timestamp: logins[0].Event.Timestamp.Format(time.RFC3339),
+						User:      getEventUser(logins[0].Event),
+						Computer:  logins[0].Event.Computer,
+						Message:   logins[0].Event.Message,
+					},
+				}
+			}
+			findings = append(findings, f)
 		}
 	}
 
@@ -168,7 +183,7 @@ func (a *PrivilegeEscalationAnalyzer) analyzeSpecialPrivileges(events []*types.E
 				}
 			}
 			if len(privs) > 0 {
-				findings = append(findings, Finding{
+				f := Finding{
 					Description: "User heavily using sensitive privileges: " + strings.Join(privs, ", "),
 					RuleName:    "Privilege Escalation - Excessive Privilege Use",
 					Severity:    "high",
@@ -179,7 +194,19 @@ func (a *PrivilegeEscalationAnalyzer) analyzeSpecialPrivileges(events []*types.E
 						"use_count":  len(uses),
 						"privileges": privs,
 					},
-				})
+				}
+				if uses[0].Event != nil {
+					f.Evidence = []EvidenceItem{
+						{
+							EventID:   uses[0].Event.EventID,
+							Timestamp: uses[0].Event.Timestamp.Format(time.RFC3339),
+							User:      getEventUser(uses[0].Event),
+							Computer:  uses[0].Event.Computer,
+							Message:   uses[0].Event.Message,
+						},
+					}
+				}
+				findings = append(findings, f)
 			}
 		}
 	}
@@ -207,9 +234,9 @@ func (a *PrivilegeEscalationAnalyzer) analyzeProcessCreation(events []*types.Eve
 		}
 	}
 
-	for proc, events := range suspiciousProcesses {
-		if len(events) >= 3 {
-			findings = append(findings, Finding{
+	for proc, evts := range suspiciousProcesses {
+		if len(evts) >= 3 {
+			f := Finding{
 				Description: "Suspicious process executed multiple times: " + proc,
 				RuleName:    "Privilege Escalation - Suspicious Process",
 				Severity:    "high",
@@ -217,15 +244,27 @@ func (a *PrivilegeEscalationAnalyzer) analyzeProcessCreation(events []*types.Eve
 				MitreAttack: "T1059",
 				Metadata: map[string]interface{}{
 					"process": proc,
-					"count":   len(events),
+					"count":   len(evts),
 				},
-			})
+			}
+			if evts[0] != nil {
+				f.Evidence = []EvidenceItem{
+					{
+						EventID:   evts[0].EventID,
+						Timestamp: evts[0].Timestamp.Format(time.RFC3339),
+						User:      getEventUser(evts[0]),
+						Computer:  evts[0].Computer,
+						Message:   evts[0].Message,
+					},
+				}
+			}
+			findings = append(findings, f)
 		}
 	}
 
-	for proc, events := range cmdProcesses {
-		if len(events) >= 5 {
-			findings = append(findings, Finding{
+	for proc, evts := range cmdProcesses {
+		if len(evts) >= 5 {
+			f := Finding{
 				Description: "Multiple cmd.exe processes spawned - possible command execution attack",
 				RuleName:    "Privilege Escalation - Suspicious CMD Usage",
 				Severity:    "medium",
@@ -233,9 +272,21 @@ func (a *PrivilegeEscalationAnalyzer) analyzeProcessCreation(events []*types.Eve
 				MitreAttack: "T1059",
 				Metadata: map[string]interface{}{
 					"process": proc,
-					"count":   len(events),
+					"count":   len(evts),
 				},
-			})
+			}
+			if evts[0] != nil {
+				f.Evidence = []EvidenceItem{
+					{
+						EventID:   evts[0].EventID,
+						Timestamp: evts[0].Timestamp.Format(time.RFC3339),
+						User:      getEventUser(evts[0]),
+						Computer:  evts[0].Computer,
+						Message:   evts[0].Message,
+					},
+				}
+			}
+			findings = append(findings, f)
 		}
 	}
 

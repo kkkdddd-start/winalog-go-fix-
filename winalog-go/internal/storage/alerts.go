@@ -355,6 +355,60 @@ func (r *AlertRepo) Query(filter *AlertFilter) ([]*types.Alert, error) {
 	return alerts, nil
 }
 
+func (r *AlertRepo) CountAlerts() (int64, error) {
+	var total int64
+	err := r.db.QueryRow("SELECT COUNT(*) FROM alerts").Scan(&total)
+	return total, err
+}
+
+func (r *AlertRepo) CountAlertsWithFilter(filter *AlertFilter) (int64, error) {
+	var conditions []string
+	var args []interface{}
+
+	if filter.RuleName != "" {
+		conditions = append(conditions, "rule_name = ?")
+		args = append(args, filter.RuleName)
+	}
+
+	if filter.Severity != "" {
+		conditions = append(conditions, "severity = ?")
+		args = append(args, filter.Severity)
+	}
+
+	if filter.Resolved != nil {
+		conditions = append(conditions, "resolved = ?")
+		args = append(args, *filter.Resolved)
+	}
+
+	if filter.FalsePositive != nil {
+		conditions = append(conditions, "false_positive = ?")
+		args = append(args, *filter.FalsePositive)
+	}
+
+	if filter.StartTime != nil {
+		conditions = append(conditions, "first_seen >= ?")
+		args = append(args, *filter.StartTime)
+	}
+
+	if filter.EndTime != nil {
+		conditions = append(conditions, "first_seen <= ?")
+		args = append(args, *filter.EndTime)
+	}
+
+	whereClause := ""
+	if len(conditions) > 0 {
+		whereClause = "WHERE " + strings.Join(conditions, " AND ")
+	}
+
+	var total int64
+	query := "SELECT COUNT(*) FROM alerts"
+	if whereClause != "" {
+		query += " " + whereClause
+	}
+	err := r.db.QueryRow(query, args...).Scan(&total)
+	return total, err
+}
+
 func (r *AlertRepo) GetStats() (*types.AlertStatsData, error) {
 	stats := &types.AlertStatsData{
 		BySeverity: make(map[string]int64),

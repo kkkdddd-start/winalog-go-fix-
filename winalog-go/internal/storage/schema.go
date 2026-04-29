@@ -119,6 +119,37 @@ CREATE TABLE IF NOT EXISTS sessions (
 	alerts_count INTEGER DEFAULT 0
 );
 
+-- Live channels configuration table
+CREATE TABLE IF NOT EXISTS live_channels (
+	name TEXT PRIMARY KEY,
+	description TEXT,
+	event_ids TEXT,
+	enabled INTEGER DEFAULT 0,
+	created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Live events table (for real-time monitoring)
+CREATE TABLE IF NOT EXISTS live_events (
+	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	event_id INTEGER NOT NULL,
+	timestamp TEXT NOT NULL,
+	level INTEGER,
+	level_name TEXT,
+	source TEXT,
+	log_name TEXT NOT NULL,
+	computer TEXT,
+	user TEXT,
+	message TEXT,
+	raw_xml TEXT,
+	provider_name TEXT,
+	created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_live_events_id ON live_events(id);
+CREATE INDEX IF NOT EXISTS idx_live_events_timestamp ON live_events(timestamp);
+CREATE INDEX IF NOT EXISTS idx_live_events_log_name ON live_events(log_name);
+CREATE INDEX IF NOT EXISTS idx_live_events_level ON live_events(level);
+
 -- Evidence chain table
 CREATE TABLE IF NOT EXISTS evidence_chain (
 	id INTEGER PRIMARY KEY AUTOINCREMENT,

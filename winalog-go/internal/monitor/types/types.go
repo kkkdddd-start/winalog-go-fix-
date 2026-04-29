@@ -74,7 +74,7 @@ var SuspiciousIPs = []string{
 }
 
 type MonitorStats struct {
-	IsRunning      bool      `json:"is_running"`
+	IsCollecting   bool      `json:"is_collecting"`
 	ProcessEnabled bool      `json:"process_enabled"`
 	NetworkEnabled bool      `json:"network_enabled"`
 	ProcessCount   uint64    `json:"process_count"`

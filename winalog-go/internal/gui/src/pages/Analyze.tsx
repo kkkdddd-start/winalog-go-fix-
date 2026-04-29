@@ -97,10 +97,20 @@ function Analyze() {
   const [result, setResult] = useState<AnalyzeResult | null>(null)
   const [selectedAnalyzer, setSelectedAnalyzer] = useState('brute-force')
   const [hours, setHours] = useState(24)
+  const [useCustomDate, setUseCustomDate] = useState(false)
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [limit, setLimit] = useState(10000)
+  const [useCustomLimit, setUseCustomLimit] = useState(false)
+  const [customLimit, setCustomLimit] = useState(10000)
   const [error, setError] = useState('')
   const [showRuleEditor, setShowRuleEditor] = useState(false)
   const [editingRule, setEditingRule] = useState<AnalyzerRule | null>(null)
   const [ruleLoading, setRuleLoading] = useState(false)
+  const [findingsPage, setFindingsPage] = useState(1)
+  const [findingsPageSize] = useState(10)
+  const [showOriginalLang, setShowOriginalLang] = useState(false)
+  const [expandedFinding, setExpandedFinding] = useState<number | null>(null)
 
   const analyzers: Analyzer[] = [
     { id: 'brute_force', name: t('analyze.bruteForce'), desc: t('analyze.bruteForceDesc'), icon: analyzerIcons['brute-force'], category: 'authentication', recommended: true },
@@ -111,15 +121,25 @@ function Analyze() {
     { id: 'data_exfiltration', name: t('analyze.dataExfil'), desc: t('analyze.dataExfilDesc'), icon: analyzerIcons['data-exfil'], category: 'collection', recommended: false },
     { id: 'persistence', name: t('analyze.persistence'), desc: t('analyze.persistenceDesc'), icon: analyzerIcons['persistence'], category: 'persistence', recommended: false },
     { id: 'privilege_escalation', name: t('analyze.privilegeEscalation'), desc: t('analyze.privilegeEscalationDesc'), icon: analyzerIcons['privilege-escalation'], category: 'privilege-escalation', recommended: false },
-    { id: 'dc', name: t('analyze.domainController'), desc: t('analyze.domainControllerDesc'), icon: analyzerIcons['dc'], category: 'domain-services', recommended: false },
+    { id: 'domain_controller', name: t('analyze.domainController'), desc: t('analyze.domainControllerDesc'), icon: analyzerIcons['dc'], category: 'domain-services', recommended: false },
   ]
 
   const handleRun = async () => {
     setLoading(true)
     setError('')
+    setFindingsPage(1)
+    setExpandedFinding(null)
     try {
       const analyzerType = selectedAnalyzer.replace(/_/g, '-')
-      const res = await analyzeAPI.run(analyzerType, { hours })
+      const params: { hours?: number; start_time?: string; end_time?: string; limit?: number } = {}
+      if (useCustomDate && startDate && endDate) {
+        params.start_time = new Date(startDate).toISOString()
+        params.end_time = new Date(endDate).toISOString()
+      } else {
+        params.hours = hours
+      }
+      params.limit = useCustomLimit ? customLimit : limit
+      const res = await analyzeAPI.run(analyzerType, params)
       setResult(res.data)
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to run analyzer')
@@ -272,25 +292,96 @@ function Analyze() {
               <div className="time-selector">
                 <button
                   className={hours === 1 ? 'active' : ''}
-                  onClick={() => setHours(1)}
+                  onClick={() => { setHours(1); setUseCustomDate(false); }}
                 >1h</button>
                 <button
                   className={hours === 6 ? 'active' : ''}
-                  onClick={() => setHours(6)}
+                  onClick={() => { setHours(6); setUseCustomDate(false); }}
                 >6h</button>
                 <button
                   className={hours === 24 ? 'active' : ''}
-                  onClick={() => setHours(24)}
+                  onClick={() => { setHours(24); setUseCustomDate(false); }}
                 >24h</button>
                 <button
                   className={hours === 72 ? 'active' : ''}
-                  onClick={() => setHours(72)}
+                  onClick={() => { setHours(72); setUseCustomDate(false); }}
                 >72h</button>
                 <button
                   className={hours === 168 ? 'active' : ''}
-                  onClick={() => setHours(168)}
+                  onClick={() => { setHours(168); setUseCustomDate(false); }}
                 >7d</button>
               </div>
+            </div>
+
+            <div className="config-item">
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={useCustomDate}
+                  onChange={(e) => setUseCustomDate(e.target.checked)}
+                />
+                <span>{t('analyze.useCustomDate') || '使用自定义日期'}</span>
+              </label>
+              {useCustomDate && (
+                <div className="date-range-selector">
+                  <div className="date-input-group">
+                    <label>{t('analyze.startDate') || '开始日期'}</label>
+                    <input
+                      type="datetime-local"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="date-input"
+                    />
+                  </div>
+                  <div className="date-input-group">
+                    <label>{t('analyze.endDate') || '结束日期'}</label>
+                    <input
+                      type="datetime-local"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="date-input"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="config-item">
+              <label>{t('analyze.dataLimit') || '分析数据量'}</label>
+              <div className="limit-selector">
+                <button
+                  className={!useCustomLimit && limit === 10000 ? 'active' : ''}
+                  onClick={() => { setLimit(10000); setUseCustomLimit(false); }}
+                >1万</button>
+                <button
+                  className={!useCustomLimit && limit === 50000 ? 'active' : ''}
+                  onClick={() => { setLimit(50000); setUseCustomLimit(false); }}
+                >5万</button>
+                <button
+                  className={!useCustomLimit && limit === 100000 ? 'active' : ''}
+                  onClick={() => { setLimit(100000); setUseCustomLimit(false); }}
+                >10万</button>
+                <button
+                  className={useCustomLimit ? 'active' : ''}
+                  onClick={() => setUseCustomLimit(true)}
+                >自定义</button>
+              </div>
+              {useCustomLimit && (
+                <div className="custom-limit-input">
+                  <input
+                    type="number"
+                    value={customLimit}
+                    onChange={(e) => setCustomLimit(Math.max(1, parseInt(e.target.value) || 1))}
+                    min="1"
+                    max="1000000"
+                    className="limit-input"
+                  />
+                  <span className="limit-unit">条</span>
+                </div>
+              )}
+              <span className="config-hint">
+                {t('analyze.dataLimitHint') || '注意：数据量越大分析时间越长'}
+              </span>
             </div>
 
             <button
@@ -387,42 +478,102 @@ function Analyze() {
 
             {result.findings.length > 0 && (
               <div className="findings-card">
-                <h4>{t('analyze.findingsList')}</h4>
+                <div className="findings-header">
+                  <h4>{t('analyze.findingsList')}</h4>
+                  <div className="findings-controls">
+                    <label className="lang-toggle">
+                      <input
+                        type="checkbox"
+                        checked={showOriginalLang}
+                        onChange={(e) => setShowOriginalLang(e.target.checked)}
+                      />
+                      <span>显示原文</span>
+                    </label>
+                  </div>
+                </div>
+
                 <div className="findings-list">
-                  {result.findings.map((f, i) => (
-                    <div key={i} className="finding-item">
-                      <div className="finding-header">
-                        <span className={`severity-indicator severity-${f.severity}`}></span>
-                        <span className="finding-desc">{getLocalizedFindingDesc(f.description, locale)}</span>
-                      </div>
-                      <div className="finding-meta">
-                        {f.rule_name && <span className="rule-name">{f.rule_name}</span>}
-                        <span className="finding-score">Score: {f.score.toFixed(1)}</span>
-                        {f.evidence && f.evidence.length > 0 && (
-                          <span className="evidence-count">{f.evidence.length} events</span>
-                        )}
-                      </div>
-                      {f.evidence && f.evidence.length > 0 && (
-                        <div className="evidence-list">
-                          <div className="evidence-header">{t('analyze.relatedEvents')}</div>
-                          {f.evidence.slice(0, 5).map((e, j) => (
-                            <div key={j} className="evidence-item">
-                              <span className="evidence-time">{new Date(e.timestamp).toLocaleString()}</span>
-                              <span className="evidence-user">{e.user || '-'}</span>
-                              <span className="evidence-computer">{e.computer || '-'}</span>
-                              <span className="evidence-msg" title={e.message}>
-                                {e.message?.substring(0, 80)}{e.message && e.message.length > 80 ? '...' : ''}
-                              </span>
-                            </div>
-                          ))}
-                          {f.evidence.length > 5 && (
-                            <div className="evidence-more">+{f.evidence.length - 5} more events</div>
+                  {result.findings
+                    .slice((findingsPage - 1) * findingsPageSize, findingsPage * findingsPageSize)
+                    .map((f, i) => {
+                      const actualIndex = (findingsPage - 1) * findingsPageSize + i
+                      return (
+                      <div key={i} className={`finding-item ${expandedFinding === actualIndex ? 'expanded' : ''}`}>
+                        <div className="finding-header" onClick={() => setExpandedFinding(expandedFinding === actualIndex ? null : actualIndex)}>
+                          <span className={`severity-indicator severity-${f.severity}`}></span>
+                          <span className="finding-desc">
+                            {showOriginalLang ? f.description : getLocalizedFindingDesc(f.description, locale)}
+                          </span>
+                          <span className="expand-icon">{expandedFinding === actualIndex ? '−' : '+'}</span>
+                        </div>
+                        <div className="finding-meta">
+                          {f.rule_name && <span className="rule-name">{f.rule_name}</span>}
+                          <span className="finding-score">Score: {f.score.toFixed(1)}</span>
+                          {f.evidence && f.evidence.length > 0 && (
+                            <span className="evidence-count">{f.evidence.length} events</span>
                           )}
                         </div>
-                      )}
-                    </div>
-                  ))}
+                        {expandedFinding === actualIndex && f.evidence && f.evidence.length > 0 && (
+                          <div className="evidence-list">
+                            <div className="evidence-header">
+                              {t('analyze.relatedEvents')} (Event ID: {f.evidence[0]?.event_id})
+                            </div>
+                            <table className="evidence-table">
+                              <thead>
+                                <tr>
+                                  <th>时间</th>
+                                  <th>用户</th>
+                                  <th>计算机</th>
+                                  <th>原始日志</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {f.evidence.map((e, j) => (
+                                  <tr key={j}>
+                                    <td className="evidence-time">{new Date(e.timestamp).toLocaleString()}</td>
+                                    <td className="evidence-user">{e.user || '-'}</td>
+                                    <td className="evidence-computer">{e.computer || '-'}</td>
+                                    <td className="evidence-msg" title={e.message}>{e.message}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )})}
                 </div>
+
+                {result.findings.length > findingsPageSize && (
+                  <div className="pagination">
+                    <span className="pagination-info">
+                      第 {(findingsPage - 1) * findingsPageSize + 1} - {Math.min(findingsPage * findingsPageSize, result.findings.length)} 条，共 {result.findings.length} 条
+                    </span>
+                    <div className="pagination-controls">
+                      <button
+                        className="pagination-btn"
+                        disabled={findingsPage === 1}
+                        onClick={() => setFindingsPage(1)}
+                      >首页</button>
+                      <button
+                        className="pagination-btn"
+                        disabled={findingsPage === 1}
+                        onClick={() => setFindingsPage(p => p - 1)}
+                      >上一页</button>
+                      <span className="pagination-current">{findingsPage} / {Math.ceil(result.findings.length / findingsPageSize)}</span>
+                      <button
+                        className="pagination-btn"
+                        disabled={findingsPage >= Math.ceil(result.findings.length / findingsPageSize)}
+                        onClick={() => setFindingsPage(p => p + 1)}
+                      >下一页</button>
+                      <button
+                        className="pagination-btn"
+                        disabled={findingsPage >= Math.ceil(result.findings.length / findingsPageSize)}
+                        onClick={() => setFindingsPage(Math.ceil(result.findings.length / findingsPageSize))}
+                      >末页</button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>

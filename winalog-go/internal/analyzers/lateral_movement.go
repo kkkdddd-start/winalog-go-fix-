@@ -69,6 +69,7 @@ type LateralMovementFinding struct {
 	Description string
 	Severity    string
 	MitreAttack string
+	Event       *types.Event
 }
 
 func (a *LateralMovementAnalyzer) Analyze(events []*types.Event) (*Result, error) {
@@ -78,7 +79,7 @@ func (a *LateralMovementAnalyzer) Analyze(events []*types.Event) (*Result, error
 	findings := a.detectLateralMovement(analysis)
 
 	for _, finding := range findings {
-		result.AddFinding(Finding{
+		f := Finding{
 			Description: finding.Description,
 			RuleName:    "Lateral Movement - " + finding.Type,
 			MitreAttack: finding.MitreAttack,
@@ -91,7 +92,19 @@ func (a *LateralMovementAnalyzer) Analyze(events []*types.Event) (*Result, error
 				"user":        finding.User,
 				"time":        finding.Time.Format(time.RFC3339),
 			},
-		})
+		}
+		if finding.Event != nil {
+			f.Evidence = []EvidenceItem{
+				{
+					EventID:   finding.Event.EventID,
+					Timestamp: finding.Event.Timestamp.Format(time.RFC3339),
+					User:      getUserIdentifier(finding.Event),
+					Computer:  finding.Event.Computer,
+					Message:   finding.Event.Message,
+				},
+			}
+		}
+		result.AddFinding(f)
 	}
 
 	result.Summary = a.generateSummary(analysis)
@@ -131,6 +144,7 @@ func (a *LateralMovementAnalyzer) performAnalysis(events []*types.Event) *Latera
 						Description: "Suspicious RDP login from external IP",
 						Severity:    "high",
 						MitreAttack: "T1021.001",
+						Event:       e,
 					})
 				}
 			}
@@ -149,6 +163,7 @@ func (a *LateralMovementAnalyzer) performAnalysis(events []*types.Event) *Latera
 					Description: "PSExec-like process execution detected",
 					Severity:    "critical",
 					MitreAttack: "T1021.002",
+					Event:       e,
 				})
 			}
 			if strings.Contains(command, "wmic") || strings.Contains(command, "wmiexec") {
@@ -161,6 +176,7 @@ func (a *LateralMovementAnalyzer) performAnalysis(events []*types.Event) *Latera
 					Description: "WMI remote execution detected",
 					Severity:    "high",
 					MitreAttack: "T1047",
+					Event:       e,
 				})
 			}
 
@@ -176,6 +192,7 @@ func (a *LateralMovementAnalyzer) performAnalysis(events []*types.Event) *Latera
 					Description: "Logon with explicit credentials - possible lateral movement",
 					Severity:    "medium",
 					MitreAttack: "T1078.004",
+					Event:       e,
 				})
 			}
 		}

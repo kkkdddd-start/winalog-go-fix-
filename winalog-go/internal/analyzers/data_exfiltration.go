@@ -72,6 +72,7 @@ type ExfilFinding struct {
 	Description string
 	Severity    string
 	MitreAttack string
+	Event       *types.Event
 }
 
 func (a *DataExfiltrationAnalyzer) Analyze(events []*types.Event) (*Result, error) {
@@ -81,7 +82,7 @@ func (a *DataExfiltrationAnalyzer) Analyze(events []*types.Event) (*Result, erro
 	findings := a.detectExfiltration(analysis)
 
 	for _, finding := range findings {
-		result.AddFinding(Finding{
+		f := Finding{
 			Description: finding.Description,
 			RuleName:    "Data Exfiltration - " + finding.Type,
 			MitreAttack: finding.MitreAttack,
@@ -96,7 +97,19 @@ func (a *DataExfiltrationAnalyzer) Analyze(events []*types.Event) (*Result, erro
 				"volume":      finding.Volume,
 				"time":        finding.Time.Format(time.RFC3339),
 			},
-		})
+		}
+		if finding.Event != nil {
+			f.Evidence = []EvidenceItem{
+				{
+					EventID:   finding.Event.EventID,
+					Timestamp: finding.Event.Timestamp.Format(time.RFC3339),
+					User:      a.getUser(finding.Event),
+					Computer:  finding.Event.Computer,
+					Message:   finding.Event.Message,
+				},
+			}
+		}
+		result.AddFinding(f)
 	}
 
 	result.Summary = a.generateSummary(analysis)
@@ -145,6 +158,7 @@ func (a *DataExfiltrationAnalyzer) performAnalysis(events []*types.Event) *DataE
 					Description: "Login detected during unusual hours",
 					Severity:    "low",
 					MitreAttack: "T1074",
+					Event:       e,
 				})
 			}
 
@@ -162,6 +176,7 @@ func (a *DataExfiltrationAnalyzer) performAnalysis(events []*types.Event) *DataE
 						Description: "Process accessing sensitive file extension: " + ext,
 						Severity:    "medium",
 						MitreAttack: "T1005",
+						Event:       e,
 					})
 					break
 				}
@@ -177,6 +192,7 @@ func (a *DataExfiltrationAnalyzer) performAnalysis(events []*types.Event) *DataE
 						Description: "Suspicious keyword detected: " + kw,
 						Severity:    "high",
 						MitreAttack: "T1041",
+						Event:       e,
 					})
 					break
 				}
@@ -194,6 +210,7 @@ func (a *DataExfiltrationAnalyzer) performAnalysis(events []*types.Event) *DataE
 					Description: "File copy to removable media detected",
 					Severity:    "high",
 					MitreAttack: "T1025",
+					Event:       e,
 				})
 			}
 		}

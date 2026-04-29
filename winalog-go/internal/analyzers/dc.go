@@ -60,6 +60,7 @@ type DCAnomaly struct {
 	Description string
 	EventID     int32
 	Metadata    map[string]interface{}
+	Event       *types.Event
 }
 
 var sensitiveGroups = []string{
@@ -121,6 +122,7 @@ func (a *DCAnalyzer) performAnalysis(events []*types.Event) *DCAnalysis {
 					Severity:    "high",
 					Description: "Privileged user account created",
 					EventID:     4720,
+					Event:       e,
 				})
 			}
 
@@ -137,6 +139,7 @@ func (a *DCAnalyzer) performAnalysis(events []*types.Event) *DCAnalysis {
 					Severity:    "critical",
 					Description: "Privileged user account deleted",
 					EventID:     4726,
+					Event:       e,
 				})
 			}
 
@@ -156,6 +159,7 @@ func (a *DCAnalyzer) performAnalysis(events []*types.Event) *DCAnalysis {
 					Metadata: map[string]interface{}{
 						"group": a.getTargetGroup(e),
 					},
+					Event: e,
 				})
 			}
 
@@ -175,6 +179,7 @@ func (a *DCAnalyzer) performAnalysis(events []*types.Event) *DCAnalysis {
 					Metadata: map[string]interface{}{
 						"group": a.getTargetGroup(e),
 					},
+					Event: e,
 				})
 			}
 
@@ -195,6 +200,7 @@ func (a *DCAnalyzer) performAnalysis(events []*types.Event) *DCAnalysis {
 						"attribute": a.getAttributeName(e),
 						"object":    a.getObjectName(e),
 					},
+					Event: e,
 				})
 			}
 
@@ -211,6 +217,7 @@ func (a *DCAnalyzer) performAnalysis(events []*types.Event) *DCAnalysis {
 					Severity:    "medium",
 					Description: "Directory object access related to replication",
 					EventID:     4662,
+					Event:       e,
 				})
 			}
 
@@ -225,6 +232,7 @@ func (a *DCAnalyzer) performAnalysis(events []*types.Event) *DCAnalysis {
 				Severity:    "medium",
 				Description: "AD object moved in directory",
 				EventID:     5139,
+				Event:       e,
 			})
 
 		case 5140:
@@ -239,6 +247,7 @@ func (a *DCAnalyzer) performAnalysis(events []*types.Event) *DCAnalysis {
 					Severity:    "medium",
 					Description: "Access to sensitive network share",
 					EventID:     5140,
+					Event:       e,
 				})
 			}
 
@@ -257,6 +266,7 @@ func (a *DCAnalyzer) performAnalysis(events []*types.Event) *DCAnalysis {
 					Metadata: map[string]interface{}{
 						"privilege": a.getPrivilegeName(e),
 					},
+					Event: e,
 				})
 			}
 
@@ -272,6 +282,7 @@ func (a *DCAnalyzer) performAnalysis(events []*types.Event) *DCAnalysis {
 					Severity:    "info",
 					Description: "Krbtgt account password changed - verify if authorized",
 					EventID:     4741,
+					Event:       e,
 				})
 			}
 
@@ -286,6 +297,7 @@ func (a *DCAnalyzer) performAnalysis(events []*types.Event) *DCAnalysis {
 				Severity:    "high",
 				Description: "Directory service policy was modified",
 				EventID:     5138,
+				Event:       e,
 			})
 
 		case 5141:
@@ -299,6 +311,7 @@ func (a *DCAnalyzer) performAnalysis(events []*types.Event) *DCAnalysis {
 				Severity:    "low",
 				Description: "Directory object was accessed",
 				EventID:     5141,
+				Event:       e,
 			})
 
 		case 4625:
@@ -312,6 +325,7 @@ func (a *DCAnalyzer) performAnalysis(events []*types.Event) *DCAnalysis {
 					Severity:    "high",
 					Description: "Failed logon attempt to privileged account",
 					EventID:     4625,
+					Event:       e,
 				})
 			}
 
@@ -326,6 +340,7 @@ func (a *DCAnalyzer) performAnalysis(events []*types.Event) *DCAnalysis {
 						Severity:    "medium",
 						Description: "Privileged account logged in via network to DC",
 						EventID:     4624,
+						Event:       e,
 					})
 				}
 			}
@@ -340,6 +355,7 @@ func (a *DCAnalyzer) performAnalysis(events []*types.Event) *DCAnalysis {
 					Severity:    "info",
 					Description: "TGT requested for krbtgt account",
 					EventID:     4768,
+					Event:       e,
 				})
 			}
 		}
@@ -515,12 +531,25 @@ func (a *DCAnalyzer) detectAnomalies(analysis *DCAnalysis) []Finding {
 	findings := make([]Finding, 0)
 
 	if analysis.DCSyncAttempts > 0 {
+		evidence := make([]EvidenceItem, 0)
+		for _, anomaly := range analysis.Anomalies {
+			if anomaly.Event != nil && (anomaly.Type == "Sensitive Attribute Modification" || anomaly.Type == "Replication Operation") {
+				evidence = append(evidence, EvidenceItem{
+					EventID:   anomaly.Event.EventID,
+					Timestamp: anomaly.Event.Timestamp.Format(time.RFC3339),
+					User:      a.getSubjectUser(anomaly.Event),
+					Computer:  anomaly.Event.Computer,
+					Message:   anomaly.Event.Message,
+				})
+			}
+		}
 		findings = append(findings, Finding{
 			Description: "Possible DCSync attack detected - replication of sensitive AD data",
 			RuleName:    "DC - DCSync Attack",
 			MitreAttack: "T1003.006",
 			Severity:    "critical",
 			Score:       95,
+			Evidence:    evidence,
 			Metadata: map[string]interface{}{
 				"count": analysis.DCSyncAttempts,
 			},
@@ -528,12 +557,25 @@ func (a *DCAnalyzer) detectAnomalies(analysis *DCAnalysis) []Finding {
 	}
 
 	if analysis.SensitiveGroupOps > 0 {
+		evidence := make([]EvidenceItem, 0)
+		for _, anomaly := range analysis.Anomalies {
+			if anomaly.Event != nil && (anomaly.Type == "Sensitive Group Addition" || anomaly.Type == "Sensitive Group Removal") {
+				evidence = append(evidence, EvidenceItem{
+					EventID:   anomaly.Event.EventID,
+					Timestamp: anomaly.Event.Timestamp.Format(time.RFC3339),
+					User:      a.getSubjectUser(anomaly.Event),
+					Computer:  anomaly.Event.Computer,
+					Message:   anomaly.Event.Message,
+				})
+			}
+		}
 		findings = append(findings, Finding{
 			Description: "Sensitive group membership changes detected",
 			RuleName:    "DC - Sensitive Group Modification",
 			MitreAttack: "T1078.004",
 			Severity:    "critical",
 			Score:       90,
+			Evidence:    evidence,
 			Metadata: map[string]interface{}{
 				"count": analysis.SensitiveGroupOps,
 			},
@@ -541,12 +583,25 @@ func (a *DCAnalyzer) detectAnomalies(analysis *DCAnalysis) []Finding {
 	}
 
 	if analysis.PrivilegeAdds > 0 {
+		evidence := make([]EvidenceItem, 0)
+		for _, anomaly := range analysis.Anomalies {
+			if anomaly.Event != nil && (anomaly.Type == "Privileged User Creation" || anomaly.Type == "Privileged User Deletion") {
+				evidence = append(evidence, EvidenceItem{
+					EventID:   anomaly.Event.EventID,
+					Timestamp: anomaly.Event.Timestamp.Format(time.RFC3339),
+					User:      a.getSubjectUser(anomaly.Event),
+					Computer:  anomaly.Event.Computer,
+					Message:   anomaly.Event.Message,
+				})
+			}
+		}
 		findings = append(findings, Finding{
 			Description: "Privileged account created or deleted",
 			RuleName:    "DC - Privileged Account Change",
 			MitreAttack: "T1078.004",
 			Severity:    "high",
 			Score:       80,
+			Evidence:    evidence,
 			Metadata: map[string]interface{}{
 				"count": analysis.PrivilegeAdds,
 			},
@@ -554,12 +609,25 @@ func (a *DCAnalyzer) detectAnomalies(analysis *DCAnalysis) []Finding {
 	}
 
 	if analysis.PolicyChanges > 0 {
+		evidence := make([]EvidenceItem, 0)
+		for _, anomaly := range analysis.Anomalies {
+			if anomaly.Event != nil && anomaly.Type == "Directory Service Policy Changed" {
+				evidence = append(evidence, EvidenceItem{
+					EventID:   anomaly.Event.EventID,
+					Timestamp: anomaly.Event.Timestamp.Format(time.RFC3339),
+					User:      a.getSubjectUser(anomaly.Event),
+					Computer:  anomaly.Event.Computer,
+					Message:   anomaly.Event.Message,
+				})
+			}
+		}
 		findings = append(findings, Finding{
 			Description: "Directory service policy changes detected",
 			RuleName:    "DC - Policy Change",
 			MitreAttack: "T1484.001",
 			Severity:    "medium",
 			Score:       60,
+			Evidence:    evidence,
 			Metadata: map[string]interface{}{
 				"count": analysis.PolicyChanges,
 			},
@@ -567,12 +635,27 @@ func (a *DCAnalyzer) detectAnomalies(analysis *DCAnalysis) []Finding {
 	}
 
 	if analysis.DCReplicationOps > 10 {
+		evidence := make([]EvidenceItem, 0)
+		count := 0
+		for _, anomaly := range analysis.Anomalies {
+			if anomaly.Event != nil && count < 5 {
+				evidence = append(evidence, EvidenceItem{
+					EventID:   anomaly.Event.EventID,
+					Timestamp: anomaly.Event.Timestamp.Format(time.RFC3339),
+					User:      a.getSubjectUser(anomaly.Event),
+					Computer:  anomaly.Event.Computer,
+					Message:   anomaly.Event.Message,
+				})
+				count++
+			}
+		}
 		findings = append(findings, Finding{
 			Description: "High number of directory replication operations",
 			RuleName:    "DC - Replication Flood",
 			MitreAttack: "T1003.006",
 			Severity:    "medium",
 			Score:       50,
+			Evidence:    evidence,
 			Metadata: map[string]interface{}{
 				"count": analysis.DCReplicationOps,
 			},

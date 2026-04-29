@@ -36,8 +36,9 @@ func NewMonitorHandler(engine *monitor.MonitorEngine) *MonitorHandler {
 }
 
 func (h *MonitorHandler) GetStats(c *gin.Context) {
+	log.Printf("[MONITOR] GetStats called")
 	if h.engine == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"stats": &types.MonitorStats{IsRunning: false}})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"stats": &types.MonitorStats{IsCollecting: false}})
 		return
 	}
 	stats := h.engine.GetStats()
@@ -47,6 +48,8 @@ func (h *MonitorHandler) GetStats(c *gin.Context) {
 }
 
 func (h *MonitorHandler) ListEvents(c *gin.Context) {
+	log.Printf("[MONITOR] ListEvents called: type=%s, severity=%s, limit=%s, offset=%s",
+		c.Query("type"), c.Query("severity"), c.Query("limit"), c.Query("offset"))
 	if h.engine == nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{
 			"events": []*types.MonitorEvent{},

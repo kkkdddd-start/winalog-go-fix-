@@ -90,6 +90,7 @@ type KerberosAnomaly struct {
 	Description string
 	TicketType  string
 	Lifetime    int
+	Event       *types.Event
 }
 
 func (a *KerberosAnalyzer) Analyze(events []*types.Event) (*Result, error) {
@@ -129,6 +130,7 @@ func (a *KerberosAnalyzer) performAnalysis(events []*types.Event) *KerberosAnaly
 					Description: "TGT with suspicious lifetime or encryption detected",
 					TicketType:  "TGT",
 					Lifetime:    a.getTicketLifetime(e),
+					Event:       e,
 				})
 			}
 
@@ -144,6 +146,7 @@ func (a *KerberosAnalyzer) performAnalysis(events []*types.Event) *KerberosAnaly
 					Severity:    "high",
 					Description: "TGS request for user account - possible Kerberoasting attack",
 					TicketType:  "TGS",
+					Event:       e,
 				})
 			}
 			if a.isSilverTicket(e) {
@@ -156,6 +159,7 @@ func (a *KerberosAnalyzer) performAnalysis(events []*types.Event) *KerberosAnaly
 					Severity:    "high",
 					Description: "TGS request with suspicious service - possible Silver Ticket",
 					TicketType:  "TGS",
+					Event:       e,
 				})
 			}
 
@@ -171,6 +175,7 @@ func (a *KerberosAnalyzer) performAnalysis(events []*types.Event) *KerberosAnaly
 					Severity:    "medium",
 					Description: "Failed Kerberos preauthentication - possible brute force or AS-REP Roasting",
 					TicketType:  "AS-REQ",
+					Event:       e,
 				})
 			}
 
@@ -184,6 +189,7 @@ func (a *KerberosAnalyzer) performAnalysis(events []*types.Event) *KerberosAnaly
 				Severity:    "high",
 				Description: "AS-REP ticket modification detected - possible AS-REP Roasting",
 				TicketType:  "AS-REP",
+				Event:       e,
 			})
 		}
 	}
@@ -311,7 +317,19 @@ func (a *KerberosAnalyzer) detectAnomalies(analysis *KerberosAnalysis) []Finding
 	findings := make([]Finding, 0)
 
 	if analysis.GoldenTickets > 0 {
-		findings = append(findings, Finding{
+		var evidence []EvidenceItem
+		for _, a := range analysis.Anomalies {
+			if a.Type == "Golden Ticket" && a.Event != nil {
+				evidence = append(evidence, EvidenceItem{
+					EventID:   a.Event.EventID,
+					Timestamp: a.Event.Timestamp.Format(time.RFC3339),
+					User:      a.User,
+					Computer:  a.Event.Computer,
+					Message:   a.Event.Message,
+				})
+			}
+		}
+		f := Finding{
 			Description: "Possible Golden Ticket attack detected - TGT with suspicious lifetime",
 			RuleName:    "Kerberos - Golden Ticket",
 			MitreAttack: "T1558.001",
@@ -320,11 +338,27 @@ func (a *KerberosAnalyzer) detectAnomalies(analysis *KerberosAnalysis) []Finding
 			Metadata: map[string]interface{}{
 				"count": analysis.GoldenTickets,
 			},
-		})
+		}
+		if len(evidence) > 0 {
+			f.Evidence = evidence
+		}
+		findings = append(findings, f)
 	}
 
 	if analysis.SilverTickets > 0 {
-		findings = append(findings, Finding{
+		var evidence []EvidenceItem
+		for _, a := range analysis.Anomalies {
+			if a.Type == "Silver Ticket" && a.Event != nil {
+				evidence = append(evidence, EvidenceItem{
+					EventID:   a.Event.EventID,
+					Timestamp: a.Event.Timestamp.Format(time.RFC3339),
+					User:      a.User,
+					Computer:  a.Event.Computer,
+					Message:   a.Event.Message,
+				})
+			}
+		}
+		f := Finding{
 			Description: "Possible Silver Ticket attack detected",
 			RuleName:    "Kerberos - Silver Ticket",
 			MitreAttack: "T1558.002",
@@ -333,11 +367,27 @@ func (a *KerberosAnalyzer) detectAnomalies(analysis *KerberosAnalysis) []Finding
 			Metadata: map[string]interface{}{
 				"count": analysis.SilverTickets,
 			},
-		})
+		}
+		if len(evidence) > 0 {
+			f.Evidence = evidence
+		}
+		findings = append(findings, f)
 	}
 
 	if analysis.Kerberoasting > 0 {
-		findings = append(findings, Finding{
+		var evidence []EvidenceItem
+		for _, a := range analysis.Anomalies {
+			if a.Type == "Kerberoasting" && a.Event != nil {
+				evidence = append(evidence, EvidenceItem{
+					EventID:   a.Event.EventID,
+					Timestamp: a.Event.Timestamp.Format(time.RFC3339),
+					User:      a.User,
+					Computer:  a.Event.Computer,
+					Message:   a.Event.Message,
+				})
+			}
+		}
+		f := Finding{
 			Description: "Kerberoasting attack detected - TGS requests for service accounts",
 			RuleName:    "Kerberos - Kerberoasting",
 			MitreAttack: "T1558.003",
@@ -346,11 +396,27 @@ func (a *KerberosAnalyzer) detectAnomalies(analysis *KerberosAnalysis) []Finding
 			Metadata: map[string]interface{}{
 				"count": analysis.Kerberoasting,
 			},
-		})
+		}
+		if len(evidence) > 0 {
+			f.Evidence = evidence
+		}
+		findings = append(findings, f)
 	}
 
 	if analysis.FailedPreauth > 10 {
-		findings = append(findings, Finding{
+		var evidence []EvidenceItem
+		for _, a := range analysis.Anomalies {
+			if a.Type == "Failed Preauthentication" && a.Event != nil {
+				evidence = append(evidence, EvidenceItem{
+					EventID:   a.Event.EventID,
+					Timestamp: a.Event.Timestamp.Format(time.RFC3339),
+					User:      a.User,
+					Computer:  a.Event.Computer,
+					Message:   a.Event.Message,
+				})
+			}
+		}
+		f := Finding{
 			Description: "High number of failed Kerberos preauthentication attempts",
 			RuleName:    "Kerberos - Failed Preauth Flood",
 			MitreAttack: "T1558.004",
@@ -359,7 +425,11 @@ func (a *KerberosAnalyzer) detectAnomalies(analysis *KerberosAnalysis) []Finding
 			Metadata: map[string]interface{}{
 				"count": analysis.FailedPreauth,
 			},
-		})
+		}
+		if len(evidence) > 0 {
+			f.Evidence = evidence
+		}
+		findings = append(findings, f)
 	}
 
 	return findings
