@@ -55,7 +55,7 @@ func DefaultChannels() []ChannelConfig {
 
 func BuildEventQuery(channelName string, eventIDs string) string {
 	if eventIDs == "" {
-		return "*"
+		return ""
 	}
 
 	ids := strings.Split(eventIDs, ",")
