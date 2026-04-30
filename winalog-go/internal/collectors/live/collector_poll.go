@@ -214,10 +214,16 @@ func (c *EvtPollCollector) queryEvents(channelName, eventIDs string) ([]*types.E
 	session := windows.Handle(0)
 	flags := uintptr(EvtQueryChannelPath | EvtQueryForwardDirection)
 
+	var queryArg uintptr
+	if queryPtr != nil {
+		queryArg = uintptr(unsafe.Pointer(queryPtr))
+	}
+	// When queryPtr is nil (no filter), pass 0 (C NULL) explicitly
+
 	queryHandle, _, err := procEvtQuery.Call(
 		uintptr(session),
 		uintptr(unsafe.Pointer(channelPtr)),
-		uintptr(unsafe.Pointer(queryPtr)),
+		queryArg,
 		uintptr(flags),
 	)
 
