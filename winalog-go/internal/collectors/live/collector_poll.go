@@ -196,10 +196,7 @@ func (c *EvtPollCollector) poll() {
 func (c *EvtPollCollector) queryEvents(channelName, eventIDs string) ([]*types.Event, error) {
 	query := BuildEventQuery(channelName, eventIDs)
 
-	if eventIDs == "" {
-		log.Printf("[DEBUG] [EvtPollCollector] queryEvents: skipping channel %s - no event IDs configured", channelName)
-		return []*types.Event{}, nil
-	}
+	log.Printf("[DEBUG] [EvtPollCollector] queryEvents: channel=%s, eventIDs=%q, query=%s", channelName, eventIDs, query)
 
 	channelPtr, err := windows.UTF16PtrFromString(channelName)
 	if err != nil {
