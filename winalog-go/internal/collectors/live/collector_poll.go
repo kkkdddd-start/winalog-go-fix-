@@ -155,8 +155,11 @@ func (c *EvtPollCollector) run() {
 
 func (c *EvtPollCollector) poll() {
 	if !c.isRunning.Load() {
+		log.Printf("[DEBUG] [EvtPollCollector] poll() skipped: not running")
 		return
 	}
+
+	log.Printf("[DEBUG] [EvtPollCollector] poll() started, isRunning=true")
 
 	c.mu.RLock()
 	channels := c.channels
@@ -168,20 +171,26 @@ func (c *EvtPollCollector) poll() {
 		}
 
 		if !c.isRunning.Load() {
+			log.Printf("[DEBUG] [EvtPollCollector] poll() interrupted: not running")
 			return
 		}
 
 		events, err := c.queryEvents(channel.Name, channel.EventIDs)
 		if err != nil {
 			observability.LogServiceError("EvtPollCollector", fmt.Sprintf("queryEvents failed for %s: %v", channel.Name, err))
+			log.Printf("[DEBUG] [EvtPollCollector] queryEvents error for channel %s: %v", channel.Name, err)
 			continue
 		}
+
+		log.Printf("[DEBUG] [EvtPollCollector] queryEvents returned %d events from %s (query: %s)", len(events), channel.Name, BuildEventQuery(channel.Name, channel.EventIDs))
 
 		if len(events) > 0 {
 			c.buffer.AddBatch(events)
 			log.Printf("[DEBUG] [EvtPollCollector] Collected %d events from %s", len(events), channel.Name)
 		}
 	}
+
+	log.Printf("[DEBUG] [EvtPollCollector] poll() completed")
 }
 
 func (c *EvtPollCollector) queryEvents(channelName, eventIDs string) ([]*types.Event, error) {
@@ -212,11 +221,14 @@ func (c *EvtPollCollector) queryEvents(channelName, eventIDs string) ([]*types.E
 
 	if queryHandle == 0 {
 		errCode := windows.GetLastError()
+		log.Printf("[DEBUG] [EvtPollCollector] queryEvents: EvtQuery FAILED for channel=%s, query=%s, errCode=%d", channelName, query, errCode)
 		if eventIDs == "" {
 			return nil, fmt.Errorf("EvtQuery failed for channel %s: %d", channelName, errCode)
 		}
 		return nil, fmt.Errorf("EvtQuery failed for channel %s with query '%s': %d", channelName, query, errCode)
 	}
+
+	log.Printf("[DEBUG] [EvtPollCollector] queryEvents: EvtQuery SUCCESS for channel=%s, query=%s", channelName, query)
 
 	defer procEvtClose.Call(queryHandle)
 
@@ -232,6 +244,8 @@ func (c *EvtPollCollector) fetchEvents(queryHandle windows.Handle) ([]*types.Eve
 	events := make([]*types.Event, 0)
 	eventHandles := make([]windows.Handle, 256)
 
+	log.Printf("[DEBUG] [EvtPollCollector] fetchEvents: starting to fetch events")
+
 	for {
 		var returned uint32
 
@@ -245,14 +259,20 @@ func (c *EvtPollCollector) fetchEvents(queryHandle windows.Handle) ([]*types.Eve
 
 		if ret == 0 {
 			errCode := windows.GetLastError()
+			log.Printf("[DEBUG] [EvtPollCollector] fetchEvents: EvtNext returned 0, errCode=%d, err=%v", errCode, err)
 			if errCode == windows.ERROR_NO_MORE_ITEMS {
+				log.Printf("[DEBUG] [EvtPollCollector] fetchEvents: ERROR_NO_MORE_ITEMS - no more events")
 				break
 			}
-			if strings.Contains(err.Error(), "operation completed") {
+			if err != nil && strings.Contains(err.Error(), "operation completed") {
+				log.Printf("[DEBUG] [EvtPollCollector] fetchEvents: operation completed")
 				break
 			}
+			log.Printf("[DEBUG] [EvtPollCollector] fetchEvents: EvtNext failed with errCode=%d, breaking", errCode)
 			break
 		}
+
+		log.Printf("[DEBUG] [EvtPollCollector] fetchEvents: EvtNext returned %d events", returned)
 
 		for i := 0; i < int(returned); i++ {
 			event := renderEvent(eventHandles[i])
@@ -268,6 +288,7 @@ func (c *EvtPollCollector) fetchEvents(queryHandle windows.Handle) ([]*types.Eve
 		}
 	}
 
+	log.Printf("[DEBUG] [EvtPollCollector] fetchEvents: total collected %d events", len(events))
 	return events, nil
 }
 
