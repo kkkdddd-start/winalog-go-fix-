@@ -260,9 +260,10 @@ func (c *EvtPollCollector) fetchEvents(queryHandle windows.Handle) ([]*types.Eve
 
 		ret, _, err := procEvtNext.Call(
 			uintptr(queryHandle),
-			uintptr(1000),
-			0,
 			uintptr(unsafe.Pointer(&eventHandles[0])),
+			uintptr(len(eventHandles)),
+			uintptr(5000),
+			0,
 			uintptr(unsafe.Pointer(&returned)),
 		)
 
