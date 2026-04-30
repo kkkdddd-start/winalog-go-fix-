@@ -196,6 +196,11 @@ func (c *EvtPollCollector) poll() {
 func (c *EvtPollCollector) queryEvents(channelName, eventIDs string) ([]*types.Event, error) {
 	query := BuildEventQuery(channelName, eventIDs)
 
+	if eventIDs == "" {
+		log.Printf("[DEBUG] [EvtPollCollector] queryEvents: skipping channel %s - no event IDs configured", channelName)
+		return []*types.Event{}, nil
+	}
+
 	channelPtr, err := windows.UTF16PtrFromString(channelName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert channel name: %w", err)
@@ -221,11 +226,12 @@ func (c *EvtPollCollector) queryEvents(channelName, eventIDs string) ([]*types.E
 
 	if queryHandle == 0 {
 		errCode := windows.GetLastError()
-		log.Printf("[DEBUG] [EvtPollCollector] queryEvents: EvtQuery FAILED for channel=%s, query=%s, errCode=%d", channelName, query, errCode)
-		if eventIDs == "" {
-			return nil, fmt.Errorf("EvtQuery failed for channel %s: %d", channelName, errCode)
+		if errCode != nil {
+			log.Printf("[DEBUG] [EvtPollCollector] queryEvents: EvtQuery FAILED for channel=%s, query=%s, err=%v", channelName, query, errCode)
+		} else {
+			log.Printf("[DEBUG] [EvtPollCollector] queryEvents: EvtQuery FAILED for channel=%s, query=%s, err=nil (unknown)", channelName, query)
 		}
-		return nil, fmt.Errorf("EvtQuery failed for channel %s with query '%s': %d", channelName, query, errCode)
+		return nil, fmt.Errorf("EvtQuery failed for channel %s with query '%s'", channelName, query)
 	}
 
 	log.Printf("[DEBUG] [EvtPollCollector] queryEvents: EvtQuery SUCCESS for channel=%s, query=%s", channelName, query)
