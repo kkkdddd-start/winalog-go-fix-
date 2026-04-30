@@ -57,6 +57,9 @@ function UEBA() {
   const [profiles, setProfiles] = useState<UserProfile[]>([])
   const [activeTab, setActiveTab] = useState<'analyze' | 'profiles'>('analyze')
   const [hours, setHours] = useState(24)
+  const [useCustomDate, setUseCustomDate] = useState(false)
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   const [error, setError] = useState('')
   const [expandedAnomaly, setExpandedAnomaly] = useState<number | null>(null)
 
@@ -64,7 +67,14 @@ function UEBA() {
     setLoading(true)
     setError('')
     try {
-      const res = await uebaAPI.analyze({ hours })
+      const params: { hours?: number; start_time?: string; end_time?: string } = {}
+      if (useCustomDate && startDate && endDate) {
+        params.start_time = new Date(startDate).toISOString()
+        params.end_time = new Date(endDate).toISOString()
+      } else {
+        params.hours = hours
+      }
+      const res = await uebaAPI.analyze(params)
       setResult(res.data)
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to run UEBA analysis')
@@ -174,14 +184,43 @@ function UEBA() {
                 {timeWindows.map(tw => (
                   <button
                     key={tw.value}
-                    className={hours === tw.value ? 'active' : ''}
-                    onClick={() => setHours(tw.value)}
+                    className={!useCustomDate && hours === tw.value ? 'active' : ''}
+                    onClick={() => { setHours(tw.value); setUseCustomDate(false); }}
                   >
                     {tw.label}
                   </button>
                 ))}
+                <button
+                  className={useCustomDate ? 'active' : ''}
+                  onClick={() => setUseCustomDate(true)}
+                >
+                  自定义
+                </button>
               </div>
             </div>
+
+            {useCustomDate && (
+              <div className="custom-date-range">
+                <div className="date-input-group">
+                  <label>开始日期</label>
+                  <input
+                    type="datetime-local"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="date-input"
+                  />
+                </div>
+                <div className="date-input-group">
+                  <label>结束日期</label>
+                  <input
+                    type="datetime-local"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="date-input"
+                  />
+                </div>
+              </div>
+            )}
 
             <button
               onClick={handleAnalyze}

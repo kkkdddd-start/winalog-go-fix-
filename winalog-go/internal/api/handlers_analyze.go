@@ -348,6 +348,14 @@ func (h *AnalyzeHandler) GetRule(c *gin.Context) {
 
 	ruleName = strings.ReplaceAll(ruleName, "-", "_")
 
+	// Handle aliases
+	aliasMap := map[string]string{
+		"domain_controller": "dc",
+	}
+	if actualName, ok := aliasMap[ruleName]; ok {
+		ruleName = actualName
+	}
+
 	rule, exists := h.ruleConfigs[ruleName]
 	if !exists {
 		c.JSON(http.StatusNotFound, ErrorResponse{Error: "rule not found: " + ruleName})
@@ -387,6 +395,14 @@ func (h *AnalyzeHandler) UpdateRule(c *gin.Context) {
 	}
 
 	ruleName = strings.ReplaceAll(ruleName, "-", "_")
+
+	// Handle aliases
+	aliasMap := map[string]string{
+		"domain_controller": "dc",
+	}
+	if actualName, ok := aliasMap[ruleName]; ok {
+		ruleName = actualName
+	}
 
 	var req AnalyzerRuleUpdate
 	if err := c.ShouldBindJSON(&req); err != nil {

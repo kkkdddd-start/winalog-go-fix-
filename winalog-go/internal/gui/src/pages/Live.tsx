@@ -35,14 +35,6 @@ function Live() {
       const data = await fetchChannels()
       if (data.length > 0) {
         setChannels(data)
-      } else {
-        setChannels([
-          { name: 'Security', description: '安全日志', event_ids: '4624,4625,4672,4688,4698', enabled: true },
-          { name: 'System', description: '系统日志', event_ids: '6005,6006,7045', enabled: false },
-          { name: 'Application', description: '应用程序', event_ids: '1000,1001', enabled: false },
-          { name: 'Microsoft-Windows-Sysmon/Operational', description: 'Sysmon', event_ids: '1,3,6,7,8,11', enabled: false },
-          { name: 'Microsoft-Windows-PowerShell/Operational', description: 'PowerShell', event_ids: '4103,4104', enabled: false },
-        ])
       }
     }
     loadChannels()

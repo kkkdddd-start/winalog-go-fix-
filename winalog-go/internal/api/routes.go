@@ -55,11 +55,13 @@ func SetupRoutes(r *gin.Engine, alertHandler *AlertHandler, importHandler *Impor
 			live.GET("/channels", liveHandler.GetLiveChannels)
 			live.POST("/channels", liveHandler.UpdateLiveChannels)
 			live.GET("/channels/available", liveHandler.GetAvailableChannels)
-			live.GET("/stream", liveHandler.Stream)
 			live.GET("/events", liveHandler.GetLiveEvents)
 			live.DELETE("/events", liveHandler.ClearLiveEvents)
 			live.GET("/events/export", liveHandler.ExportLiveEvents)
 			live.GET("/monitoring-stats", liveHandler.GetLiveMonitoringStats)
+			live.POST("/start", liveHandler.StartLiveMonitoring)
+			live.POST("/stop", liveHandler.StopLiveMonitoring)
+			live.GET("/state-log", liveHandler.GetStateTransitionLog)
 		}
 
 		dashboard := api.Group("/dashboard")

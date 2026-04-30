@@ -116,6 +116,11 @@ func (s *Server) setupHandlers() {
 	monitorEngine, err := monitor.NewMonitorEngine("monitor-config.json")
 	if err == nil {
 		s.monitorEng = monitorApi.NewMonitorHandler(monitorEngine)
+		log.Println("[MONITOR] Live monitoring engine initialized successfully")
+		log.Println("[MONITOR] Monitor routes registered: GET /api/monitor/stats, GET /api/monitor/events, POST /api/monitor/config")
+	} else {
+		log.Printf("[MONITOR] Failed to initialize live monitoring engine: %v", err)
+		log.Println("[MONITOR] Live monitoring is disabled - this is expected on non-Windows systems")
 	}
 }
 

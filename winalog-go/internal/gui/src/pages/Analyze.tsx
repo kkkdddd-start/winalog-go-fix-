@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useI18n } from '../locales/I18n'
 import { analyzeAPI } from '../api'
+import analyzerDocs from '../docs/analyzers.md?raw'
 
 interface Finding {
   description: string
@@ -64,21 +65,206 @@ const analyzerIcons: Record<string, string> = {
 }
 
 const findingDescMap: Record<string, Record<string, string>> = {
-  'en': {
-    'Possible compromised account due to successful login after multiple failures': '可能因多次登录失败后成功登录而导致账户被盗',
-    'High number of failed login attempts': '大量登录失败尝试',
-    'Suspicious IP with high failed login count targeting multiple users': '可疑IP大量登录失败尝试并针对多个用户',
-  },
+  'en': {},
   'zh': {
+    // Brute Force
     'Possible compromised account due to successful login after multiple failures': '可能因多次登录失败后成功登录而导致账户被盗',
     'High number of failed login attempts': '大量登录失败尝试',
     'Suspicious IP with high failed login count targeting multiple users': '可疑IP大量登录失败尝试并针对多个用户',
+
+    // Login
+    'Low login success rate indicates potential attack': '登录成功率低表明可能存在攻击',
+    'High number of failed login attempts - possible brute force': '大量登录失败尝试 - 可能存在暴力破解',
+    'Multiple RDP connections detected': '检测到多个RDP连接',
+    'Multiple logins from different locations in short time': '短时间内多次从不同位置登录',
+    'Login outside working hours': '工作时间外登录',
+    'Successful login from unusual source or time': '来自异常来源或时间的成功登录',
+    'Failed login attempt - possible brute force': '登录失败尝试 - 可能存在暴力破解',
+
+    // Kerberos
+    'TGT with suspicious lifetime or encryption detected': '检测到生命周期或加密异常的TGT票据',
+    'TGS request for user account - possible Kerberoasting attack': '用户账户的TGS请求 - 可能存在Kerberoasting攻击',
+    'TGS request with suspicious service - possible Silver Ticket': '可疑服务的TGS请求 - 可能存在Silver Ticket攻击',
+    'Failed Kerberos preauthentication - possible brute force or AS-REP Roasting': 'Kerberos预认证失败 - 可能存在暴力破解或AS-REP Roasting攻击',
+    'AS-REP ticket modification detected - possible AS-REP Roasting': '检测到AS-REP票据修改 - 可能存在AS-REP Roasting攻击',
+    'Possible Golden Ticket attack detected - TGT with suspicious lifetime': '可能检测到Golden Ticket攻击 - TGT生命周期异常',
+    'Possible Silver Ticket attack detected': '可能检测到Silver Ticket攻击',
+    'Kerberoasting attack detected - TGS requests for service accounts': '检测到Kerberoasting攻击 - 服务账户的TGS请求',
+    'High number of failed Kerberos preauthentication attempts': '大量Kerberos预认证失败尝试',
+
+    // PowerShell
+    'PowerShell encoded command detected - common in attacks': '检测到PowerShell编码命令 - 常见于攻击活动',
+    'Suspicious PowerShell script detected - possible attacker tool': '检测到可疑PowerShell脚本 - 可能为攻击工具',
+    'PowerShell encoded command detected': '检测到PowerShell编码命令',
+
+    // Lateral Movement
+    'Suspicious RDP login from external IP': '来自外部IP的可疑RDP登录',
+    'PSExec-like process execution detected': '检测到类似PSExec的进程执行',
+    'WMI remote execution detected': '检测到WMI远程执行',
+    'Logon with explicit credentials - possible lateral movement': '使用显式凭据登录 - 可能存在横向移动',
+
+    // Persistence
+    'Multiple user accounts created in short period - possible account creation attack': '短时间内创建多个用户账户 - 可能存在账户创建攻击',
+    'Suspicious service installed': '检测到可疑服务安装',
+    'New service installed': '检测到新服务安装',
+    'Scheduled task created': '检测到计划任务创建',
+    'User added to privileged group': '用户被添加到特权组',
+    'User removed from privileged group': '用户从特权组移除',
+
+    // Privilege Escalation
+    'User assigned multiple sensitive privileges - potential privilege escalation': '用户被分配多个敏感权限 - 可能存在权限提升',
+    'User heavily using sensitive privileges': '用户大量使用敏感权限',
+    'Suspicious process executed multiple times': '可疑进程多次执行',
+    'Multiple cmd.exe processes spawned - possible command execution attack': '多个cmd.exe进程生成 - 可能存在命令执行攻击',
+
+    // Data Exfiltration
+    'Login detected during unusual hours': '检测到异常时间登录',
+    'Process accessing sensitive file extension': '进程访问敏感文件扩展名',
+    'Suspicious keyword detected': '检测到可疑关键字',
+    'File copy to removable media detected': '检测到文件复制到可移动媒体',
+
+    // Domain Controller
+    'Privileged user account created': '特权用户账户被创建',
+    'Privileged user account deleted': '特权用户账户被删除',
+    'Privileged account created or deleted': '特权账户被创建或删除',
+    'User added to sensitive group': '用户被添加到敏感组',
+    'User removed from sensitive group': '用户从敏感组移除',
+    'Modification of sensitive attribute': '敏感属性被修改',
+    'Directory object access related to replication': '与复制相关的目录对象访问',
+    'AD object moved in directory': '目录中的AD对象被移动',
+    'Access to sensitive network share': '访问敏感网络共享',
+    'Sensitive privilege assigned': '敏感权限被分配',
+    'Krbtgt account password changed - verify if authorized': 'Krbtgt账户密码被更改 - 请验证是否为授权操作',
+    'Directory service policy was modified': '目录服务策略被修改',
+    'Directory object was accessed': '目录对象被访问',
+    'Failed logon attempt to privileged account': '特权账户登录失败尝试',
+    'Privileged account logged in via network to DC': '特权账户通过网络登录到域控制器',
+    'TGT requested for krbtgt account': '为krbtgt账户请求了TGT',
+    'Possible DCSync attack detected - replication of sensitive AD data': '可能检测到DCSync攻击 - 敏感AD数据复制',
+    'Sensitive group membership changes detected': '检测到敏感组成员的变更',
+    'Directory service policy changes detected': '检测到目录服务策略变更',
+    'High number of directory replication operations': '大量目录复制操作',
+
+    // MITRE ATT&CK mappings (displayed as tooltip)
+    'T1059.001': 'MITRE ATT&CK T1059.001: PowerShell',
+    'T1021.001': 'MITRE ATT&CK T1021.001: RDP',
+    'T1021.002': 'MITRE ATT&CK T1021.002: PSExec',
+    'T1047': 'MITRE ATT&CK T1047: WMI',
+    'T1078.004': 'MITRE ATT&CK T1078.004: 有效账户',
+    'T1543': 'MITRE ATT&CK T1543: 创建/修改系统进程',
+    'T1053': 'MITRE ATT&CK T1053: 计划任务',
+    'T1098': 'MITRE ATT&CK T1098: 账户操纵',
+    'T1003.006': 'MITRE ATT&CK T1003.006: DCSync',
+    'T1484.001': 'MITRE ATT&CK T1484.001: 域策略修改',
   },
 }
 
 const getLocalizedFindingDesc = (desc: string, locale: string = 'zh'): string => {
   const lang = locale.startsWith('zh') ? 'zh' : 'en'
-  return findingDescMap[lang][desc] || desc
+
+  // Direct match
+  if (findingDescMap[lang][desc]) {
+    return findingDescMap[lang][desc]
+  }
+
+  // Handle dynamic descriptions with prefixes
+  const prefixes: Record<string, string> = {
+    // PowerShell
+    'Suspicious PowerShell script detected: ': '检测到可疑PowerShell脚本: ',
+    'Suspicious script detected: ': '检测到可疑脚本: ',
+
+    // Persistence
+    'Suspicious service installed: ': '检测到可疑服务安装: ',
+    'New service installed: ': '检测到新服务安装: ',
+    'Scheduled task created: ': '检测到计划任务创建: ',
+    'User added to privileged group: ': '用户被添加到特权组: ',
+    'User removed from privileged group: ': '用户从特权组移除: ',
+    'User added to sensitive group: ': '用户被添加到敏感组: ',
+    'User removed from sensitive group: ': '用户从敏感组移除: ',
+
+    // Privilege Escalation
+    'User heavily using sensitive privileges: ': '用户大量使用敏感权限: ',
+    'Suspicious process executed multiple times: ': '可疑进程多次执行: ',
+
+    // Data Exfiltration
+    'Process accessing sensitive file extension: ': '进程访问敏感文件扩展名: ',
+    'Suspicious keyword detected: ': '检测到可疑关键字: ',
+
+    // DC
+    'Modification of sensitive attribute: ': '敏感属性被修改: ',
+    'Sensitive privilege assigned: ': '敏感权限被分配: ',
+
+    // Other
+    'Possible DCSync attack: ': '可能存在DCSync攻击: ',
+  }
+
+  for (const [prefix, translation] of Object.entries(prefixes)) {
+    if (desc.startsWith(prefix)) {
+      const dynamicPart = desc.substring(prefix.length)
+      return translation + dynamicPart
+    }
+  }
+
+  // If no translation found, return original
+  return desc
+}
+
+const analyzerIdMap: Record<string, string> = {
+  'brute_force': '1',
+  'login': '2',
+  'kerberos': '3',
+  'powershell': '4',
+  'lateral_movement': '5',
+  'persistence': '6',
+  'privilege_escalation': '7',
+  'data_exfiltration': '8',
+  'dc': '9',
+  'domain_controller': '9',
+}
+
+const parseAnalyzerDoc = (markdown: string, analyzerId: string): string => {
+  const normalizedId = analyzerId.replace(/-/g, '_')
+  const num = analyzerIdMap[normalizedId] || analyzerIdMap[analyzerId]
+  if (!num) return ''
+
+  const sectionPattern = new RegExp(`##\\s*${num}\\.\\s*[\\s\\S]*?(?=##\\s*\\d+\\.|##\\s*$)`, 'i')
+  const match = markdown.match(sectionPattern)
+  if (match) {
+    return match[0]
+      .replace(/^##\s*\d+\.\s*.*?\n/, '')
+      .replace(/^### /gm, '<h4>')
+      .replace(/^## /gm, '<h3>')
+      .replace(/\n/g, '<br/>')
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/- \*\*(.*?)\*\*/g, '<li><strong>$1</strong>')
+      .replace(/^- /gm, '<li>')
+      .replace(/$/gm, '</li>')
+  }
+  return ''
+}
+
+const AnalyzerInfoPanel = ({ analyzerId, analyzerName, analyzerIcon, onClose }: {
+  analyzerId: string;
+  analyzerName: string;
+  analyzerIcon: string;
+  onClose: () => void;
+}) => {
+  const doc = parseAnalyzerDoc(analyzerDocs, analyzerId)
+
+  if (!doc) return null
+
+  return (
+    <div className="analyzer-info-panel">
+      <div className="info-panel-header">
+        <div className="info-panel-title">
+          <span className="analyzer-icon">{analyzerIcon}</span>
+          <span>{analyzerName}</span>
+        </div>
+        <button className="info-panel-close" onClick={onClose}>×</button>
+      </div>
+      <div className="info-panel-content" dangerouslySetInnerHTML={{ __html: doc }} />
+    </div>
+  )
 }
 
 const analyzerCategories = [
@@ -111,6 +297,7 @@ function Analyze() {
   const [findingsPageSize] = useState(10)
   const [showOriginalLang, setShowOriginalLang] = useState(false)
   const [expandedFinding, setExpandedFinding] = useState<number | null>(null)
+  const [showAnalyzerInfo, setShowAnalyzerInfo] = useState(false)
 
   const analyzers: Analyzer[] = [
     { id: 'brute_force', name: t('analyze.bruteForce'), desc: t('analyze.bruteForceDesc'), icon: analyzerIcons['brute-force'], category: 'authentication', recommended: true },
@@ -123,6 +310,8 @@ function Analyze() {
     { id: 'privilege_escalation', name: t('analyze.privilegeEscalation'), desc: t('analyze.privilegeEscalationDesc'), icon: analyzerIcons['privilege-escalation'], category: 'privilege-escalation', recommended: false },
     { id: 'domain_controller', name: t('analyze.domainController'), desc: t('analyze.domainControllerDesc'), icon: analyzerIcons['dc'], category: 'domain-services', recommended: false },
   ]
+
+  const selectedAnalyzerData = analyzers.find(a => a.id === selectedAnalyzer)
 
   const handleRun = async () => {
     setLoading(true)
@@ -284,6 +473,13 @@ function Analyze() {
               <div className="selected-analyzer-display">
                 <span className="analyzer-icon">{analyzerIcons[selectedAnalyzer]}</span>
                 <span>{analyzers.find(a => a.id === selectedAnalyzer)?.name}</span>
+                <button
+                  className="btn-info"
+                  onClick={() => setShowAnalyzerInfo(!showAnalyzerInfo)}
+                  title="查看分析器详情"
+                >
+                  {showAnalyzerInfo ? '隐藏详情' : '查看详情'}
+                </button>
               </div>
             </div>
 
@@ -444,6 +640,15 @@ function Analyze() {
           </div>
         </div>
       </div>
+
+      {showAnalyzerInfo && selectedAnalyzerData && (
+        <AnalyzerInfoPanel
+          analyzerId={selectedAnalyzer}
+          analyzerName={selectedAnalyzerData.name}
+          analyzerIcon={selectedAnalyzerData.icon}
+          onClose={() => setShowAnalyzerInfo(false)}
+        />
+      )}
 
       {result && (
         <div className="results-section">

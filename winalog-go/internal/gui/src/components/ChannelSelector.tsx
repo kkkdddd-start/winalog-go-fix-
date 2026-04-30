@@ -230,84 +230,117 @@ export function ChannelSelector({ channels, onChannelsChange, onSave, saving }: 
         </div>
       )}
 
-      <div className="channel-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        {channels.map((channel, index) => (
-          <div key={channel.name} style={{
-            display: 'grid',
-            gridTemplateColumns: 'auto 1fr auto auto',
-            gap: '12px',
-            alignItems: 'center',
-            padding: '12px 16px',
-            background: channel.enabled ? 'rgba(0, 217, 255, 0.05)' : 'rgba(0, 0, 0, 0.2)',
-            borderRadius: '8px',
-            border: '1px solid',
-            borderColor: channel.enabled ? 'rgba(0, 217, 255, 0.3)' : '#333',
-            transition: 'all 0.2s'
-          }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={channel.enabled}
-                onChange={() => handleToggle(index)}
-                style={{ width: '18px', height: '18px', accentColor: '#00d9ff' }}
-              />
-              <div>
-                <span style={{ color: channel.enabled ? '#fff' : '#888', fontWeight: 500, fontSize: '14px' }}>{channel.name}</span>
-                <span style={{ color: '#6b7280', fontSize: '12px', marginLeft: '8px' }}>{channel.description}</span>
-              </div>
-            </label>
-            <input
-              type="text"
-              className="channel-event-ids"
-              placeholder="事件ID (如: 4624,4625)"
-              value={channel.event_ids}
-              onChange={(e) => handleEventIdsChange(index, e.target.value)}
-              disabled={!channel.enabled}
-              style={{
-                padding: '6px 10px',
-                background: 'rgba(0, 0, 0, 0.3)',
-                border: '1px solid #333',
-                borderRadius: '4px',
-                color: channel.enabled ? '#eee' : '#666',
-                fontSize: '12px',
-                fontFamily: 'monospace',
-                width: '180px',
-                opacity: channel.enabled ? 1 : 0.5
-              }}
-            />
-            {!isSystemChannel(channel.name) && (
-              <span style={{
-                background: 'rgba(245, 158, 11, 0.1)',
-                color: '#f59e0b',
-                padding: '2px 8px',
-                borderRadius: '4px',
-                fontSize: '10px'
-              }}>
-                自定义
-              </span>
-            )}
-            <button
-              onClick={() => handleRemoveChannel(channel.name)}
-              style={{
-                padding: '4px 8px',
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid #ef4444',
-                borderRadius: '4px',
-                color: '#ef4444',
-                cursor: 'pointer',
-                fontSize: '12px'
-              }}
-              title="移除"
-            >
-              删除
-            </button>
-          </div>
-        ))}
-      </div>
-
-      {channels.length === 0 && (
+      {channels.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>
-          暂无配置的日志源，请添加或点击"添加日志源"
+          <div style={{ marginBottom: '12px' }}>暂无配置的日志源，请从下方系统可用日志源中选择或添加自定义日志源</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', maxWidth: '800px', margin: '0 auto' }}>
+            {availableChannels.map(ch => (
+              <div
+                key={ch}
+                onClick={() => {
+                  const added: ChannelConfig = {
+                    name: ch,
+                    description: ch.split('/').pop() || ch,
+                    event_ids: '',
+                    enabled: true,
+                  };
+                  onChannelsChange([...channels, added]);
+                }}
+                style={{
+                  background: 'rgba(0, 217, 255, 0.1)',
+                  padding: '8px 12px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  color: '#00d9ff',
+                  cursor: 'pointer',
+                  border: '1px solid rgba(0, 217, 255, 0.3)',
+                }}
+                title="点击添加此日志源"
+              >
+                {ch.length > 50 ? ch.substring(0, 50) + '...' : ch}
+              </div>
+            ))}
+          </div>
+          {availableChannels.length === 0 && (
+            <div style={{ marginTop: '12px', color: '#666' }}>
+              正在加载可用日志源...
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="channel-list" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {channels.map((channel, index) => (
+            <div key={channel.name} style={{
+              display: 'grid',
+              gridTemplateColumns: 'auto 1fr auto auto',
+              gap: '12px',
+              alignItems: 'center',
+              padding: '12px 16px',
+              background: channel.enabled ? 'rgba(0, 217, 255, 0.05)' : 'rgba(0, 0, 0, 0.2)',
+              borderRadius: '8px',
+              border: '1px solid',
+              borderColor: channel.enabled ? 'rgba(0, 217, 255, 0.3)' : '#333',
+              transition: 'all 0.2s'
+            }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={channel.enabled}
+                  onChange={() => handleToggle(index)}
+                  style={{ width: '18px', height: '18px', accentColor: '#00d9ff' }}
+                />
+                <div>
+                  <span style={{ color: channel.enabled ? '#fff' : '#888', fontWeight: 500, fontSize: '14px' }}>{channel.name}</span>
+                  <span style={{ color: '#6b7280', fontSize: '12px', marginLeft: '8px' }}>{channel.description}</span>
+                </div>
+              </label>
+              <input
+                type="text"
+                className="channel-event-ids"
+                placeholder="事件ID (如: 4624,4625)"
+                value={channel.event_ids}
+                onChange={(e) => handleEventIdsChange(index, e.target.value)}
+                disabled={!channel.enabled}
+                style={{
+                  padding: '6px 10px',
+                  background: 'rgba(0, 0, 0, 0.3)',
+                  border: '1px solid #333',
+                  borderRadius: '4px',
+                  color: channel.enabled ? '#eee' : '#666',
+                  fontSize: '12px',
+                  fontFamily: 'monospace',
+                  width: '180px',
+                  opacity: channel.enabled ? 1 : 0.5
+                }}
+              />
+              {!isSystemChannel(channel.name) && (
+                <span style={{
+                  background: 'rgba(245, 158, 11, 0.1)',
+                  color: '#f59e0b',
+                  padding: '2px 8px',
+                  borderRadius: '4px',
+                  fontSize: '10px'
+                }}>
+                  自定义
+                </span>
+              )}
+              <button
+                onClick={() => handleRemoveChannel(channel.name)}
+                style={{
+                  padding: '4px 8px',
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid #ef4444',
+                  borderRadius: '4px',
+                  color: '#ef4444',
+                  cursor: 'pointer',
+                  fontSize: '12px'
+                }}
+                title="移除"
+              >
+                删除
+              </button>
+            </div>
+          ))}
         </div>
       )}
     </div>

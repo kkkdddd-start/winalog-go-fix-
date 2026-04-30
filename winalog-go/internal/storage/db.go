@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -284,17 +285,21 @@ func (d *DB) Analyze() error {
 }
 
 func (d *DB) GetStats() (*DBStats, error) {
+	log.Printf("[DB] Getting database stats")
 	d.rwMu.RLock()
 	defer d.rwMu.RUnlock()
 	var eventCount, alertCount, importCount int64
 
 	if err := d.conn.QueryRow("SELECT COUNT(*) FROM events").Scan(&eventCount); err != nil {
+		log.Printf("[DB] Failed to count events: %v", err)
 		return nil, fmt.Errorf("failed to count events: %w", err)
 	}
 	if err := d.conn.QueryRow("SELECT COUNT(*) FROM alerts").Scan(&alertCount); err != nil {
+		log.Printf("[DB] Failed to count alerts: %v", err)
 		return nil, fmt.Errorf("failed to count alerts: %w", err)
 	}
 	if err := d.conn.QueryRow("SELECT COUNT(*) FROM import_log").Scan(&importCount); err != nil {
+		log.Printf("[DB] Failed to count imports: %v", err)
 		return nil, fmt.Errorf("failed to count imports: %w", err)
 	}
 
@@ -303,12 +308,14 @@ func (d *DB) GetStats() (*DBStats, error) {
 		dbSize = fi.Size()
 	}
 
-	return &DBStats{
+	stats := &DBStats{
 		EventCount:   eventCount,
 		AlertCount:   alertCount,
 		ImportCount:  importCount,
 		DatabaseSize: dbSize,
-	}, nil
+	}
+	log.Printf("[DB] Stats: events=%d, alerts=%d, imports=%d, size=%d", eventCount, alertCount, importCount, dbSize)
+	return stats, nil
 }
 
 func (d *DB) GetStatsWithContext(ctx context.Context) (*DBStats, error) {
@@ -666,6 +673,7 @@ type LiveEventFilter struct {
 }
 
 func (d *DB) QueryLiveEvents(sinceID int64, limit int, filter *LiveEventFilter) ([]LiveEventRow, int64, int64, error) {
+	log.Printf("[DB] Querying live events: sinceID=%d, limit=%d", sinceID, limit)
 	query := `
 		SELECT id, event_id, timestamp, level, level_name, source, log_name, computer, user, message, provider_name
 		FROM live_events
@@ -749,13 +757,20 @@ func (d *DB) QueryLiveEvents(sinceID int64, limit int, filter *LiveEventFilter) 
 		nextID = events[0].ID
 	}
 
+	log.Printf("[DB] QueryLiveEvents returned: count=%d, total=%d, nextID=%d", len(events), total, nextID)
 	return events, total, nextID, nil
 }
 
 func (d *DB) GetLiveEventsCount() (int64, error) {
+	log.Printf("[DB] Getting live events count")
 	var count int64
 	err := d.QueryRow("SELECT COUNT(*) FROM live_events").Scan(&count)
-	return count, err
+	if err != nil {
+		log.Printf("[DB] Failed to get live events count: %v", err)
+		return 0, err
+	}
+	log.Printf("[DB] Live events count: %d", count)
+	return count, nil
 }
 
 func (d *DB) ClearLiveEvents() (int64, error) {
@@ -771,8 +786,11 @@ func (d *DB) InsertLiveEvents(events []interface{}) error {
 		return nil
 	}
 
+	log.Printf("[DB] Inserting %d live events to database", len(events))
+
 	tx, rollback, err := d.BeginTx()
 	if err != nil {
+		log.Printf("[DB] Failed to begin transaction for live events: %v", err)
 		return err
 	}
 	defer rollback()
@@ -782,10 +800,12 @@ func (d *DB) InsertLiveEvents(events []interface{}) error {
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
+		log.Printf("[DB] Failed to prepare statement for live events: %v", err)
 		return err
 	}
 	defer stmt.Close()
 
+	inserted := 0
 	for _, e := range events {
 		event, ok := e.(*types.Event)
 		if !ok {
@@ -794,23 +814,23 @@ func (d *DB) InsertLiveEvents(events []interface{}) error {
 
 		level := int(0)
 		levelName := ""
-	switch event.Level {
-	case types.EventLevelCritical:
-		level = 1
-		levelName = "Critical"
-	case types.EventLevelError:
-		level = 2
-		levelName = "Error"
-	case types.EventLevelWarning:
-		level = 3
-		levelName = "Warning"
-	case types.EventLevelInfo:
-		level = 4
-		levelName = "Info"
-	default:
-		level = 4
-		levelName = "Info"
-	}
+		switch event.Level {
+		case types.EventLevelCritical:
+			level = 1
+			levelName = "Critical"
+		case types.EventLevelError:
+			level = 2
+			levelName = "Error"
+		case types.EventLevelWarning:
+			level = 3
+			levelName = "Warning"
+		case types.EventLevelInfo:
+			level = 4
+			levelName = "Info"
+		default:
+			level = 4
+			levelName = "Info"
+		}
 
 		var userStr, rawXMLStr string
 		if event.User != nil {
@@ -834,12 +854,20 @@ func (d *DB) InsertLiveEvents(events []interface{}) error {
 			event.Source,
 		)
 		if err != nil {
+			log.Printf("[DB] Failed to insert live event: %v", err)
 			return err
 		}
+		inserted++
 	}
 
 	_, err = tx.Exec("COMMIT")
-	return err
+	if err != nil {
+		log.Printf("[DB] Failed to commit live events transaction: %v", err)
+		return err
+	}
+
+	log.Printf("[DB] Successfully inserted %d live events", inserted)
+	return nil
 }
 
 func (d *DB) GetLiveChannels() ([]live.ChannelConfig, error) {

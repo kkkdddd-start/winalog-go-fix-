@@ -54,6 +54,13 @@ type MultiAnalyzeResponse struct {
 	AnalysisID      string                 `json:"analysis_id"`
 }
 
+type MultiAnalyzeRequest struct {
+	Hours     int    `json:"hours"`
+	StartTime string `json:"start_time"`
+	EndTime   string `json:"end_time"`
+	Limit     int    `json:"limit"`
+}
+
 // NewMultiHandler godoc
 // @Summary 创建多机分析处理器
 // @Description 初始化MultiHandler
@@ -69,23 +76,52 @@ func NewMultiHandler(db *storage.DB) *MultiHandler {
 // @Description 分析跨多台机器的活动，包括横向移动检测
 // @Tags multi
 // @Produce json
+// @Param request body MultiAnalyzeRequest false "分析参数"
 // @Success 200 {object} MultiAnalyzeResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /api/multi/analyze [post]
 func (h *MultiHandler) Analyze(c *gin.Context) {
+	var req MultiAnalyzeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		req = MultiAnalyzeRequest{Hours: 24, Limit: 5000}
+	}
+
+	hours := req.Hours
+	if hours <= 0 {
+		hours = 24
+	}
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 5000
+	}
+
+	endTime := time.Now()
+	startTime := endTime.Add(-time.Duration(hours) * time.Hour)
+
+	if req.StartTime != "" {
+		if t, err := time.Parse(time.RFC3339, req.StartTime); err == nil {
+			startTime = t
+		}
+	}
+	if req.EndTime != "" {
+		if t, err := time.Parse(time.RFC3339, req.EndTime); err == nil {
+			endTime = t
+		}
+	}
+
 	machines, err := h.getMachineContexts()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
 		return
 	}
 
-	crossMachine, err := h.analyzeCrossMachineActivity()
+	crossMachine, err := h.analyzeCrossMachineActivity(startTime, endTime, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
 		return
 	}
 
-	lateral, err := h.detectLateralMovement()
+	lateral, err := h.detectLateralMovement(startTime, endTime, limit)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
 		return
@@ -119,7 +155,9 @@ func (h *MultiHandler) Analyze(c *gin.Context) {
 // @Failure 500 {object} ErrorResponse
 // @Router /api/multi/lateral [get]
 func (h *MultiHandler) Lateral(c *gin.Context) {
-	lateral, err := h.detectLateralMovement()
+	endTime := time.Now()
+	startTime := endTime.Add(-24 * time.Hour)
+	lateral, err := h.detectLateralMovement(startTime, endTime, 1000)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
 		return
@@ -176,15 +214,15 @@ func (h *MultiHandler) getMachineContexts() ([]MachineInfo, error) {
 	return machines, nil
 }
 
-func (h *MultiHandler) analyzeCrossMachineActivity() ([]CrossMachineActivity, error) {
+func (h *MultiHandler) analyzeCrossMachineActivity(startTime, endTime time.Time, limit int) ([]CrossMachineActivity, error) {
 	rows, err := h.db.Query(`
 		SELECT computer, user, event_id, timestamp, ip_address, message
 		FROM events
 		WHERE event_id IN (4624, 4625, 4648, 4672, 4728, 4729, 4732, 4756, 4757)
-		AND timestamp > datetime('now', '-7 days')
+		AND timestamp BETWEEN ? AND ?
 		ORDER BY timestamp DESC
-		LIMIT 5000
-	`)
+		LIMIT ?
+	`, startTime.Format(time.RFC3339), endTime.Format(time.RFC3339), limit)
 	if err != nil {
 		return nil, err
 	}
@@ -248,15 +286,15 @@ func (h *MultiHandler) analyzeCrossMachineActivity() ([]CrossMachineActivity, er
 	return activities, nil
 }
 
-func (h *MultiHandler) detectLateralMovement() ([]LateralMovement, error) {
+func (h *MultiHandler) detectLateralMovement(startTime, endTime time.Time, limit int) ([]LateralMovement, error) {
 	rows, err := h.db.Query(`
 		SELECT computer, user, event_id, timestamp, ip_address, message
 		FROM events
 		WHERE event_id IN (4624, 4625, 4648, 4672, 4688, 4697, 4698)
-		AND timestamp > datetime('now', '-24 hours')
+		AND timestamp BETWEEN ? AND ?
 		ORDER BY timestamp DESC
-		LIMIT 1000
-	`)
+		LIMIT ?
+	`, startTime.Format(time.RFC3339), endTime.Format(time.RFC3339), limit)
 	if err != nil {
 		return nil, err
 	}

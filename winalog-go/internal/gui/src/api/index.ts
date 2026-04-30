@@ -579,7 +579,10 @@ export const correlationAPI = {
 }
 
 export interface MultiParams {
-  time_window?: string
+  hours?: number
+  start_time?: string
+  end_time?: string
+  limit?: number
 }
 
 export interface MultiResponse {
@@ -688,7 +691,7 @@ export interface UserProfile {
 }
 
 export const uebaAPI = {
-  analyze: (params?: { hours?: number }) => api.post('/ueba/analyze', params || {}),
+  analyze: (params?: { hours?: number; start_time?: string; end_time?: string }) => api.post('/ueba/analyze', params || {}),
   profiles: () => api.get('/ueba/profiles'),
 }
 

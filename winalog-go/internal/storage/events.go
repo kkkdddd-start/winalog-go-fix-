@@ -138,6 +138,10 @@ func (r *EventRepo) InsertBatch(events []*types.Event) error {
 		r.pendingMu.Unlock()
 	}
 
+	if err := r.updateMachineContexts(uniqueEvents); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -175,6 +179,48 @@ func (r *EventRepo) insertBatchChunk(tx *sql.Tx, events []*types.Event) error {
 
 	_, err := tx.Exec(query, valueArgs...)
 	return err
+}
+
+func (r *EventRepo) updateMachineContexts(events []*types.Event) error {
+	if len(events) == 0 {
+		return nil
+	}
+
+	computerMap := make(map[string]bool)
+	for _, e := range events {
+		if e.Computer != "" {
+			computerMap[e.Computer] = true
+		}
+	}
+
+	if len(computerMap) == 0 {
+		return nil
+	}
+
+	now := time.Now().Format(time.RFC3339)
+
+	for computer := range computerMap {
+		query := `
+			INSERT INTO machine_context (machine_id, machine_name, ip_address, domain, role, os_version, first_seen, last_seen)
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			ON CONFLICT(machine_id) DO UPDATE SET
+				last_seen = excluded.last_seen`
+		_, err := r.db.Exec(query,
+			computer,
+			computer,
+			"",
+			"",
+			"",
+			"",
+			now,
+			now,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to update machine context for %s: %w", computer, err)
+		}
+	}
+
+	return nil
 }
 
 func (r *EventRepo) GetByID(id int64) (*types.Event, error) {

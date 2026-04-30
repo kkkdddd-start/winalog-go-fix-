@@ -58,12 +58,25 @@ function Multi() {
   const [result, setResult] = useState<MultiAnalyzeResponse | null>(null)
   const [error, setError] = useState('')
   const [activeTab, setActiveTab] = useState<'overview' | 'crossmachine' | 'lateral'>('overview')
+  const [hours, setHours] = useState(24)
+  const [useCustomDate, setUseCustomDate] = useState(false)
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
+  const [dataLimit, setDataLimit] = useState(5000)
 
   const handleAnalyze = async () => {
     setLoading(true)
     setError('')
     try {
-      const res = await multiAPI.analyze()
+      const params: { hours?: number; start_time?: string; end_time?: string; limit?: number } = {}
+      if (useCustomDate && startDate && endDate) {
+        params.start_time = new Date(startDate).toISOString()
+        params.end_time = new Date(endDate).toISOString()
+      } else {
+        params.hours = hours
+      }
+      params.limit = dataLimit
+      const res = await multiAPI.analyze(params)
       setResult(res.data)
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to run multi-machine analysis')
@@ -137,9 +150,75 @@ function Multi() {
       </div>
 
       <div className="multi-toolbar">
+        <div className="toolbar-row">
+          <div className="toolbar-group">
+            <label className="toolbar-label">{t('multi.timeWindow') || '时间窗口'}:</label>
+            <select
+              value={hours}
+              onChange={(e) => setHours(Number(e.target.value))}
+              disabled={useCustomDate}
+              className="toolbar-select"
+            >
+              <option value={1}>1h</option>
+              <option value={6}>6h</option>
+              <option value={24}>24h</option>
+              <option value={72}>72h</option>
+              <option value={168}>7d</option>
+            </select>
+          </div>
+
+          <div className="toolbar-group">
+            <label className="toolbar-label">
+              <input
+                type="checkbox"
+                checked={useCustomDate}
+                onChange={(e) => setUseCustomDate(e.target.checked)}
+              />
+              {t('multi.customDate') || '自定义日期'}
+            </label>
+          </div>
+
+          {useCustomDate && (
+            <>
+              <div className="toolbar-group">
+                <label className="toolbar-label">{t('multi.startTime') || '开始时间'}:</label>
+                <input
+                  type="datetime-local"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="toolbar-input"
+                />
+              </div>
+              <div className="toolbar-group">
+                <label className="toolbar-label">{t('multi.endTime') || '结束时间'}:</label>
+                <input
+                  type="datetime-local"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="toolbar-input"
+                />
+              </div>
+            </>
+          )}
+
+          <div className="toolbar-group">
+            <label className="toolbar-label">{t('multi.dataLimit') || '数据限制'}:</label>
+            <select
+              value={dataLimit}
+              onChange={(e) => setDataLimit(Number(e.target.value))}
+              className="toolbar-select"
+            >
+              <option value={1000}>1000</option>
+              <option value={5000}>5000</option>
+              <option value={10000}>10000</option>
+              <option value={50000}>50000</option>
+            </select>
+          </div>
+        </div>
+
         <button
           onClick={handleAnalyze}
-          disabled={loading}
+          disabled={loading || (useCustomDate && (!startDate || !endDate))}
           className="btn-primary"
         >
           {loading ? (
