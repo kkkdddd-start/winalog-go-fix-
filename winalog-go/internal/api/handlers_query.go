@@ -88,7 +88,7 @@ func validateSQL(sql string) error {
 // @Failure 400 {object} ErrorResponse
 // @Failure 500 {object} ErrorResponse
 // @Router /api/query/execute [post]
-func (h *QueryHandler) Execute(c *gin.Context) {
+	func (h *QueryHandler) Execute(c *gin.Context) {
 	var req QueryRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, ErrorResponse{
@@ -111,6 +111,14 @@ func (h *QueryHandler) Execute(c *gin.Context) {
 	}
 	if req.Limit > 1000 {
 		req.Limit = 1000
+	}
+
+	// Get total count by wrapping the query
+	total := 0
+	countSQL := "SELECT COUNT(*) FROM (" + req.SQL + ") AS subquery"
+	if err := h.db.QueryRow(countSQL).Scan(&total); err != nil {
+		// Fallback: if count query fails, just use the result count
+		total = -1
 	}
 
 	rows, err := h.db.Query(req.SQL)
@@ -144,16 +152,16 @@ func (h *QueryHandler) Execute(c *gin.Context) {
 			continue
 		}
 
-		row := make(map[string]interface{})
-		for i, col := range columns {
-			val := values[i]
-			if b, ok := val.([]byte); ok {
-				row[col] = string(b)
-			} else {
-				row[col] = val
-			}
+	row := make(map[string]interface{})
+	for i, col := range columns {
+		val := values[i]
+		if b, ok := val.([]byte); ok {
+			row[col] = strings.ToValidUTF8(string(b), "")
+		} else {
+			row[col] = val
 		}
-		results = append(results, row)
+	}
+	results = append(results, row)
 
 		if len(results) >= req.Limit {
 			break
@@ -164,11 +172,16 @@ func (h *QueryHandler) Execute(c *gin.Context) {
 		results = []map[string]interface{}{}
 	}
 
+	// If total count query failed, use the actual count
+	if total < 0 {
+		total = len(results)
+	}
+
 	c.JSON(http.StatusOK, QueryResponse{
 		Columns: columns,
 		Rows:    results,
 		Count:   len(results),
-		Total:   len(results),
+		Total:   total,
 	})
 }
 

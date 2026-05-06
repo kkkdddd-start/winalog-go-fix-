@@ -16,23 +16,6 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-const (
-	EvtSubscribeActionStartAtOldestRecord = 0
-	EvtSubscribeActionStartAfterBookmark  = 1
-
-	EvtRenderEventXML = 1
-
-	INFINITE = 0xFFFFFFFF
-)
-
-var (
-	wevtapi          = windows.NewLazyDLL("wevtapi.dll")
-	procEvtSubscribe = wevtapi.NewProc("EvtSubscribe")
-	procEvtNext      = wevtapi.NewProc("EvtNext")
-	procEvtClose     = wevtapi.NewProc("EvtClose")
-	procEvtRender    = wevtapi.NewProc("EvtRender")
-)
-
 type EvtLiveCollector struct {
 	channelName  string
 	query        string
@@ -261,22 +244,27 @@ func (c *EvtLiveCollector) fetchNext(timeout uint32) ([]*types.Event, error) {
 
 	eventHandles := make([]windows.Handle, 256)
 	var returned uint32
+	events := make([]*types.Event, 0, 256)
 
 	ret, _, err := procEvtNext.Call(
 		uintptr(session),
+		uintptr(len(eventHandles)),
+		uintptr(unsafe.Pointer(&eventHandles[0])),
 		uintptr(timeout),
 		0,
-		uintptr(unsafe.Pointer(&eventHandles[0])),
 		uintptr(unsafe.Pointer(&returned)),
 	)
 
-	if ret == 0 && err != nil && err != windows.ERROR_NO_MORE_ITEMS {
-		log.Printf("[ERROR] [EvtLiveCollector] EvtNext failed for channel %s: err=%v", c.channelName, err)
+	if ret == 0 {
+		errCode := windows.GetLastError()
+		if errCode == windows.ERROR_NO_MORE_ITEMS {
+			return events, nil
+		}
+		log.Printf("[ERROR] [EvtLiveCollector] EvtNext failed for channel %s: errCode=%d, err=%v", c.channelName, errCode, err)
 		observability.LogServiceError("evt_live_collector", fmt.Sprintf("EvtNext failed for channel %s: %v", c.channelName, err))
 		return nil, err
 	}
 
-	events := make([]*types.Event, 0, returned)
 	for i := 0; i < int(returned); i++ {
 		event := renderEvent(eventHandles[i])
 		if event != nil {
@@ -320,7 +308,9 @@ func (c *EvtLiveCollector) saveBookmark() {
 	content.WriteString(formatUint64(c.lastRecordID))
 	content.WriteString("\"\n")
 
-	os.WriteFile(c.bookmarkFile, []byte(content.String()), 0644)
+	if err := os.WriteFile(c.bookmarkFile, []byte(content.String()), 0644); err != nil {
+		log.Printf("[ERROR] [EvtLiveCollector] Failed to save bookmark: %v", err)
+	}
 }
 
 func (c *EvtLiveCollector) loadBookmark() {
@@ -346,46 +336,6 @@ func (c *EvtLiveCollector) loadBookmark() {
 	c.mu.Lock()
 	c.bookmark = bookmarkHandle
 	c.mu.Unlock()
-}
-
-func renderEvent(eventHandle windows.Handle) *types.Event {
-	if eventHandle == 0 {
-		return nil
-	}
-
-	var bufferSize uint32
-	procEvtRender.Call(
-		uintptr(eventHandle),
-		0,
-		EvtRenderEventXML,
-		0,
-		0,
-		uintptr(unsafe.Pointer(&bufferSize)),
-		0,
-	)
-
-	if bufferSize == 0 {
-		return nil
-	}
-
-	buffer := make([]byte, bufferSize)
-	ret, _, _ := procEvtRender.Call(
-		uintptr(eventHandle),
-		0,
-		EvtRenderEventXML,
-		uintptr(bufferSize),
-		uintptr(unsafe.Pointer(&buffer[0])),
-		uintptr(unsafe.Pointer(&bufferSize)),
-		0,
-	)
-
-	if ret == 0 {
-		errCode := windows.GetLastError()
-		log.Printf("[ERROR] [EvtLiveCollector] EvtRender failed: bufferSize=%d, errCode=%d", bufferSize, errCode)
-		return nil
-	}
-
-	return ParseEventXML(string(buffer))
 }
 
 func formatUint64(n uint64) string {

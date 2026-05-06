@@ -3,16 +3,11 @@
 package live
 
 import (
+	"fmt"
 	"strings"
 	"unsafe"
 
 	"golang.org/x/sys/windows"
-)
-
-var (
-	procEvtCreateBookmark = windows.NewLazyDLL("wevtapi.dll").NewProc("EvtCreateBookmark")
-	procEvtUpdateBookmark = windows.NewLazyDLL("wevtapi.dll").NewProc("EvtUpdateBookmark")
-	procEvtGetBookmarkXML = windows.NewLazyDLL("wevtapi.dll").NewProc("EvtGetBookmarkXML")
 )
 
 type EvtBookmark struct {
@@ -23,7 +18,10 @@ type EvtBookmark struct {
 }
 
 func CreateEvtBookmark(channelName string) (windows.Handle, error) {
-	channelPtr, _ := windows.UTF16PtrFromString(channelName)
+	channelPtr, err := windows.UTF16PtrFromString(channelName)
+	if err != nil {
+		return 0, fmt.Errorf("invalid channel name %q: %w", channelName, err)
+	}
 	handle, _, err := procEvtCreateBookmark.Call(
 		uintptr(unsafe.Pointer(channelPtr)),
 	)
@@ -34,7 +32,10 @@ func CreateEvtBookmark(channelName string) (windows.Handle, error) {
 }
 
 func CreateEvtBookmarkFromXML(xmlBookmark string) (windows.Handle, error) {
-	xmlPtr, _ := windows.UTF16PtrFromString(xmlBookmark)
+	xmlPtr, err := windows.UTF16PtrFromString(xmlBookmark)
+	if err != nil {
+		return 0, fmt.Errorf("invalid XML bookmark: %w", err)
+	}
 	handle, _, err := procEvtCreateBookmark.Call(
 		uintptr(unsafe.Pointer(xmlPtr)),
 	)

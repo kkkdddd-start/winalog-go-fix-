@@ -111,14 +111,16 @@ function Query() {
     const operators = ['=', '!=', '<>', '<', '>', '<=', '>=', '+', '-', '*', '/', '%', '||']
     
     const parts: JSX.Element[] = []
-    const regex = /('[^']*'|"[^"]*"|\b(?:[\w]+)\b|[=<>!+\-*/%,()]+|\S)/g
+    const regex = /('[^']*'|"[^"]*"|\b(?:[\w]+)\b|[=<>!+\-*/%,()]+|\s+|\S)/g
     const tokens = query.match(regex) || []
     
     let key = 0
     for (const token of tokens) {
       const upperToken = token.toUpperCase()
       
-      if (token.startsWith("'") && token.endsWith("'")) {
+      if (/^\s+$/.test(token)) {
+        parts.push(<span key={key++}>{token}</span>)
+      } else if (token.startsWith("'") && token.endsWith("'")) {
         parts.push(<span key={key++} className="sql-string">{token}</span>)
       } else if (token.startsWith('"') && token.endsWith('"')) {
         parts.push(<span key={key++} className="sql-string">{token}</span>)

@@ -140,7 +140,8 @@ export function useLiveEvents(options: UseLiveEventsOptions = {}) {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        const errorText = await response.text().catch(() => '');
+        throw new Error(`HTTP ${response.status}: ${response.statusText}${errorText ? ' - ' + errorText : ''}`);
       }
 
       const data: LiveEventsResponse = await response.json();
@@ -305,13 +306,13 @@ export function useLiveEvents(options: UseLiveEventsOptions = {}) {
     console.log('[useLiveEvents] Polling started successfully');
     pendingActionRef.current = null;
 
-    fetchEvents();
-    fetchStats();
+    fetchEventsRef.current?.();
+    fetchStatsRef.current?.();
 
     pollIntervalRef.current = setInterval(() => {
       if (isUnmountingRef.current) return;
-      fetchEvents();
-      fetchStats();
+      fetchEventsRef.current?.();
+      fetchStatsRef.current?.();
     }, pollInterval);
   }, [liveState, pollInterval, fetchEvents, fetchStats]);
 
@@ -377,7 +378,8 @@ export function useLiveEvents(options: UseLiveEventsOptions = {}) {
         body: JSON.stringify({ channels: newChannels }),
       });
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        const errorText = await response.text().catch(() => '');
+        throw new Error(`HTTP ${response.status}${errorText ? ' - ' + errorText : ''}`);
       }
       return true;
     } catch (err) {

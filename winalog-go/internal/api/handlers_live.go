@@ -1,7 +1,9 @@
 package api
 
 import (
+	"bytes"
 	"context"
+	"encoding/csv"
 	"fmt"
 	"log"
 	"strconv"
@@ -475,18 +477,32 @@ func (h *LiveHandler) ExportLiveEvents(c *gin.Context) {
 		return
 	}
 
-	csv := "ID,EventID,Timestamp,Level,LevelName,Source,LogName,Computer,User,Message,ProviderName\n"
+	var buf bytes.Buffer
+	writer := csv.NewWriter(&buf)
+	writer.Write([]string{"ID", "EventID", "Timestamp", "Level", "LevelName", "Source", "LogName", "Computer", "User", "Message", "ProviderName"})
 	for _, e := range events {
-		csv += fmt.Sprintf("%d,%d,%s,%d,%s,%s,%s,%s,%s,%s,%s\n",
-			e.ID, e.EventID, e.Timestamp, e.Level, e.LevelName,
-			e.Source, e.LogName, e.Computer, e.User, e.Message, e.ProviderName)
+		writer.Write([]string{
+			fmt.Sprintf("%d", e.ID),
+			fmt.Sprintf("%d", e.EventID),
+			e.Timestamp,
+			fmt.Sprintf("%d", e.Level),
+			e.LevelName,
+			e.Source,
+			e.LogName,
+			e.Computer,
+			e.User,
+			e.Message,
+			e.ProviderName,
+		})
 	}
+	writer.Flush()
+	csvData := buf.String()
 
 	filename := fmt.Sprintf("live_events_%s.csv", time.Now().Format("20060102_150405"))
-	log.Printf("[LIVE] [EXPORT] Sending CSV file: %s, size=%d bytes", filename, len(csv))
+	log.Printf("[LIVE] [EXPORT] Sending CSV file: %s, size=%d bytes", filename, len(csvData))
 	c.Header("Content-Type", "text/csv")
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
-	c.String(200, csv)
+	c.String(200, csvData)
 }
 
 func (h *LiveHandler) StartLiveMonitoring(c *gin.Context) {

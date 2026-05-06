@@ -54,6 +54,15 @@ export function ChannelSelector({ channels, onChannelsChange, onSave, saving }: 
       return;
     }
 
+    if (newChannel.event_ids.trim()) {
+      const ids = newChannel.event_ids.split(',').map(id => id.trim()).filter(id => id);
+      const validIds = ids.every(id => /^\d+$/.test(id));
+      if (!validIds) {
+        alert('事件ID格式错误，请输入数字ID，多个ID用逗号分隔');
+        return;
+      }
+    }
+
     const added: ChannelConfig = {
       name: newChannel.name.trim(),
       description: newChannel.description.trim() || newChannel.name,
@@ -90,6 +99,9 @@ export function ChannelSelector({ channels, onChannelsChange, onSave, saving }: 
         marginBottom: '16px'
       }}>
         <h3 style={{ color: '#00d9ff', margin: 0, fontSize: '1rem' }}>日志源订阅配置</h3>
+        <span style={{ color: '#888', fontSize: '12px', marginLeft: '12px' }}>
+          控制从 Windows 采集哪些事件，保存后自动同步到事件过滤
+        </span>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
             onClick={() => setShowAddForm(!showAddForm)}
@@ -206,25 +218,36 @@ export function ChannelSelector({ channels, onChannelsChange, onSave, saving }: 
           </div>
           <div style={{ marginTop: '12px' }}>
             <span style={{ color: '#888', fontSize: '12px' }}>系统可用日志源: </span>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
-              {availableChannels.slice(0, 20).map(ch => (
-                <span
-                  key={ch}
-                  onClick={() => setNewChannel({ ...newChannel, name: ch })}
-                  style={{
-                    background: 'rgba(0, 0, 0, 0.3)',
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    fontSize: '11px',
-                    color: '#00d9ff',
-                    cursor: 'pointer',
-                    border: '1px solid transparent'
-                  }}
-                  title="点击选择"
-                >
-                  {ch.length > 40 ? ch.substring(0, 40) + '...' : ch}
-                </span>
-              ))}
+            <div style={{ 
+              maxHeight: '200px', 
+              overflowY: 'auto', 
+              padding: '8px',
+              background: 'rgba(0, 0, 0, 0.2)',
+              borderRadius: '6px',
+              marginTop: '6px',
+              border: '1px solid #333'
+            }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                {availableChannels.map(ch => (
+                  <span
+                    key={ch}
+                    onClick={() => setNewChannel({ ...newChannel, name: ch })}
+                    style={{
+                      background: 'rgba(0, 0, 0, 0.3)',
+                      padding: '4px 8px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      color: '#00d9ff',
+                      cursor: 'pointer',
+                      border: '1px solid transparent',
+                      whiteSpace: 'nowrap'
+                    }}
+                    title="点击选择"
+                  >
+                    {ch}
+                  </span>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -233,33 +256,45 @@ export function ChannelSelector({ channels, onChannelsChange, onSave, saving }: 
       {channels.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '20px', color: '#888' }}>
           <div style={{ marginBottom: '12px' }}>暂无配置的日志源，请从下方系统可用日志源中选择或添加自定义日志源</div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center', maxWidth: '800px', margin: '0 auto' }}>
-            {availableChannels.map(ch => (
-              <div
-                key={ch}
-                onClick={() => {
-                  const added: ChannelConfig = {
-                    name: ch,
-                    description: ch.split('/').pop() || ch,
-                    event_ids: '',
-                    enabled: true,
-                  };
-                  onChannelsChange([...channels, added]);
-                }}
-                style={{
-                  background: 'rgba(0, 217, 255, 0.1)',
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  fontSize: '12px',
-                  color: '#00d9ff',
-                  cursor: 'pointer',
-                  border: '1px solid rgba(0, 217, 255, 0.3)',
-                }}
-                title="点击添加此日志源"
-              >
-                {ch.length > 50 ? ch.substring(0, 50) + '...' : ch}
-              </div>
-            ))}
+          <div style={{ 
+            maxHeight: '400px', 
+            overflowY: 'auto', 
+            padding: '12px',
+            background: 'rgba(0, 0, 0, 0.2)',
+            borderRadius: '8px',
+            border: '1px solid #333',
+            maxWidth: '800px',
+            margin: '0 auto'
+          }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'center' }}>
+              {availableChannels.map(ch => (
+                <div
+                  key={ch}
+                  onClick={() => {
+                    const added: ChannelConfig = {
+                      name: ch,
+                      description: ch.split('/').pop() || ch,
+                      event_ids: '',
+                      enabled: true,
+                    };
+                    onChannelsChange([...channels, added]);
+                  }}
+                  style={{
+                    background: 'rgba(0, 217, 255, 0.1)',
+                    padding: '8px 12px',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    color: '#00d9ff',
+                    cursor: 'pointer',
+                    border: '1px solid rgba(0, 217, 255, 0.3)',
+                    whiteSpace: 'nowrap'
+                  }}
+                  title="点击添加此日志源"
+                >
+                  {ch}
+                </div>
+              ))}
+            </div>
           </div>
           {availableChannels.length === 0 && (
             <div style={{ marginTop: '12px', color: '#666' }}>

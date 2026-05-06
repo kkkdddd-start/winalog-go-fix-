@@ -4,11 +4,22 @@ package live
 
 import (
 	"encoding/xml"
+	"fmt"
+	"log"
 	"strings"
 	"time"
 
 	"github.com/kkkdddd-start/winalog-go/internal/types"
 )
+
+type FullEventXML struct {
+	XMLName       xml.Name     `xml:"Event"`
+	System        SystemXML    `xml:"System"`
+	EventData     EventDataXML `xml:"EventData"`
+	RenderingInfo struct {
+		Message string `xml:"Message"`
+	} `xml:"RenderingInfo"`
+}
 
 func ParseEventXML(xmlContent string) *types.Event {
 	event := &types.Event{
@@ -17,89 +28,46 @@ func ParseEventXML(xmlContent string) *types.Event {
 		RawXML:     &xmlContent,
 	}
 
-	lines := strings.Split(xmlContent, "<")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
+	var xmlData FullEventXML
+	if err := xml.Unmarshal([]byte(xmlContent), &xmlData); err != nil {
+		log.Printf("[WARN] [EvtPollCollector] XML parse error: %v", err)
+		return event
+	}
 
-		if strings.HasPrefix(line, "?xml") {
-			continue
-		}
+	// System 字段映射
+	event.EventID = int32(xmlData.System.EventID)
+	event.WindowsRecordID = xmlData.System.EventRecordID
+	event.Source = xmlData.System.Provider.Name
+	event.LogName = xmlData.System.Channel
+	event.Computer = xmlData.System.Computer
 
-		if strings.HasPrefix(line, "Event>") {
-			line = strings.TrimPrefix(line, "Event>")
-		}
+	if xmlData.System.Security.UserID != "" {
+		event.User = &xmlData.System.Security.UserID
+	}
 
-		if strings.HasPrefix(line, "Provider ") {
-			if idx := strings.Index(line, "Name="); idx != -1 {
-				val := extractQuotedValue(line[idx+5:])
-				if val != "" {
-					event.Source = val
-				}
+	// 时间解析
+	if xmlData.System.TimeCreated.SystemTime != "" {
+		if t, err := parseEventTime(xmlData.System.TimeCreated.SystemTime); err == nil {
+			event.Timestamp = t
+		}
+	}
+
+	// 级别解析
+	event.Level = parseLevel(fmt.Sprintf("%d", xmlData.System.Level))
+
+	// Message 构建：优先 RenderingInfo.Message，回退 EventData 拼接
+	if xmlData.RenderingInfo.Message != "" {
+		event.Message = xmlData.RenderingInfo.Message
+	} else {
+		var msgParts []string
+		for _, d := range xmlData.EventData.Data {
+			if d.Name != "" && d.Value != "" {
+				msgParts = append(msgParts, d.Name+"="+d.Value)
+			} else if d.Value != "" {
+				msgParts = append(msgParts, d.Value)
 			}
 		}
-
-		if strings.HasPrefix(line, "System>") {
-			continue
-		}
-
-		if strings.HasPrefix(line, "EventID>") {
-			val := strings.TrimSuffix(strings.TrimPrefix(line, "EventID>"), "</EventID")
-			val = strings.TrimSpace(val)
-			if id := parseEventID(val); id != 0 {
-				event.EventID = id
-			}
-		}
-
-		if strings.HasPrefix(line, "Level>") {
-			val := strings.TrimSuffix(strings.TrimPrefix(line, "Level>"), "</Level")
-			val = strings.TrimSpace(val)
-			if val != "" {
-				event.Level = parseLevel(val)
-			}
-		}
-
-		if strings.HasPrefix(line, "Channel>") {
-			val := strings.TrimSuffix(strings.TrimPrefix(line, "Channel>"), "</Channel")
-			val = strings.TrimSpace(val)
-			if val != "" {
-				event.LogName = val
-			}
-		}
-
-		if strings.HasPrefix(line, "Computer>") {
-			val := strings.TrimSuffix(strings.TrimPrefix(line, "Computer>"), "</Computer")
-			val = strings.TrimSpace(val)
-			if val != "" {
-				event.Computer = val
-			}
-		}
-
-		if strings.HasPrefix(line, "TimeCreated ") {
-			if idx := strings.Index(line, "SystemTime="); idx != -1 {
-				val := extractQuotedValue(line[idx+11:])
-				if val != "" {
-					if t, err := parseEventTime(val); err == nil {
-						event.Timestamp = t
-					}
-				}
-			}
-		}
-
-		if strings.HasPrefix(line, "Data ") {
-			if idx := strings.Index(line, "Name="); idx != -1 {
-				name := extractQuotedValue(line[idx+5:])
-				val := extractDataValue(line)
-				event.Message = buildMessage(event.Message, name, val)
-			}
-		} else if strings.HasPrefix(line, "Data>") {
-			val := strings.TrimPrefix(line, "Data>")
-			val = strings.TrimSuffix(val, "</Data")
-			val = strings.TrimSpace(val)
-			event.Message = buildMessage(event.Message, "", val)
-		}
+		event.Message = strings.Join(msgParts, "; ")
 	}
 
 	if event.Timestamp.IsZero() {
@@ -107,44 +75,6 @@ func ParseEventXML(xmlContent string) *types.Event {
 	}
 
 	return event
-}
-
-func extractQuotedValue(s string) string {
-	s = strings.TrimSpace(s)
-	if len(s) == 0 {
-		return ""
-	}
-	quote := s[0]
-	if quote != '"' && quote != '\'' {
-		if idx := strings.IndexAny(s, " \"'<>"); idx != -1 {
-			s = s[:idx]
-		}
-		return strings.TrimSpace(s)
-	}
-	s = s[1:]
-	if idx := strings.Index(string(s), string(quote)); idx != -1 {
-		return strings.TrimSpace(s[:idx])
-	}
-	return strings.TrimSpace(s)
-}
-
-func extractDataValue(line string) string {
-	if idx := strings.Index(line, ">"); idx != -1 {
-		val := strings.TrimPrefix(line[idx:], ">")
-		val = strings.TrimSuffix(val, "</Data")
-		return strings.TrimSpace(val)
-	}
-	return ""
-}
-
-func parseEventID(s string) int32 {
-	var id int64
-	for _, c := range s {
-		if c >= '0' && c <= '9' {
-			id = id*10 + int64(c-'0')
-		}
-	}
-	return int32(id)
 }
 
 func parseLevel(s string) types.EventLevel {
@@ -206,28 +136,6 @@ type EventDataItemXML struct {
 	Value string `xml:",chardata"`
 }
 
-func getElementText(decoder *xml.Decoder, start xml.StartElement) string {
-	var text string
-	for {
-		token, err := decoder.Token()
-		if err != nil {
-			break
-		}
-		switch t := token.(type) {
-		case xml.CharData:
-			text = string(t)
-		case xml.EndElement:
-			if t.Name.Local == start.Name.Local {
-				break
-			}
-		}
-		if text != "" {
-			break
-		}
-	}
-	return strings.TrimSpace(text)
-}
-
 func parseEventTime(s string) (time.Time, error) {
 	formats := []string{
 		"2006-01-02T15:04:05.9999999Z",
@@ -244,36 +152,4 @@ func parseEventTime(s string) (time.Time, error) {
 		}
 	}
 	return time.Time{}, nil
-}
-
-func parseUint(s string, result interface{}) (int, error) {
-	var val uint64
-	for _, c := range s {
-		if c < '0' || c > '9' {
-			continue
-		}
-		val = val*10 + uint64(c-'0')
-	}
-
-	switch r := result.(type) {
-	case *uint8:
-		*r = uint8(val)
-	case *uint16:
-		*r = uint16(val)
-	case *uint32:
-		*r = uint32(val)
-	case *uint64:
-		*r = val
-	}
-	return 0, nil
-}
-
-func buildMessage(existing, name, value string) string {
-	if name != "" && value != "" {
-		return existing + name + "=" + value + "; "
-	}
-	if value != "" {
-		return existing + value + "; "
-	}
-	return existing
 }

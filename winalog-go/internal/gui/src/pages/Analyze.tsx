@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useI18n } from '../locales/I18n'
 import { analyzeAPI } from '../api'
+// @ts-ignore
 import analyzerDocs from '../docs/analyzers.md?raw'
 
 interface Finding {

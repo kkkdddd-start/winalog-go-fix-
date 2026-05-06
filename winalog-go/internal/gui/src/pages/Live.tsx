@@ -10,6 +10,20 @@ function Live() {
   const [saving, setSaving] = useState(false)
   const [showConfig, setShowConfig] = useState(false)
 
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set())
+
+  const toggleExpand = (id: number) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
   const {
     events,
     isConnected,
@@ -45,7 +59,17 @@ function Live() {
     const success = await updateChannels(channels)
     setSaving(false)
     if (success) {
+      // 重新从后端拉取最新配置，确保前后端同步
+      const data = await fetchChannels()
+      if (data.length > 0) {
+        setChannels(data)
+      }
+      const firstEnabled = channels.find(c => c.enabled)
+      if (firstEnabled) {
+        applyFilters({ channel: firstEnabled.name })
+      }
       setShowConfig(false)
+      alert('配置已保存并同步到数据库')
     }
   }
 
@@ -113,7 +137,7 @@ function Live() {
         `"${(event.message || '').replace(/"/g, '""')}"`
       ].join(','))
     ].join('\n')
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+    const blob = new Blob(['\ufeff', csvContent], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
@@ -266,7 +290,12 @@ function Live() {
                   <span className="event-source">{event.source || event.log_name}</span>
                 </div>
                 <div className="event-body">
-                  <div className="event-message">{event.message || '(无消息)'}</div>
+                  <div 
+                    className={`event-message ${expandedIds.has(event.id) ? 'expanded' : ''}`}
+                    onClick={() => toggleExpand(event.id)}
+                  >
+                    {event.message || '(无消息)'}
+                  </div>
                 </div>
                 <div className="event-footer">
                   <span className="event-computer">{event.computer}</span>

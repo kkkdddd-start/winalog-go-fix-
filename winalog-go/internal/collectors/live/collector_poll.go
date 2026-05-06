@@ -3,13 +3,14 @@
 package live
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"log"
+	"os/exec"
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 	"unsafe"
 
@@ -18,80 +19,33 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-var (
-	wevtapi            = windows.NewLazyDLL("wevtapi.dll")
-	procEvtQuery       = wevtapi.NewProc("EvtQuery")
-	procEvtNext        = wevtapi.NewProc("EvtNext")
-	procEvtClose       = wevtapi.NewProc("EvtClose")
-	procEvtRender      = wevtapi.NewProc("EvtRender")
-	procEvtCreateBookmark  = wevtapi.NewProc("EvtCreateBookmark")
-	procEvtUpdateBookmark = wevtapi.NewProc("EvtUpdateBookmark")
-	procEvtOpenChannelEnum = wevtapi.NewProc("EvtOpenChannelEnum")
-	procEvtNextChannelPath = wevtapi.NewProc("EvtNextChannelPath")
-)
-
-const (
-	EvtQueryChannelPath       = 1
-	EvtQueryForwardDirection  = 1
-	EvtRenderEventXML         = 1
-)
-
 func ListAvailableChannels() ([]string, error) {
+	cmd := exec.Command("wevtutil", "el")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("wevtutil el failed: %w", err)
+	}
+
 	var channels []string
-
-	enumHandle, _, err := procEvtOpenChannelEnum.Call(0, 0)
-	if enumHandle == 0 {
-		return nil, fmt.Errorf("EvtOpenChannelEnum failed: %w", err)
-	}
-	defer procEvtClose.Call(enumHandle)
-
-	bufferSize := 0
-	for {
-		pathPtr := make([]*uint16, 1)
-		ret, _, _ := procEvtNextChannelPath.Call(
-			enumHandle,
-			uintptr(len(pathPtr)),
-			uintptr(unsafe.Pointer(&pathPtr[0])),
-			0,
-			uintptr(unsafe.Pointer(&bufferSize)),
-		)
-
-		if ret == 0 {
-			errCode := windows.GetLastError()
-			errno, _ := errCode.(syscall.Errno)
-			if errCode == windows.ERROR_NO_MORE_ITEMS || errno == 259 {
-				break
-			}
-			if bufferSize == 0 {
-				break
-			}
-			continue
-		}
-
-		if pathPtr[0] != nil {
-			channelName := windows.UTF16PtrToString(pathPtr[0])
-			if channelName != "" {
-				channels = append(channels, channelName)
-			}
-		}
-
-		if bufferSize == 0 {
-			break
+	scanner := bufio.NewScanner(strings.NewReader(string(output)))
+	for scanner.Scan() {
+		name := strings.TrimSpace(scanner.Text())
+		if name != "" {
+			channels = append(channels, name)
 		}
 	}
-
-	return channels, nil
+	return channels, scanner.Err()
 }
 
 type EvtPollCollector struct {
-	channels     []ChannelConfig
-	buffer       *EventBuffer
-	pollInterval time.Duration
-	ctx          context.Context
-	cancel       context.CancelFunc
-	isRunning    atomic.Bool
-	lastRecordID atomic.Uint64
-	mu           sync.RWMutex
+	channels         []ChannelConfig
+	buffer           *EventBuffer
+	pollInterval     time.Duration
+	ctx              context.Context
+	cancel           context.CancelFunc
+	isRunning        atomic.Bool
+	mu               sync.RWMutex
+	channelRecordIDs map[string]uint64
 }
 
 func NewEvtPollCollector(channels []ChannelConfig, buffer *EventBuffer, pollInterval time.Duration) *EvtPollCollector {
@@ -99,6 +53,7 @@ func NewEvtPollCollector(channels []ChannelConfig, buffer *EventBuffer, pollInte
 		channels:    channels,
 		buffer:      buffer,
 		pollInterval: pollInterval,
+		channelRecordIDs: make(map[string]uint64),
 	}
 }
 
@@ -110,10 +65,99 @@ func (c *EvtPollCollector) Start(ctx context.Context) error {
 	c.ctx, c.cancel = context.WithCancel(ctx)
 	c.isRunning.Store(true)
 
+	// Initialize cursors to skip full history scan
+	c.initRecordIDs()
+
 	go c.run()
 
 	log.Printf("[INFO] [EvtPollCollector] Started with %d channels", len(c.channels))
 	return nil
+}
+
+func (c *EvtPollCollector) initRecordIDs() {
+	log.Printf("[INFO] [EvtPollCollector] Initializing record ID cursors...")
+
+	c.mu.RLock()
+	channels := make([]ChannelConfig, len(c.channels))
+	copy(channels, c.channels)
+	c.mu.RUnlock()
+
+	for _, channel := range channels {
+		if !channel.Enabled {
+			continue
+		}
+
+		maxID, err := c.queryMaxRecordID(channel.Name)
+		if err != nil {
+			log.Printf("[WARN] [EvtPollCollector] Failed to init cursor for %s: %v (will start from 0)", channel.Name, err)
+			continue
+		}
+
+		c.mu.Lock()
+		c.channelRecordIDs[channel.Name] = maxID
+		c.mu.Unlock()
+		log.Printf("[INFO] [EvtPollCollector] Initialized cursor for %s to %d", channel.Name, maxID)
+	}
+}
+
+func (c *EvtPollCollector) queryMaxRecordID(channelName string) (uint64, error) {
+	log.Printf("[DEBUG] [EvtPollCollector] Initializing cursor for %s", channelName)
+
+	channelPtr, err := windows.UTF16PtrFromString(channelName)
+	if err != nil {
+		return 0, fmt.Errorf("failed to convert channel name: %w", err)
+	}
+
+	// Use a generic query to ensure compatibility with EvtQueryReverseDirection
+	// Passing NULL query with Reverse flag caused failures in some environments
+	queryStr := "*[System[(EventRecordID > 0)]]"
+	queryPtr, err := windows.UTF16PtrFromString(queryStr)
+	if err != nil {
+		return 0, fmt.Errorf("failed to convert query: %w", err)
+	}
+
+	session := windows.Handle(0)
+	flags := uintptr(EvtQueryChannelPath | EvtQueryReverseDirection)
+
+	queryHandle, r2, err := procEvtQuery.Call(
+		uintptr(session),
+		uintptr(unsafe.Pointer(channelPtr)),
+		uintptr(unsafe.Pointer(queryPtr)),
+		flags,
+	)
+
+	if queryHandle == 0 {
+		log.Printf("[WARN] [EvtPollCollector] EvtQuery failed for init: channel=%s, r2=%v, err=%v", channelName, r2, err)
+		return 0, fmt.Errorf("EvtQuery failed (r2=%v): %w", r2, err)
+	}
+	defer procEvtClose.Call(queryHandle)
+
+	// Fetch only 1 event (the latest one)
+	var eventHandle windows.Handle
+	var returned uint32
+
+	ret, _, _ := procEvtNext.Call(
+		uintptr(queryHandle),
+		1,
+		uintptr(unsafe.Pointer(&eventHandle)),
+		1000, // 1 second timeout
+		0,
+		uintptr(unsafe.Pointer(&returned)),
+	)
+
+	if ret == 0 || returned == 0 {
+		// No events in this channel yet, start from 0
+		return 0, nil
+	}
+	defer procEvtClose.Call(uintptr(eventHandle))
+
+	// Render the event to get EventRecordID directly
+	event := renderEvent(eventHandle)
+	if event == nil {
+		return 0, fmt.Errorf("failed to render event")
+	}
+
+	return event.WindowsRecordID, nil
 }
 
 func (c *EvtPollCollector) Stop() {
@@ -155,14 +199,15 @@ func (c *EvtPollCollector) run() {
 
 func (c *EvtPollCollector) poll() {
 	if !c.isRunning.Load() {
-		log.Printf("[DEBUG] [EvtPollCollector] poll() skipped: not running")
+		log.Printf("[INFO] [EvtPollCollector] Poll cycle skipped: not running")
 		return
 	}
 
-	log.Printf("[DEBUG] [EvtPollCollector] poll() started, isRunning=true")
+	log.Printf("[INFO] [EvtPollCollector] Poll cycle started")
 
 	c.mu.RLock()
-	channels := c.channels
+	channels := make([]ChannelConfig, len(c.channels))
+	copy(channels, c.channels)
 	c.mu.RUnlock()
 
 	for _, channel := range channels {
@@ -171,32 +216,47 @@ func (c *EvtPollCollector) poll() {
 		}
 
 		if !c.isRunning.Load() {
-			log.Printf("[DEBUG] [EvtPollCollector] poll() interrupted: not running")
 			return
 		}
 
-		events, err := c.queryEvents(channel.Name, channel.EventIDs)
+		// Get the last record ID for this channel
+		c.mu.RLock()
+		minID := c.channelRecordIDs[channel.Name]
+		c.mu.RUnlock()
+
+		events, err := c.queryEvents(channel.Name, channel.EventIDs, minID)
 		if err != nil {
 			observability.LogServiceError("EvtPollCollector", fmt.Sprintf("queryEvents failed for %s: %v", channel.Name, err))
-			log.Printf("[DEBUG] [EvtPollCollector] queryEvents error for channel %s: %v", channel.Name, err)
+			log.Printf("[WARN] [EvtPollCollector] Failed to query %s: %v", channel.Name, err)
 			continue
 		}
 
-		log.Printf("[DEBUG] [EvtPollCollector] queryEvents returned %d events from %s (query: %s)", len(events), channel.Name, BuildEventQuery(channel.Name, channel.EventIDs))
+		log.Printf("[INFO] [EvtPollCollector] Channel [%s]: Query returned %d new events", channel.Name, len(events))
 
 		if len(events) > 0 {
 			c.buffer.AddBatch(events)
-			log.Printf("[DEBUG] [EvtPollCollector] Collected %d events from %s", len(events), channel.Name)
+			
+			// Update the max record ID for this channel
+			var maxID uint64
+			for _, e := range events {
+				if e.WindowsRecordID > maxID {
+					maxID = e.WindowsRecordID
+				}
+			}
+			
+			c.mu.Lock()
+			c.channelRecordIDs[channel.Name] = maxID
+			log.Printf("[INFO] [EvtPollCollector] Channel [%s]: Updated cursor to %d (was %d)", channel.Name, maxID, minID)
+			c.mu.Unlock()
 		}
 	}
 
-	log.Printf("[DEBUG] [EvtPollCollector] poll() completed")
+	log.Printf("[INFO] [EvtPollCollector] Poll cycle completed")
 }
 
-func (c *EvtPollCollector) queryEvents(channelName, eventIDs string) ([]*types.Event, error) {
-	query := BuildEventQuery(channelName, eventIDs)
-
-	log.Printf("[DEBUG] [EvtPollCollector] queryEvents: channel=%s, eventIDs=%q, query=%s", channelName, eventIDs, query)
+func (c *EvtPollCollector) queryEvents(channelName, eventIDs string, minRecordID uint64) ([]*types.Event, error) {
+	query := BuildEventQuery(channelName, eventIDs, minRecordID)
+	log.Printf("[DEBUG] [EvtPollCollector] Querying channel [%s] with query: %s", channelName, query)
 
 	channelPtr, err := windows.UTF16PtrFromString(channelName)
 	if err != nil {
@@ -212,7 +272,7 @@ func (c *EvtPollCollector) queryEvents(channelName, eventIDs string) ([]*types.E
 	}
 
 	session := windows.Handle(0)
-	flags := uintptr(EvtQueryChannelPath | EvtQueryForwardDirection)
+	flags := uintptr(EvtQueryChannelPath)
 
 	var queryArg uintptr
 	if queryPtr != nil {
@@ -228,13 +288,10 @@ func (c *EvtPollCollector) queryEvents(channelName, eventIDs string) ([]*types.E
 	)
 
 	if queryHandle == 0 {
-		errCode := windows.GetLastError()
-		if errCode != nil {
-			log.Printf("[DEBUG] [EvtPollCollector] queryEvents: EvtQuery FAILED for channel=%s, query=%s, err=%v", channelName, query, errCode)
-		} else {
-			log.Printf("[DEBUG] [EvtPollCollector] queryEvents: EvtQuery FAILED for channel=%s, query=%s, err=nil (unknown)", channelName, query)
+		if err != nil {
+			return nil, fmt.Errorf("EvtQuery failed for channel %s: %v", channelName, err)
 		}
-		return nil, fmt.Errorf("EvtQuery failed for channel %s with query '%s'", channelName, query)
+		return nil, fmt.Errorf("EvtQuery failed for channel %s (unknown error)", channelName)
 	}
 
 	log.Printf("[DEBUG] [EvtPollCollector] queryEvents: EvtQuery SUCCESS for channel=%s, query=%s", channelName, query)
@@ -260,8 +317,8 @@ func (c *EvtPollCollector) fetchEvents(queryHandle windows.Handle) ([]*types.Eve
 
 		ret, _, err := procEvtNext.Call(
 			uintptr(queryHandle),
-			uintptr(unsafe.Pointer(&eventHandles[0])),
 			uintptr(len(eventHandles)),
+			uintptr(unsafe.Pointer(&eventHandles[0])),
 			uintptr(5000),
 			0,
 			uintptr(unsafe.Pointer(&returned)),
@@ -269,7 +326,7 @@ func (c *EvtPollCollector) fetchEvents(queryHandle windows.Handle) ([]*types.Eve
 
 		if ret == 0 {
 			errCode := windows.GetLastError()
-			log.Printf("[DEBUG] [EvtPollCollector] fetchEvents: EvtNext returned 0, errCode=%d, err=%v", errCode, err)
+			log.Printf("[DEBUG] [EvtPollCollector] fetchEvents: EvtNext returned 0, errCode=%v, err=%v", errCode, err)
 			if errCode == windows.ERROR_NO_MORE_ITEMS {
 				log.Printf("[DEBUG] [EvtPollCollector] fetchEvents: ERROR_NO_MORE_ITEMS - no more events")
 				break
@@ -278,7 +335,7 @@ func (c *EvtPollCollector) fetchEvents(queryHandle windows.Handle) ([]*types.Eve
 				log.Printf("[DEBUG] [EvtPollCollector] fetchEvents: operation completed")
 				break
 			}
-			log.Printf("[DEBUG] [EvtPollCollector] fetchEvents: EvtNext failed with errCode=%d, breaking", errCode)
+			log.Printf("[DEBUG] [EvtPollCollector] fetchEvents: EvtNext failed with errCode=%v, breaking", errCode)
 			break
 		}
 
@@ -288,11 +345,6 @@ func (c *EvtPollCollector) fetchEvents(queryHandle windows.Handle) ([]*types.Eve
 			event := renderEvent(eventHandles[i])
 			if event != nil {
 				events = append(events, event)
-
-				eventID := uint64(event.ID)
-				if eventID > c.lastRecordID.Load() {
-					c.lastRecordID.Store(eventID)
-				}
 			}
 			procEvtClose.Call(uintptr(eventHandles[i]))
 		}
@@ -303,51 +355,22 @@ func (c *EvtPollCollector) fetchEvents(queryHandle windows.Handle) ([]*types.Eve
 }
 
 func (c *EvtPollCollector) GetLastRecordID() uint64 {
-	return c.lastRecordID.Load()
+	// Return the max record ID across all channels for stats
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	var maxID uint64
+	for _, id := range c.channelRecordIDs {
+		if id > maxID {
+			maxID = id
+		}
+	}
+	return maxID
 }
 
 func (c *EvtPollCollector) SetChannels(channels []ChannelConfig) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.channels = channels
-}
-
-func renderEvent(eventHandle windows.Handle) *types.Event {
-	if eventHandle == 0 {
-		return nil
-	}
-
-	var bufferSize uint32
-	procEvtRender.Call(
-		uintptr(eventHandle),
-		0,
-		uintptr(EvtRenderEventXML),
-		0,
-		0,
-		uintptr(unsafe.Pointer(&bufferSize)),
-		0,
-	)
-
-	if bufferSize == 0 {
-		return nil
-	}
-
-	buffer := make([]byte, bufferSize)
-	ret, _, _ := procEvtRender.Call(
-		uintptr(eventHandle),
-		0,
-		uintptr(EvtRenderEventXML),
-		uintptr(bufferSize),
-		uintptr(unsafe.Pointer(&buffer[0])),
-		uintptr(unsafe.Pointer(&bufferSize)),
-		0,
-	)
-
-	if ret == 0 {
-		return nil
-	}
-
-	return ParseEventXML(string(buffer))
 }
 
 func (c *EvtPollCollector) Name() string {
@@ -364,19 +387,20 @@ func (c *EvtPollCollector) ChannelName() string {
 func (c *EvtPollCollector) Events() <-chan *types.Event {
 	ch := make(chan *types.Event, 100)
 	go func() {
+		ticker := time.NewTicker(100 * time.Millisecond)
+		defer ticker.Stop()
 		for {
-			if !c.isRunning.Load() {
+			select {
+			case <-c.ctx.Done():
 				close(ch)
 				return
+			case <-ticker.C:
+				if !c.isRunning.Load() {
+					close(ch)
+					return
+				}
 			}
-			time.Sleep(100 * time.Millisecond)
 		}
 	}()
 	return ch
-}
-
-func NewEvtLiveCollector(channel, query string) EventCollector {
-	buffer := NewEventBuffer(1000, 5*time.Second, func(events []*types.Event) {})
-	channels := []ChannelConfig{{Name: channel, EventIDs: query, Enabled: true}}
-	return NewEvtPollCollector(channels, buffer, 2*time.Second)
 }

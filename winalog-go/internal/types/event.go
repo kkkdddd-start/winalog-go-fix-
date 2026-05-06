@@ -65,6 +65,7 @@ type Event struct {
 	IPAddress       *string                `json:"ip_address,omitempty" db:"ip_address"`
 	ImportTime      time.Time              `json:"import_time" db:"import_time"`
 	ImportID        int64                  `json:"import_id,omitempty" db:"import_id"`
+	WindowsRecordID uint64                 `json:"-" db:"-"`
 	ExtractedFields map[string]interface{} `json:"extracted_fields,omitempty" db:"-"`
 }
 

@@ -1,6 +1,7 @@
 package live
 
 import (
+	"log"
 	"sync"
 	"time"
 
@@ -46,8 +47,10 @@ func (b *EventBuffer) AddBatch(events []*types.Event) {
 	defer b.mu.Unlock()
 
 	b.events = append(b.events, events...)
+	log.Printf("[LIVE] [BUFFER] AddBatch: added %d events, buffer size now %d (maxSize=%d)", len(events), len(b.events), b.maxSize)
 
 	if len(b.events) >= b.maxSize || b.shouldFlush() {
+		log.Printf("[LIVE] [BUFFER] Triggering flush: len=%d >= maxSize=%d || shouldFlush=%v", len(b.events), b.maxSize, b.shouldFlush())
 		b.flushLocked()
 	}
 }
@@ -72,8 +75,12 @@ func (b *EventBuffer) flushLocked() {
 	b.events = b.events[:0]
 	b.lastFlush = time.Now()
 
+	log.Printf("[LIVE] [BUFFER] flushLocked: flushing %d events", len(events))
+
 	if b.onFlush != nil {
 		go b.onFlush(events)
+	} else {
+		log.Printf("[LIVE] [BUFFER] flushLocked: onFlush callback is nil, dropping %d events", len(events))
 	}
 }
 

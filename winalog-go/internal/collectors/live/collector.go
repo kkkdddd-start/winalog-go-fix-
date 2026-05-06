@@ -130,7 +130,7 @@ func (lc *LiveCollector) collect() {
 
 		results, err := collector.Collect(ctx)
 		if err != nil {
-			lc.stats.RecordError(err)
+			lc.stats.RecordCollectorError(collector.Name(), err)
 			observability.LogServiceError("live_collector", fmt.Sprintf("%s: %v", collector.Name(), err))
 			continue
 		}

@@ -53,7 +53,7 @@ func DefaultChannels() []ChannelConfig {
 	}
 }
 
-func BuildEventQuery(channelName string, eventIDs string) string {
+func BuildEventQuery(channelName string, eventIDs string, minRecordID uint64) string {
 	if eventIDs == "" {
 		return ""
 	}
@@ -71,5 +71,10 @@ func BuildEventQuery(channelName string, eventIDs string) string {
 		return ""
 	}
 
-	return fmt.Sprintf("*[System[%s]]", strings.Join(conditions, " or "))
+	filter := fmt.Sprintf("*[System[%s]]", strings.Join(conditions, " or "))
+	if minRecordID > 0 {
+		filter = fmt.Sprintf("*[System[(%s) and (EventRecordID > %d)]]", strings.Join(conditions, " or "), minRecordID)
+	}
+
+	return filter
 }
