@@ -5,7 +5,6 @@ package live
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 	"sync"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/kkkdddd-start/winalog-go/internal/observability"
 	"github.com/kkkdddd-start/winalog-go/internal/types"
+	"go.uber.org/zap"
 	"golang.org/x/sys/windows"
 )
 
@@ -64,14 +64,19 @@ func (c *EvtLiveCollector) Start(ctx context.Context) error {
 		return nil
 	}
 
-	log.Printf("[INFO] [EvtLiveCollector] Creating signal event for channel: %s", c.channelName)
+	observability.Info("Creating signal event",
+		zap.String("module", "evt_collector"),
+		zap.String("channel", c.channelName))
 	signalEvent, err := windows.CreateEvent(nil, 0, 0, nil)
 	if err != nil {
-		log.Printf("[ERROR] [EvtLiveCollector] CreateEvent failed for channel %s: err=%v", c.channelName, err)
+		observability.Error("CreateEvent failed",
+			zap.String("module", "evt_collector"),
+			zap.String("channel", c.channelName),
+			zap.Error(err))
 		c.mu.Unlock()
 		return err
 	}
-	log.Printf("[DEBUG] [EvtLiveCollector] CreateEvent succeeded: channel=%s, handle=0x%x", c.channelName, signalEvent)
+	observability.DebugPrintf("[DEBUG] [EvtLiveCollector] CreateEvent succeeded: channel=%s, handle=0x%x", c.channelName, signalEvent)
 	c.signalEvent = signalEvent
 
 	subscriptionCtx, subscriptionCancel := context.WithCancel(ctx)
@@ -82,18 +87,25 @@ func (c *EvtLiveCollector) Start(ctx context.Context) error {
 	c.mu.Unlock()
 
 	if c.bookmarkFile != "" {
-		log.Printf("[DEBUG] [EvtLiveCollector] Loading bookmark: channel=%s, file=%s", c.channelName, c.bookmarkFile)
+		observability.DebugPrintf("[DEBUG] [EvtLiveCollector] Loading bookmark: channel=%s, file=%s", c.channelName, c.bookmarkFile)
 		c.loadBookmark()
 	}
 
-	log.Printf("[INFO] [EvtLiveCollector] Starting subscription: channel=%s", c.channelName)
+	observability.Info("Starting subscription",
+		zap.String("module", "evt_collector"),
+		zap.String("channel", c.channelName))
 	if err := c.subscribe(); err != nil {
-		log.Printf("[ERROR] [EvtLiveCollector] subscribe failed for channel %s: %v", c.channelName, err)
+		observability.Error("subscribe failed",
+			zap.String("module", "evt_collector"),
+			zap.String("channel", c.channelName),
+			zap.Error(err))
 		c.Stop()
 		return err
 	}
 
-	log.Printf("[INFO] [EvtLiveCollector] Starting event loop: channel=%s", c.channelName)
+	observability.Info("Starting event loop",
+		zap.String("module", "evt_collector"),
+		zap.String("channel", c.channelName))
 	go c.runLoop()
 	return nil
 }
@@ -104,11 +116,17 @@ func (c *EvtLiveCollector) subscribe() error {
 	bookmark := c.bookmark
 	c.mu.RUnlock()
 
-	log.Printf("[INFO] [EvtSubscribe] Attempting to subscribe to channel: name=%s, query=%s", c.channelName, c.query)
+	observability.Info("Attempting to subscribe to channel",
+		zap.String("module", "evt_collector"),
+		zap.String("name", c.channelName),
+		zap.String("query", c.query))
 
 	channelPtr, err := windows.UTF16PtrFromString(c.channelName)
 	if err != nil {
-		log.Printf("[ERROR] [EvtSubscribe] Failed to convert channel name to UTF16 for channel %s: %v", c.channelName, err)
+		observability.Error("Failed to convert channel name to UTF16",
+			zap.String("module", "evt_collector"),
+			zap.String("channel", c.channelName),
+			zap.Error(err))
 		return fmt.Errorf("failed to convert channel name: %w", err)
 	}
 
@@ -117,7 +135,10 @@ func (c *EvtLiveCollector) subscribe() error {
 		var err error
 		queryPtr, err = windows.UTF16PtrFromString(c.query)
 		if err != nil {
-			log.Printf("[ERROR] [EvtSubscribe] Failed to convert query to UTF16 for channel %s: %v", c.channelName, err)
+			observability.Error("Failed to convert query to UTF16",
+				zap.String("module", "evt_collector"),
+				zap.String("channel", c.channelName),
+				zap.Error(err))
 			return fmt.Errorf("failed to convert query: %w", err)
 		}
 	}
@@ -127,7 +148,7 @@ func (c *EvtLiveCollector) subscribe() error {
 		flags = EvtSubscribeActionStartAfterBookmark
 	}
 
-	log.Printf("[DEBUG] [EvtSubscribe] Calling EvtSubscribe: session=0, signalEvent=0x%x, channel=%s, query=%s, bookmark=0x%x, context=0, callback=0, flags=%d",
+	observability.DebugPrintf("[DEBUG] [EvtSubscribe] Calling EvtSubscribe: session=0, signalEvent=0x%x, channel=%s, query=%s, bookmark=0x%x, context=0, callback=0, flags=%d",
 		signalEvent, c.channelName, c.query, bookmark, flags)
 
 	ret, _, err := procEvtSubscribe.Call(
@@ -143,8 +164,11 @@ func (c *EvtLiveCollector) subscribe() error {
 
 	if ret == 0 {
 		errCode := windows.GetLastError()
-		log.Printf("[ERROR] [EvtSubscribe] EvtSubscribe failed for channel %s: err=%v, errCode=%d, sysErr=%v",
-			c.channelName, err, errCode, errCode)
+		observability.Error("EvtSubscribe failed",
+			zap.String("module", "evt_collector"),
+			zap.String("channel", c.channelName),
+			zap.Error(err),
+			zap.String("err_code", errCode.Error()))
 		observability.LogServiceError("evt_live_collector", fmt.Sprintf("EvtSubscribe failed for channel %s: err=%v, errCode=%d", c.channelName, err, errCode))
 		return err
 	}
@@ -153,7 +177,10 @@ func (c *EvtLiveCollector) subscribe() error {
 	c.session = windows.Handle(ret)
 	c.mu.Unlock()
 
-	log.Printf("[INFO] [EvtSubscribe] Successfully subscribed to channel: name=%s, session=0x%x", c.channelName, ret)
+	observability.Info("Successfully subscribed to channel",
+		zap.String("module", "evt_collector"),
+		zap.String("name", c.channelName),
+		zap.String("session", fmt.Sprintf("0x%x", ret)))
 	return nil
 }
 
@@ -204,7 +231,10 @@ func (c *EvtLiveCollector) runLoop() {
 
 		waitResult, err := windows.WaitForSingleObject(signalEvent, INFINITE)
 		if err != nil {
-			log.Printf("[ERROR] [EvtLiveCollector] WaitForSingleObject failed for channel %s: err=%v", c.channelName, err)
+			observability.Error("WaitForSingleObject failed",
+				zap.String("module", "evt_collector"),
+				zap.String("channel", c.channelName),
+				zap.Error(err))
 			return
 		}
 
@@ -224,7 +254,10 @@ func (c *EvtLiveCollector) runLoop() {
 				case <-ctx.Done():
 					return
 				default:
-					log.Printf("[WARN] evt_live_collector: event channel full, dropping event: %s/%d", e.LogName, e.ID)
+					observability.Warn("Event channel full, dropping event",
+						zap.String("module", "evt_collector"),
+						zap.String("log_name", e.LogName),
+						zap.Int64("event_id", int64(e.ID)))
 				}
 			}
 
@@ -260,7 +293,11 @@ func (c *EvtLiveCollector) fetchNext(timeout uint32) ([]*types.Event, error) {
 		if errCode == windows.ERROR_NO_MORE_ITEMS {
 			return events, nil
 		}
-		log.Printf("[ERROR] [EvtLiveCollector] EvtNext failed for channel %s: errCode=%d, err=%v", c.channelName, errCode, err)
+		observability.Error("EvtNext failed",
+			zap.String("module", "evt_collector"),
+			zap.String("channel", c.channelName),
+			zap.String("err_code", errCode.Error()),
+			zap.Error(err))
 		observability.LogServiceError("evt_live_collector", fmt.Sprintf("EvtNext failed for channel %s: %v", c.channelName, err))
 		return nil, err
 	}
@@ -309,7 +346,9 @@ func (c *EvtLiveCollector) saveBookmark() {
 	content.WriteString("\"\n")
 
 	if err := os.WriteFile(c.bookmarkFile, []byte(content.String()), 0644); err != nil {
-		log.Printf("[ERROR] [EvtLiveCollector] Failed to save bookmark: %v", err)
+		observability.Error("Failed to save bookmark",
+			zap.String("module", "evt_collector"),
+			zap.Error(err))
 	}
 }
 

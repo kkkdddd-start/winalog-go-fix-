@@ -5,7 +5,6 @@ package wmi
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 	"time"
@@ -13,6 +12,8 @@ import (
 
 	"github.com/StackExchange/wmi"
 	"github.com/kkkdddd-start/winalog-go/internal/monitor/types"
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
+	"go.uber.org/zap"
 	"golang.org/x/sys/windows"
 )
 
@@ -85,7 +86,10 @@ func (pw *ProcessWatcher) Subscribe(ch chan *types.MonitorEvent) func() {
 	pw.subMu.Lock()
 	defer pw.subMu.Unlock()
 	pw.subscribers = append(pw.subscribers, ch)
-	log.Printf("[PROCESS] DEBUG: Subscribe called, subscriber count=%d, ch=%p", len(pw.subscribers), ch)
+	observability.Debug("Subscribe called",
+		zap.String("module", "process_watcher"),
+		zap.Int("subscriber_count", len(pw.subscribers)),
+		zap.String("ch", fmt.Sprintf("%p", ch)))
 	return func() {
 		pw.subMu.Lock()
 		defer pw.subMu.Unlock()
@@ -99,7 +103,7 @@ func (pw *ProcessWatcher) Subscribe(ch chan *types.MonitorEvent) func() {
 }
 
 func (pw *ProcessWatcher) run() {
-	log.Printf("[PROCESS] ProcessWatcher run() started")
+	observability.Debug("ProcessWatcher run() started", zap.String("module", "process_watcher"))
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
@@ -108,7 +112,7 @@ func (pw *ProcessWatcher) run() {
 	for {
 		select {
 		case <-pw.ctx.Done():
-			log.Printf("[PROCESS] ProcessWatcher run() stopping")
+			observability.Debug("ProcessWatcher run() stopping", zap.String("module", "process_watcher"))
 			return
 		case <-ticker.C:
 			pw.checkProcesses(isFirstRun)
@@ -127,11 +131,16 @@ func (pw *ProcessWatcher) checkProcesses(isFirstRun bool) {
 	var processes []Win32_Process
 	err := wmi.Query("SELECT Name, ProcessID, ParentProcessID, ExecutablePath, CommandLine FROM Win32_Process", &processes)
 	if err != nil {
-		log.Printf("[PROCESS] WMI query failed: %v", err)
+		observability.Error("WMI query failed",
+			zap.String("module", "process_watcher"),
+			zap.Error(err))
 		return
 	}
 
-	log.Printf("[PROCESS] WMI query returned %d processes (firstRun=%v)", len(processes), isFirstRun)
+	observability.Debug("WMI query returned",
+		zap.String("module", "process_watcher"),
+		zap.Int("processes", len(processes)),
+		zap.Bool("first_run", isFirstRun))
 
 	currentPIDs := make(map[uint32]bool)
 	currentProcs := make(map[uint32]*Win32_Process)
@@ -151,10 +160,16 @@ func (pw *ProcessWatcher) checkProcesses(isFirstRun bool) {
 		if !existed {
 			event := pw.createProcessEvent(p, true)
 			if event != nil {
-				log.Printf("[PROCESS] DEBUG: Detected new process, calling publishEvent, subscribers=%d", len(pw.subscribers))
+				observability.Debug("Detected new process, calling publishEvent",
+					zap.String("module", "process_watcher"),
+					zap.Int("subscribers", len(pw.subscribers)))
 				pw.publishEvent(event)
 				newProcessCount++
-				log.Printf("[PROCESS] New process detected: Name=%s, PID=%d, Path=%s", p.Name, p.ProcessID, p.ExecutablePath)
+				observability.Info("New process detected",
+					zap.String("module", "process_watcher"),
+					zap.String("name", p.Name),
+					zap.Uint32("pid", p.ProcessID),
+					zap.String("path", p.ExecutablePath))
 			}
 		}
 	}
@@ -169,7 +184,10 @@ func (pw *ProcessWatcher) checkProcesses(isFirstRun bool) {
 			if event != nil {
 				pw.publishEvent(event)
 				exitProcessCount++
-				log.Printf("[PROCESS] Process exited: Name=%s, PID=%d", procName, pid)
+				observability.Info("Process exited",
+					zap.String("module", "process_watcher"),
+					zap.String("name", procName),
+					zap.Uint32("pid", pid))
 			}
 			delete(pw.pidToName, pid)
 		}
@@ -178,7 +196,10 @@ func (pw *ProcessWatcher) checkProcesses(isFirstRun bool) {
 	pw.mu.Unlock()
 
 	if newProcessCount > 0 {
-		log.Printf("[PROCESS] Summary: %d new processes, %d exited", newProcessCount, exitProcessCount)
+		observability.Info("Process check summary",
+			zap.String("module", "process_watcher"),
+			zap.Int("new_processes", newProcessCount),
+			zap.Int("exited_processes", exitProcessCount))
 	}
 }
 
@@ -234,12 +255,16 @@ func (pw *ProcessWatcher) publishEvent(event *types.MonitorEvent) {
 	pw.subMu.RLock()
 	defer pw.subMu.RUnlock()
 
-	log.Printf("[PROCESS] DEBUG: publishEvent called, subscriber count=%d, event type=%s", len(pw.subscribers), event.Type)
+	observability.Debug("publishEvent called",
+		zap.String("module", "process_watcher"),
+		zap.Int("subscriber_count", len(pw.subscribers)),
+		zap.String("event_type", string(event.Type)))
 	for _, ch := range pw.subscribers {
 		select {
 		case ch <- event:
 		case <-time.After(1 * time.Second):
-			log.Printf("[PROCESS] WARNING: Failed to send event to subscriber (timeout)")
+			observability.Warn("Failed to send event to subscriber (timeout)",
+				zap.String("module", "process_watcher"))
 		}
 	}
 }

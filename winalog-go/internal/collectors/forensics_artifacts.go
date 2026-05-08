@@ -6,10 +6,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"time"
 
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
 	"github.com/kkkdddd-start/winalog-go/internal/utils"
 )
 
@@ -61,7 +61,7 @@ func (c *ForensicsArtifactCollector) CollectAmcache(ctx context.Context) ([]Amca
 	amcachePath := `C:\Windows\appcompat\Programs\Amcache.hve`
 
 	if _, err := os.Stat(amcachePath); os.IsNotExist(err) {
-		log.Printf("[DEBUG] Amcache.hve not found at %s", amcachePath)
+		observability.DebugPrintf("[DEBUG] Amcache.hve not found at %s", amcachePath)
 		return []AmcacheEntry{}, nil
 	}
 
@@ -158,7 +158,7 @@ $entries | ConvertTo-Json -Compress
 		}
 	}
 
-	log.Printf("[DEBUG] Amcache collection completed: %d entries", len(resultEntries))
+	observability.DebugPrintf("[DEBUG] Amcache collection completed: %d entries", len(resultEntries))
 	return resultEntries, nil
 }
 
@@ -273,7 +273,7 @@ $entries | ConvertTo-Json -Compress -Depth 3
 		}
 	}
 
-	log.Printf("[DEBUG] UserAssist collection completed: %d entries", len(resultEntries))
+	observability.DebugPrintf("[DEBUG] UserAssist collection completed: %d entries", len(resultEntries))
 	return resultEntries, nil
 }
 
@@ -393,7 +393,7 @@ $entries | ConvertTo-Json -Compress
 		}
 	}
 
-	log.Printf("[DEBUG] USN Journal collection for %s: %d entries", drive, len(resultEntries))
+	observability.DebugPrintf("[DEBUG] USN Journal collection for %s: %d entries", drive, len(resultEntries))
 	return resultEntries, nil
 }
 
@@ -516,7 +516,7 @@ $entries | ConvertTo-Json -Compress
 		}
 	}
 
-	log.Printf("[DEBUG] ShimCache collection completed: %d entries", len(resultEntries))
+	observability.DebugPrintf("[DEBUG] ShimCache collection completed: %d entries", len(resultEntries))
 	return resultEntries, nil
 }
 

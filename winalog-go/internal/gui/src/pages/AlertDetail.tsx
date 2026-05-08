@@ -240,7 +240,7 @@ function AlertDetail() {
                 {alert.matched_events.map(event => (
                   <div key={event.id} className="event-item">
                     <div className="event-header">
-                      <span className="event-id">Event ID: {event.event_id}</span>
+                      <span className="event-id">事件 ID: {event.event_id}</span>
                       <span className="event-time">{new Date(event.timestamp).toLocaleString()}</span>
                       <span className={`event-level level-${event.level.toLowerCase()}`}>{event.level}</span>
                     </div>

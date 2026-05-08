@@ -2,10 +2,12 @@ package persistence
 
 import (
 	"encoding/json"
-	"log"
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
+	"go.uber.org/zap"
 )
 
 type WhitelistStore struct {
@@ -45,30 +47,43 @@ func (s *WhitelistStore) Load() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	log.Printf("[WHITELIST_STORE] Loading user whitelist from: %s", s.filePath)
+	observability.Info("Loading user whitelist",
+		zap.String("module", "whitelist_store"),
+		zap.String("path", s.filePath))
 	data, err := os.ReadFile(s.filePath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			log.Printf("[WHITELIST_STORE] Whitelist file not found (will use defaults): %s", s.filePath)
+			observability.Debug("Whitelist file not found, using defaults",
+				zap.String("module", "whitelist_store"),
+				zap.String("path", s.filePath))
 			return nil
 		}
-		log.Printf("[WHITELIST_STORE] ERROR loading whitelist: %v", err)
+		observability.Error("Failed to load whitelist",
+			zap.String("module", "whitelist_store"),
+			zap.Error(err))
 		return err
 	}
 
 	if err := json.Unmarshal(data, &s.data); err != nil {
-		log.Printf("[WHITELIST_STORE] ERROR parsing whitelist JSON: %v", err)
+		observability.Error("Failed to parse whitelist JSON",
+			zap.String("module", "whitelist_store"),
+			zap.Error(err))
 		return err
 	}
 
-	log.Printf("[WHITELIST_STORE] Loaded whitelist: detectors=%d", len(s.data))
+	observability.Info("Loaded whitelist",
+		zap.String("module", "whitelist_store"),
+		zap.Int("detectors", len(s.data)))
 	for name := range s.data {
 		cfg := s.data[name]
 		wlCount := 0
 		if cfg.UserWhitelist != nil {
 			wlCount = len(cfg.UserWhitelist)
 		}
-		log.Printf("[WHITELIST_STORE]   Detector=%s, UserWhitelist=%d", name, wlCount)
+		observability.Debug("Whitelist detector details",
+			zap.String("module", "whitelist_store"),
+			zap.String("detector", name),
+			zap.Int("userWhitelist", wlCount))
 	}
 	return nil
 }
@@ -77,24 +92,34 @@ func (s *WhitelistStore) Save() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	log.Printf("[WHITELIST_STORE] Saving user whitelist to: %s", s.filePath)
+	observability.Info("Saving user whitelist",
+		zap.String("module", "whitelist_store"),
+		zap.String("path", s.filePath))
 	if err := os.MkdirAll(s.dir, 0755); err != nil {
-		log.Printf("[WHITELIST_STORE] ERROR creating directory: %v", err)
+		observability.Error("Failed to create whitelist directory",
+			zap.String("module", "whitelist_store"),
+			zap.Error(err))
 		return err
 	}
 
 	data, err := json.MarshalIndent(s.data, "", "  ")
 	if err != nil {
-		log.Printf("[WHITELIST_STORE] ERROR marshaling whitelist: %v", err)
+		observability.Error("Failed to marshal whitelist",
+			zap.String("module", "whitelist_store"),
+			zap.Error(err))
 		return err
 	}
 
 	if err := os.WriteFile(s.filePath, data, 0644); err != nil {
-		log.Printf("[WHITELIST_STORE] ERROR writing whitelist file: %v", err)
+		observability.Error("Failed to write whitelist file",
+			zap.String("module", "whitelist_store"),
+			zap.Error(err))
 		return err
 	}
 
-	log.Printf("[WHITELIST_STORE] Save completed: detectors=%d", len(s.data))
+	observability.Info("Whitelist save completed",
+		zap.String("module", "whitelist_store"),
+		zap.Int("detectors", len(s.data)))
 	return nil
 }
 

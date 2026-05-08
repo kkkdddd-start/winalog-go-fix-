@@ -6,7 +6,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"log"
 	"os/exec"
 	"strings"
 	"sync"
@@ -16,6 +15,7 @@ import (
 
 	"github.com/kkkdddd-start/winalog-go/internal/observability"
 	"github.com/kkkdddd-start/winalog-go/internal/types"
+	"go.uber.org/zap"
 	"golang.org/x/sys/windows"
 )
 
@@ -38,22 +38,25 @@ func ListAvailableChannels() ([]string, error) {
 }
 
 type EvtPollCollector struct {
-	channels         []ChannelConfig
-	buffer           *EventBuffer
-	pollInterval     time.Duration
-	ctx              context.Context
-	cancel           context.CancelFunc
-	isRunning        atomic.Bool
-	mu               sync.RWMutex
-	channelRecordIDs map[string]uint64
+	channels      []ChannelConfig
+	buffer        *EventBuffer
+	pollInterval  time.Duration
+	ctx           context.Context
+	cancel        context.CancelFunc
+	isRunning     atomic.Bool
+	mu            sync.RWMutex
+	startTime     time.Time              // events before this time are ignored (real-time only)
+	channelCursor map[string]uint64      // highest EventRecordID seen per channel (dedup)
+	channelLastPoll map[string]time.Time // last poll completion time per channel
 }
 
 func NewEvtPollCollector(channels []ChannelConfig, buffer *EventBuffer, pollInterval time.Duration) *EvtPollCollector {
 	return &EvtPollCollector{
-		channels:    channels,
-		buffer:      buffer,
-		pollInterval: pollInterval,
-		channelRecordIDs: make(map[string]uint64),
+		channels:        channels,
+		buffer:          buffer,
+		pollInterval:    pollInterval,
+		channelCursor:   make(map[string]uint64),
+		channelLastPoll: make(map[string]time.Time),
 	}
 }
 
@@ -64,100 +67,16 @@ func (c *EvtPollCollector) Start(ctx context.Context) error {
 
 	c.ctx, c.cancel = context.WithCancel(ctx)
 	c.isRunning.Store(true)
+	c.startTime = time.Now()
 
-	// Initialize cursors to skip full history scan
-	c.initRecordIDs()
+	observability.Info("EvtPollCollector started",
+		zap.String("module", "collector_poll"),
+		zap.Int("channels", len(c.channels)),
+		zap.Time("start_time", c.startTime))
 
 	go c.run()
 
-	log.Printf("[INFO] [EvtPollCollector] Started with %d channels", len(c.channels))
 	return nil
-}
-
-func (c *EvtPollCollector) initRecordIDs() {
-	log.Printf("[INFO] [EvtPollCollector] Initializing record ID cursors...")
-
-	c.mu.RLock()
-	channels := make([]ChannelConfig, len(c.channels))
-	copy(channels, c.channels)
-	c.mu.RUnlock()
-
-	for _, channel := range channels {
-		if !channel.Enabled {
-			continue
-		}
-
-		maxID, err := c.queryMaxRecordID(channel.Name)
-		if err != nil {
-			log.Printf("[WARN] [EvtPollCollector] Failed to init cursor for %s: %v (will start from 0)", channel.Name, err)
-			continue
-		}
-
-		c.mu.Lock()
-		c.channelRecordIDs[channel.Name] = maxID
-		c.mu.Unlock()
-		log.Printf("[INFO] [EvtPollCollector] Initialized cursor for %s to %d", channel.Name, maxID)
-	}
-}
-
-func (c *EvtPollCollector) queryMaxRecordID(channelName string) (uint64, error) {
-	log.Printf("[DEBUG] [EvtPollCollector] Initializing cursor for %s", channelName)
-
-	channelPtr, err := windows.UTF16PtrFromString(channelName)
-	if err != nil {
-		return 0, fmt.Errorf("failed to convert channel name: %w", err)
-	}
-
-	// Use a generic query to ensure compatibility with EvtQueryReverseDirection
-	// Passing NULL query with Reverse flag caused failures in some environments
-	queryStr := "*[System[(EventRecordID > 0)]]"
-	queryPtr, err := windows.UTF16PtrFromString(queryStr)
-	if err != nil {
-		return 0, fmt.Errorf("failed to convert query: %w", err)
-	}
-
-	session := windows.Handle(0)
-	flags := uintptr(EvtQueryChannelPath | EvtQueryReverseDirection)
-
-	queryHandle, r2, err := procEvtQuery.Call(
-		uintptr(session),
-		uintptr(unsafe.Pointer(channelPtr)),
-		uintptr(unsafe.Pointer(queryPtr)),
-		flags,
-	)
-
-	if queryHandle == 0 {
-		log.Printf("[WARN] [EvtPollCollector] EvtQuery failed for init: channel=%s, r2=%v, err=%v", channelName, r2, err)
-		return 0, fmt.Errorf("EvtQuery failed (r2=%v): %w", r2, err)
-	}
-	defer procEvtClose.Call(queryHandle)
-
-	// Fetch only 1 event (the latest one)
-	var eventHandle windows.Handle
-	var returned uint32
-
-	ret, _, _ := procEvtNext.Call(
-		uintptr(queryHandle),
-		1,
-		uintptr(unsafe.Pointer(&eventHandle)),
-		1000, // 1 second timeout
-		0,
-		uintptr(unsafe.Pointer(&returned)),
-	)
-
-	if ret == 0 || returned == 0 {
-		// No events in this channel yet, start from 0
-		return 0, nil
-	}
-	defer procEvtClose.Call(uintptr(eventHandle))
-
-	// Render the event to get EventRecordID directly
-	event := renderEvent(eventHandle)
-	if event == nil {
-		return 0, fmt.Errorf("failed to render event")
-	}
-
-	return event.WindowsRecordID, nil
 }
 
 func (c *EvtPollCollector) Stop() {
@@ -174,7 +93,8 @@ func (c *EvtPollCollector) Stop() {
 		c.buffer.Flush()
 	}
 
-	log.Printf("[INFO] [EvtPollCollector] Stopped")
+	observability.Info("EvtPollCollector stopped",
+		zap.String("module", "collector_poll"))
 }
 
 func (c *EvtPollCollector) IsRunning() bool {
@@ -199,11 +119,12 @@ func (c *EvtPollCollector) run() {
 
 func (c *EvtPollCollector) poll() {
 	if !c.isRunning.Load() {
-		log.Printf("[INFO] [EvtPollCollector] Poll cycle skipped: not running")
+		observability.Info("Poll cycle skipped: not running",
+			zap.String("module", "collector_poll"))
 		return
 	}
 
-	log.Printf("[INFO] [EvtPollCollector] Poll cycle started")
+	observability.DebugPrintf("[DEBUG] [EvtPollCollector] Poll cycle started")
 
 	c.mu.RLock()
 	channels := make([]ChannelConfig, len(c.channels))
@@ -219,147 +140,173 @@ func (c *EvtPollCollector) poll() {
 			return
 		}
 
-		// Get the last record ID for this channel
+		// Use per-channel last poll time to avoid missing events between channel queries
 		c.mu.RLock()
-		minID := c.channelRecordIDs[channel.Name]
+		queryTime := c.channelLastPoll[channel.Name]
 		c.mu.RUnlock()
 
-		events, err := c.queryEvents(channel.Name, channel.EventIDs, minID)
+		// Fall back to global startTime for first poll
+		if queryTime.IsZero() {
+			c.mu.RLock()
+			queryTime = c.startTime
+			c.mu.RUnlock()
+		}
+
+		events, err := c.queryEvents(channel.Name, channel.EventIDs, queryTime)
 		if err != nil {
 			observability.LogServiceError("EvtPollCollector", fmt.Sprintf("queryEvents failed for %s: %v", channel.Name, err))
-			log.Printf("[WARN] [EvtPollCollector] Failed to query %s: %v", channel.Name, err)
+			observability.Warn("Failed to query channel",
+				zap.String("module", "collector_poll"),
+				zap.String("channel", channel.Name),
+				zap.Error(err))
 			continue
 		}
 
-		log.Printf("[INFO] [EvtPollCollector] Channel [%s]: Query returned %d new events", channel.Name, len(events))
+		observability.Info("Channel query returned new events",
+			zap.String("module", "collector_poll"),
+			zap.String("channel", channel.Name),
+			zap.Int("count", len(events)))
 
 		if len(events) > 0 {
 			c.buffer.AddBatch(events)
-			
-			// Update the max record ID for this channel
-			var maxID uint64
+
+			// Track highest record ID per channel for dedup
+			c.mu.Lock()
 			for _, e := range events {
-				if e.WindowsRecordID > maxID {
-					maxID = e.WindowsRecordID
+				if e.WindowsRecordID > c.channelCursor[channel.Name] {
+					c.channelCursor[channel.Name] = e.WindowsRecordID
 				}
 			}
-			
-			c.mu.Lock()
-			c.channelRecordIDs[channel.Name] = maxID
-			log.Printf("[INFO] [EvtPollCollector] Channel [%s]: Updated cursor to %d (was %d)", channel.Name, maxID, minID)
+			// Update per-channel last poll time after successful query
+			c.channelLastPoll[channel.Name] = time.Now()
 			c.mu.Unlock()
 		}
 	}
 
-	log.Printf("[INFO] [EvtPollCollector] Poll cycle completed")
+	observability.DebugPrintf("[DEBUG] [EvtPollCollector] Poll cycle completed")
 }
 
-func (c *EvtPollCollector) queryEvents(channelName, eventIDs string, minRecordID uint64) ([]*types.Event, error) {
-	query := BuildEventQuery(channelName, eventIDs, minRecordID)
-	log.Printf("[DEBUG] [EvtPollCollector] Querying channel [%s] with query: %s", channelName, query)
+func (c *EvtPollCollector) queryEvents(channelName, eventIDs string, startTime time.Time) ([]*types.Event, error) {
+	observability.DebugPrintf("[DEBUG] [EvtPollCollector] queryEvents: channel=%s, eventIDs=%s, startTime=%s", channelName, eventIDs, startTime.Format(time.RFC3339))
 
 	channelPtr, err := windows.UTF16PtrFromString(channelName)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert channel name: %w", err)
 	}
 
-	var queryPtr *uint16
-	if query != "" {
-		queryPtr, err = windows.UTF16PtrFromString(query)
+	var queryPtr uintptr
+	var queryStr string
+	if eventIDs != "" {
+		eventIDList := strings.ReplaceAll(eventIDs, ",", " or ")
+		xpath := buildEventIDXPath(eventIDList)
+		queryStr = fmt.Sprintf("*[System[(%s)]]", xpath)
+		queryPtrVal, err := windows.UTF16PtrFromString(queryStr)
 		if err != nil {
 			return nil, fmt.Errorf("failed to convert query: %w", err)
 		}
+		queryPtr = uintptr(unsafe.Pointer(queryPtrVal))
+	} else {
+		queryStr = "*"
+		queryPtr = 0
 	}
 
 	session := windows.Handle(0)
 	flags := uintptr(EvtQueryChannelPath)
 
-	var queryArg uintptr
-	if queryPtr != nil {
-		queryArg = uintptr(unsafe.Pointer(queryPtr))
-	}
-	// When queryPtr is nil (no filter), pass 0 (C NULL) explicitly
+	observability.DebugPrintf("[DEBUG] [EvtPollCollector] queryEvents EvtQuery: path=%s, query=%q, flags=0x%x", channelName, queryStr, flags)
 
-	queryHandle, _, err := procEvtQuery.Call(
+	queryHandle, r2, lastErr := procEvtQuery.Call(
 		uintptr(session),
 		uintptr(unsafe.Pointer(channelPtr)),
-		queryArg,
-		uintptr(flags),
+		queryPtr,
+		flags,
 	)
 
+	observability.DebugPrintf("[DEBUG] [EvtPollCollector] queryEvents EvtQuery result: handle=%d, r2=%d, lastErr=%v", queryHandle, r2, lastErr)
+
 	if queryHandle == 0 {
-		if err != nil {
-			return nil, fmt.Errorf("EvtQuery failed for channel %s: %v", channelName, err)
-		}
-		return nil, fmt.Errorf("EvtQuery failed for channel %s (unknown error)", channelName)
+		return nil, fmt.Errorf("EvtQuery failed: path=%s, query=%q, flags=0x%x, r2=%d, lastErr=%v", channelName, queryStr, flags, r2, lastErr)
 	}
-
-	log.Printf("[DEBUG] [EvtPollCollector] queryEvents: EvtQuery SUCCESS for channel=%s, query=%s", channelName, query)
-
 	defer procEvtClose.Call(queryHandle)
 
-	events, err := c.fetchEvents(windows.Handle(queryHandle))
-	if err != nil {
-		return nil, fmt.Errorf("fetchEvents failed: %w", err)
-	}
+	observability.DebugPrintf("[DEBUG] [EvtPollCollector] queryEvents: EvtQuery SUCCESS for channel=%s", channelName)
 
-	return events, nil
-}
+	var events []*types.Event
+	var skippedByTime int
+	const batchSize = 256
 
-func (c *EvtPollCollector) fetchEvents(queryHandle windows.Handle) ([]*types.Event, error) {
-	events := make([]*types.Event, 0)
-	eventHandles := make([]windows.Handle, 256)
-
-	log.Printf("[DEBUG] [EvtPollCollector] fetchEvents: starting to fetch events")
-
+	eventHandles := make([]windows.Handle, batchSize)
 	for {
 		var returned uint32
-
-		ret, _, err := procEvtNext.Call(
+		ret, _, _ := procEvtNext.Call(
 			uintptr(queryHandle),
 			uintptr(len(eventHandles)),
 			uintptr(unsafe.Pointer(&eventHandles[0])),
-			uintptr(5000),
+			uintptr(3000),
 			0,
 			uintptr(unsafe.Pointer(&returned)),
 		)
 
 		if ret == 0 {
 			errCode := windows.GetLastError()
-			log.Printf("[DEBUG] [EvtPollCollector] fetchEvents: EvtNext returned 0, errCode=%v, err=%v", errCode, err)
-			if errCode == windows.ERROR_NO_MORE_ITEMS {
-				log.Printf("[DEBUG] [EvtPollCollector] fetchEvents: ERROR_NO_MORE_ITEMS - no more events")
-				break
+			if errCode != windows.ERROR_NO_MORE_ITEMS {
+				observability.Warn("EvtNext error",
+					zap.String("module", "collector_poll"),
+					zap.Error(errCode))
 			}
-			if err != nil && strings.Contains(err.Error(), "operation completed") {
-				log.Printf("[DEBUG] [EvtPollCollector] fetchEvents: operation completed")
-				break
-			}
-			log.Printf("[DEBUG] [EvtPollCollector] fetchEvents: EvtNext failed with errCode=%v, breaking", errCode)
 			break
 		}
 
-		log.Printf("[DEBUG] [EvtPollCollector] fetchEvents: EvtNext returned %d events", returned)
-
 		for i := 0; i < int(returned); i++ {
 			event := renderEvent(eventHandles[i])
-			if event != nil {
-				events = append(events, event)
-			}
 			procEvtClose.Call(uintptr(eventHandles[i]))
+			eventHandles[i] = 0
+
+			if event == nil {
+				continue
+			}
+
+			if !event.Timestamp.After(startTime) {
+				skippedByTime++
+				continue
+			}
+
+			c.mu.RLock()
+			cursor := c.channelCursor[channelName]
+			c.mu.RUnlock()
+			if event.WindowsRecordID <= cursor {
+				continue
+			}
+
+			events = append(events, event)
 		}
 	}
 
-	log.Printf("[DEBUG] [EvtPollCollector] fetchEvents: total collected %d events", len(events))
+	if skippedByTime > 0 {
+		observability.DebugPrintf("[DEBUG] [EvtPollCollector] Channel [%s]: skipped %d historical events (before %s)", channelName, skippedByTime, startTime.Format(time.RFC3339))
+	}
+
+	observability.DebugPrintf("[DEBUG] [EvtPollCollector] queryEvents: collected %d new events", len(events))
 	return events, nil
 }
 
+func buildEventIDXPath(eventIDList string) string {
+	parts := strings.Split(eventIDList, " or ")
+	var clauses []string
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			clauses = append(clauses, fmt.Sprintf("(EventID=%s)", part))
+		}
+	}
+	return strings.Join(clauses, " or ")
+}
+
 func (c *EvtPollCollector) GetLastRecordID() uint64 {
-	// Return the max record ID across all channels for stats
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	var maxID uint64
-	for _, id := range c.channelRecordIDs {
+	for _, id := range c.channelCursor {
 		if id > maxID {
 			maxID = id
 		}

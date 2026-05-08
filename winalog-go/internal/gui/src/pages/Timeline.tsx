@@ -556,7 +556,7 @@ function Timeline() {
                         {getTypeLabel(entry.type)}
                       </span>
                       {entry.type === 'event' && entry.event_id && (
-                        <span className="event-id-badge">Event {entry.event_id}</span>
+                        <span className="event-id-badge">事件 {entry.event_id}</span>
                       )}
                       {entry.type === 'event' && entry.computer && (
                         <span className="computer-badge">{entry.computer}</span>

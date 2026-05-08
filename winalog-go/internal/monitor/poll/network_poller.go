@@ -5,7 +5,6 @@ package poll
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"strings"
 	"sync"
@@ -14,6 +13,8 @@ import (
 	"unsafe"
 
 	"github.com/kkkdddd-start/winalog-go/internal/monitor/types"
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
+	"go.uber.org/zap"
 	"golang.org/x/sys/windows"
 )
 
@@ -99,11 +100,15 @@ func initDLL() error {
 		}
 		procTcp6Table, err = iphlpapi.FindProc("GetExtendedTcp6Table")
 		if err != nil {
-			log.Printf("[WARN] GetExtendedTcp6Table not available: %v", err)
+			observability.Warn("GetExtendedTcp6Table not available",
+				zap.String("module", "network_poller"),
+				zap.Error(err))
 		}
 		procUdp6Table, err = iphlpapi.FindProc("GetExtendedUdp6Table")
 		if err != nil {
-			log.Printf("[WARN] GetExtendedUdp6Table not available: %v", err)
+			observability.Warn("GetExtendedUdp6Table not available",
+				zap.String("module", "network_poller"),
+				zap.Error(err))
 		}
 	})
 	return dllInitErr
@@ -353,7 +358,9 @@ func (np *NetworkPoller) Subscribe(ch chan *types.MonitorEvent) func() {
 
 func (np *NetworkPoller) run() {
 	defer np.wg.Done()
-	log.Printf("[NETWORK] NetworkPoller run() started, interval=%v", np.interval)
+	observability.Debug("NetworkPoller run() started",
+		zap.String("module", "network_poller"),
+		zap.Duration("interval", np.interval))
 	ticker := time.NewTicker(np.interval)
 	defer ticker.Stop()
 
@@ -362,7 +369,7 @@ func (np *NetworkPoller) run() {
 	for {
 		select {
 		case <-np.ctx.Done():
-			log.Printf("[NETWORK] NetworkPoller run() stopping")
+			observability.Debug("NetworkPoller run() stopping", zap.String("module", "network_poller"))
 			return
 		case <-ticker.C:
 			np.pollConnections()
@@ -377,7 +384,7 @@ func (np *NetworkPoller) pollConnections() {
 	default:
 	}
 
-	log.Printf("[NETWORK] Starting network connection poll...")
+	observability.Debug("Starting network connection poll...", zap.String("module", "network_poller"))
 
 	currentTCPIPv4 := make(map[string]*types.ConnectionInfo)
 	currentTCPIPv6 := make(map[string]*types.ConnectionInfo)
@@ -386,9 +393,13 @@ func (np *NetworkPoller) pollConnections() {
 
 	tcpConns, err := getTCPConnections()
 	if err != nil {
-		log.Printf("[ERROR] getTCPConnections failed: %v", err)
+		observability.Error("getTCPConnections failed",
+			zap.String("module", "network_poller"),
+			zap.Error(err))
 	} else {
-		log.Printf("[NETWORK] getTCPConnections returned %d connections", len(tcpConns))
+		observability.Debug("getTCPConnections returned",
+			zap.String("module", "network_poller"),
+			zap.Int("connections", len(tcpConns)))
 		for _, conn := range tcpConns {
 			key := fmt.Sprintf("tcp4-%s-%s", conn.LocalAddr, conn.RemoteAddr)
 			currentTCPIPv4[key] = conn
@@ -403,9 +414,13 @@ func (np *NetworkPoller) pollConnections() {
 
 	tcp6Conns, err := getTCPIPv6Connections()
 	if err != nil {
-		log.Printf("[ERROR] getTCPIPv6Connections failed: %v", err)
+		observability.Error("getTCPIPv6Connections failed",
+			zap.String("module", "network_poller"),
+			zap.Error(err))
 	} else {
-		log.Printf("[NETWORK] getTCPIPv6Connections returned %d connections", len(tcp6Conns))
+		observability.Debug("getTCPIPv6Connections returned",
+			zap.String("module", "network_poller"),
+			zap.Int("connections", len(tcp6Conns)))
 		for _, conn := range tcp6Conns {
 			key := fmt.Sprintf("tcp6-%s-%s", conn.LocalAddr, conn.RemoteAddr)
 			currentTCPIPv6[key] = conn
@@ -420,9 +435,13 @@ func (np *NetworkPoller) pollConnections() {
 
 	udpConns, err := getUDPConnections()
 	if err != nil {
-		log.Printf("[ERROR] getUDPConnections failed: %v", err)
+		observability.Error("getUDPConnections failed",
+			zap.String("module", "network_poller"),
+			zap.Error(err))
 	} else {
-		log.Printf("[NETWORK] getUDPConnections returned %d connections", len(udpConns))
+		observability.Debug("getUDPConnections returned",
+			zap.String("module", "network_poller"),
+			zap.Int("connections", len(udpConns)))
 		for _, conn := range udpConns {
 			key := fmt.Sprintf("udp4-%s", conn.LocalAddr)
 			currentUDPIPv4[key] = conn
@@ -431,9 +450,13 @@ func (np *NetworkPoller) pollConnections() {
 
 	udp6Conns, err := getUDPIPv6Connections()
 	if err != nil {
-		log.Printf("[ERROR] getUDPIPv6Connections failed: %v", err)
+		observability.Error("getUDPIPv6Connections failed",
+			zap.String("module", "network_poller"),
+			zap.Error(err))
 	} else {
-		log.Printf("[NETWORK] getUDPIPv6Connections returned %d connections", len(udp6Conns))
+		observability.Debug("getUDPIPv6Connections returned",
+			zap.String("module", "network_poller"),
+			zap.Int("connections", len(udp6Conns)))
 		for _, conn := range udp6Conns {
 			key := fmt.Sprintf("udp6-%s", conn.LocalAddr)
 			currentUDPIPv6[key] = conn
@@ -453,8 +476,13 @@ func (np *NetworkPoller) pollConnections() {
 	np.mu.Unlock()
 
 	totalConns := len(currentTCPIPv4) + len(currentTCPIPv6) + len(currentUDPIPv4) + len(currentUDPIPv6)
-	log.Printf("[NETWORK] Poll completed: TCPv4=%d, TCPv6=%d, UDPv4=%d, UDPv6=%d, Total=%d",
-		len(currentTCPIPv4), len(currentTCPIPv6), len(currentUDPIPv4), len(currentUDPIPv6), totalConns)
+	observability.Debug("Poll completed",
+		zap.String("module", "network_poller"),
+		zap.Int("tcpv4", len(currentTCPIPv4)),
+		zap.Int("tcpv6", len(currentTCPIPv6)),
+		zap.Int("udpv4", len(currentUDPIPv4)),
+		zap.Int("udpv6", len(currentUDPIPv6)),
+		zap.Int("total", totalConns))
 }
 
 func (np *NetworkPoller) diffAndPublish(current, previous map[string]*types.ConnectionInfo, isTCP bool, protocol string) {
@@ -480,7 +508,11 @@ func (np *NetworkPoller) diffAndPublish(current, previous map[string]*types.Conn
 		}
 	}
 	if newCount > 0 || closeCount > 0 {
-		log.Printf("[NETWORK] %s diff: %d new connections, %d closed connections", protocol, newCount, closeCount)
+		observability.Debug("Network diff",
+			zap.String("module", "network_poller"),
+			zap.String("protocol", protocol),
+			zap.Int("new_connections", newCount),
+			zap.Int("closed_connections", closeCount))
 	}
 }
 
@@ -569,7 +601,9 @@ func (np *NetworkPoller) publishEvent(event *types.MonitorEvent) {
 
 	subscriberCount := len(np.subscribers)
 	if subscriberCount == 0 {
-		log.Printf("[NETWORK] WARNING: No subscribers for event, dropping event: Type=%s", event.Type)
+		observability.Warn("No subscribers for event, dropping event",
+			zap.String("module", "network_poller"),
+			zap.String("event_type", string(event.Type)))
 		return
 	}
 
@@ -577,14 +611,18 @@ func (np *NetworkPoller) publishEvent(event *types.MonitorEvent) {
 		func() {
 			defer func() {
 				if r := recover(); r != nil {
-					log.Printf("[NETWORK] WARNING: Recovered from panic while publishing to channel: %v", r)
+					observability.Warn("Recovered from panic while publishing to channel",
+						zap.String("module", "network_poller"),
+						zap.Any("panic", r))
 				}
 			}()
 			select {
 			case ch <- event:
 				// 阻塞发送成功
 			case <-time.After(1 * time.Second):
-				log.Printf("[NETWORK] WARNING: Failed to send event to subscriber (timeout): Type=%s", event.Type)
+				observability.Warn("Failed to send event to subscriber (timeout)",
+					zap.String("module", "network_poller"),
+					zap.String("event_type", string(event.Type)))
 			}
 		}()
 	}

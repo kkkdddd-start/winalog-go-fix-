@@ -81,7 +81,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 	}
 	defer db.Close()
 
-	eng := engine.NewEngine(db)
+	eng := engine.NewEngine(db, getConfig())
 
 	var startTime, endTime *time.Time
 	if searchFlags.startTime != "" {

@@ -4,10 +4,12 @@ package persistence
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"strings"
 	"sync"
+
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
+	"go.uber.org/zap"
 )
 
 type WhitelistType int
@@ -78,11 +80,18 @@ func (w *Whitelist) IsAllowed(key string) bool {
 	for _, entry := range w.entries {
 		if w.keyMatches(keyLower, strings.ToLower(entry.Key)) {
 			whitelistStats.MatchCount++
-			log.Printf("[WHITELIST] Matched: Key=%s, WhitelistKey=%s, Type=%s, Reason=%s", key, entry.Key, entry.Type, entry.Reason)
+		observability.Debug("Whitelist matched",
+			zap.String("module", "whitelist"),
+			zap.String("key", key),
+			zap.String("whitelistKey", entry.Key),
+			zap.Int("type", int(entry.Type)),
+			zap.String("reason", entry.Reason))
 			return true
 		}
 	}
-	log.Printf("[WHITELIST] Not matched: Key=%s", key)
+	observability.Debug("Whitelist not matched",
+		zap.String("module", "whitelist"),
+		zap.String("key", key))
 	return false
 }
 
@@ -93,11 +102,19 @@ func (w *Whitelist) IsAllowedByType(key string, wtype WhitelistType) bool {
 	for _, entry := range w.entries {
 		if entry.Type == wtype && w.keyMatches(keyLower, strings.ToLower(entry.Key)) {
 			whitelistStats.MatchCount++
-			log.Printf("[WHITELIST] Matched by type: Key=%s, WhitelistKey=%s, Type=%s, Reason=%s", key, entry.Key, entry.Type, entry.Reason)
+			observability.Debug("Whitelist matched by type",
+				zap.String("module", "whitelist"),
+				zap.String("key", key),
+				zap.String("whitelistKey", entry.Key),
+				zap.Int("type", int(entry.Type)),
+				zap.String("reason", entry.Reason))
 			return true
 		}
 	}
-	log.Printf("[WHITELIST] Not matched by type: Key=%s, Type=%s", key, wtype)
+	observability.Debug("Whitelist not matched by type",
+		zap.String("module", "whitelist"),
+		zap.String("key", key),
+		zap.Int("type", int(wtype)))
 	return false
 }
 
@@ -123,43 +140,31 @@ func (w *Whitelist) LoadDefaults() {
 	w.loadMu.Lock()
 	defer w.loadMu.Unlock()
 	if w.loaded {
-		log.Printf("[WHITELIST] Already loaded, skipping...")
+		observability.Debug("Whitelist already loaded", zap.String("module", "whitelist"))
 		return
 	}
 
-	log.Printf("[WHITELIST] Loading default whitelist entries...")
+	observability.Info("Loading default whitelist entries", zap.String("module", "whitelist"))
 	w.addRunKeyWhitelist()
-	log.Printf("[WHITELIST]   Added Run key whitelist entries")
 	w.addServiceWhitelist()
-	log.Printf("[WHITELIST]   Added Service whitelist entries")
 	w.addBHOWitelist()
-	log.Printf("[WHITELIST]   Added BHO whitelist entries")
 	w.addPrintMonitorWhitelist()
-	log.Printf("[WHITELIST]   Added PrintMonitor whitelist entries")
 	w.addWinsockWhitelist()
-	log.Printf("[WHITELIST]   Added Winsock whitelist entries")
 	w.addLSAWhitelist()
-	log.Printf("[WHITELIST]   Added LSA whitelist entries")
 	w.addBootExecuteWhitelist()
-	log.Printf("[WHITELIST]   Added BootExecute whitelist entries")
 	w.addAccessibilityWhitelist()
-	log.Printf("[WHITELIST]   Added Accessibility whitelist entries")
 	w.addScheduledTaskWhitelist()
-	log.Printf("[WHITELIST]   Added ScheduledTask whitelist entries")
 	w.addWMIPersistenceWhitelist()
-	log.Printf("[WHITELIST]   Added WMI persistence whitelist entries")
 	w.addAppInitWhitelist()
-	log.Printf("[WHITELIST]   Added AppInit whitelist entries")
 	w.addIFEOPersistenceWhitelist()
-	log.Printf("[WHITELIST]   Added IFEO persistence whitelist entries")
 	w.addETWPersistenceWhitelist()
-	log.Printf("[WHITELIST]   Added ETW persistence whitelist entries")
 	w.addAppCertPersistenceWhitelist()
-	log.Printf("[WHITELIST]   Added AppCert persistence whitelist entries")
 
 	w.loaded = true
 	whitelistStats.TotalEntries = len(w.entries)
-	log.Printf("[WHITELIST] LoadDefaults completed: Total entries=%d", len(w.entries))
+	observability.Info("Whitelist load completed",
+		zap.String("module", "whitelist"),
+		zap.Int("totalEntries", len(w.entries)))
 }
 
 func (w *Whitelist) addRunKeyWhitelist() {

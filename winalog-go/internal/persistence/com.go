@@ -5,12 +5,12 @@ package persistence
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
 	"github.com/kkkdddd-start/winalog-go/internal/utils"
 )
 
@@ -398,7 +398,7 @@ func (d *COMHijackDetector) isTrustedPath(path string) bool {
 			return true
 		}
 	}
-	log.Printf("[DEBUG] [COM] isTrustedPath: path=%s, expanded=%s, builtinPaths=%v", path, pathExpanded, d.builtinPaths)
+	observability.DebugPrintf("[DEBUG] [COM] isTrustedPath: path=%s, expanded=%s, builtinPaths=%v", path, pathExpanded, d.builtinPaths)
 	return false
 }
 

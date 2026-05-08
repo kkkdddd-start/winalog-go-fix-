@@ -63,16 +63,18 @@ func runImport(cmd *cobra.Command, args []string) error {
 	}
 	defer db.Close()
 
-	eng := engine.NewEngine(db)
+	eng := engine.NewEngine(db, cfg)
 
-	importCfg := engine.ImportConfig{
-		Workers:       importFlags.workers,
-		BatchSize:     importFlags.batchSize,
-		Incremental:   importFlags.incremental,
-		SkipPatterns:  parseSkipPatterns(importFlags.skipPatterns),
-		CalculateHash: true,
+	if importFlags.workers > 0 {
+		cfg.Import.Workers = importFlags.workers
 	}
-	eng.SetImportConfig(importCfg)
+	if importFlags.batchSize > 0 {
+		cfg.Import.BatchSize = importFlags.batchSize
+	}
+	if len(importFlags.skipPatterns) > 0 {
+		cfg.Import.SkipPatterns = parseSkipPatterns(importFlags.skipPatterns)
+	}
+	cfg.Import.Incremental = importFlags.incremental
 
 	paths := args
 	if len(paths) == 0 {

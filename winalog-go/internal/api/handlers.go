@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-	"log"
 	"sort"
 	"strconv"
 	"strings"
@@ -11,21 +10,26 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/kkkdddd-start/winalog-go/internal/alerts"
+	"github.com/kkkdddd-start/winalog-go/internal/config"
 	"github.com/kkkdddd-start/winalog-go/internal/engine"
 	"github.com/kkkdddd-start/winalog-go/internal/exporters"
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
 	"github.com/kkkdddd-start/winalog-go/internal/rules"
 	"github.com/kkkdddd-start/winalog-go/internal/rules/builtin"
 	"github.com/kkkdddd-start/winalog-go/internal/storage"
 	"github.com/kkkdddd-start/winalog-go/internal/types"
+	"go.uber.org/zap"
 )
 
 type AlertHandler struct {
 	db          *storage.DB
+	cfg         *config.Config
 	alertEngine *alerts.Engine
 }
 
 type ImportHandler struct {
 	db          *storage.DB
+	cfg         *config.Config
 	alertEngine *alerts.Engine
 }
 
@@ -243,6 +247,14 @@ func (h *AlertHandler) SearchEvents(c *gin.Context) {
 	}
 	if req.PageSize < 1 || req.PageSize > 10000 {
 		req.PageSize = 100
+	}
+
+	maxResults := 100000
+	if h.cfg != nil && h.cfg.Search.MaxResults > 0 {
+		maxResults = h.cfg.Search.MaxResults
+	}
+	if req.PageSize > maxResults {
+		req.PageSize = maxResults
 	}
 
 	filter := &storage.EventFilter{
@@ -987,12 +999,13 @@ func (h *AlertHandler) ExportAlerts(c *gin.Context) {
 
 	alerts, err := h.db.AlertRepo().Query(filter)
 	if err != nil {
-		log.Printf("[ERROR] ExportAlerts Query failed: %v", err)
+		observability.Error("ExportAlerts Query failed", zap.String("module", "handlers"), zap.Error(err))
 		c.JSON(500, ErrorResponse{Error: err.Error()})
 		return
 	}
 
-	log.Printf("[REPORT] ExportAlerts: format=%s, count=%d, filters=%+v", format, len(alerts), filter)
+	observability.Info("ExportAlerts", zap.String("module", "handlers"),
+		zap.String("format", format), zap.Int("count", len(alerts)), zap.Any("filters", filter))
 
 	exporter := exporters.NewAlertExporter(format)
 
@@ -1001,7 +1014,7 @@ func (h *AlertHandler) ExportAlerts(c *gin.Context) {
 		c.Header("Content-Type", exporter.ContentType())
 		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=alerts_export.%s", exporter.FileExtension()))
 		if err := exporter.Export(alerts, c.Writer); err != nil {
-			log.Printf("[ERROR] ExportAlerts Export failed: %v", err)
+			observability.Error("ExportAlerts Export failed", zap.String("module", "handlers"), zap.Error(err))
 			c.JSON(500, ErrorResponse{Error: err.Error()})
 			return
 		}
@@ -1009,7 +1022,7 @@ func (h *AlertHandler) ExportAlerts(c *gin.Context) {
 		c.Header("Content-Type", exporter.ContentType())
 		c.Header("Content-Disposition", "attachment; filename=alerts_export.json")
 		if err := exporter.Export(alerts, c.Writer); err != nil {
-			log.Printf("[ERROR] ExportAlerts Export failed: %v", err)
+			observability.Error("ExportAlerts Export failed", zap.String("module", "handlers"), zap.Error(err))
 			c.JSON(500, ErrorResponse{Error: err.Error()})
 			return
 		}
@@ -1039,7 +1052,7 @@ func (h *ImportHandler) ImportLogs(c *gin.Context) {
 	var req ImportRequest
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Printf("[IMPORT] Failed to parse request: %v", err)
+		observability.Warn("ImportLogs failed to parse request", zap.String("module", "handlers"), zap.Error(err))
 		c.JSON(400, ErrorResponse{Error: err.Error(), Code: types.ErrCodeInvalidRequest})
 		return
 	}
@@ -1049,23 +1062,24 @@ func (h *ImportHandler) ImportLogs(c *gin.Context) {
 		return
 	}
 
-	log.Printf("[IMPORT] Received import request with %d files", len(req.Files))
+	observability.Info("ImportLogs received import request", zap.String("module", "handlers"), zap.Int("files", len(req.Files)))
 	for i, f := range req.Files {
 		if i < 5 {
-			log.Printf("[IMPORT]   file[%d]: %s", i, f)
+			observability.Info("ImportLogs file", zap.String("module", "handlers"), zap.Int("index", i), zap.String("file", f))
 		} else if i == 5 {
-			log.Printf("[IMPORT]   ... and %d more", len(req.Files)-5)
+			observability.Info("ImportLogs more files", zap.String("module", "handlers"), zap.Int("remaining", len(req.Files)-5))
 			break
 		}
 	}
 
-	eng := engine.NewEngine(h.db)
+	eng := engine.NewEngine(h.db, h.cfg)
 
 	totalResult := &engine.ImportResult{}
 
 	files := req.Files
 	for i, file := range files {
-		log.Printf("[IMPORT] Processing file %d/%d: %s", i+1, len(files), file)
+		observability.Info("ImportLogs processing file", zap.String("module", "handlers"),
+			zap.Int("current", i+1), zap.Int("total", len(files)), zap.String("file", file))
 
 		fileReq := &engine.ImportRequest{
 			Paths:          []string{file},
@@ -1074,12 +1088,13 @@ func (h *ImportHandler) ImportLogs(c *gin.Context) {
 			EnabledFormats: req.EnabledFormats,
 		}
 
-		log.Printf("[IMPORT] Calling eng.Import for file %d/%d, ctx=%p", i+1, len(files), c.Request.Context())
+		observability.DebugPrintf("[DEBUG] Calling eng.Import for file %d/%d", i+1, len(files))
 		result, err := eng.Import(c.Request.Context(), fileReq, nil)
-		log.Printf("[IMPORT] eng.Import returned for file %d/%d, err=%v", i+1, len(files), err)
+		observability.DebugPrintf("[DEBUG] eng.Import returned for file %d/%d, err=%v", i+1, len(files), err)
 
 		if err != nil {
-			log.Printf("[IMPORT] File %d/%d failed: %v", i+1, len(files), err)
+			observability.Error("ImportLogs file failed", zap.String("module", "handlers"),
+				zap.Int("current", i+1), zap.Int("total", len(files)), zap.String("file", file), zap.Error(err))
 			totalResult.Errors = append(totalResult.Errors, &types.ImportError{
 				FilePath: file,
 				Error:    err.Error(),
@@ -1104,8 +1119,8 @@ func (h *ImportHandler) ImportLogs(c *gin.Context) {
 		}
 	}
 
-	log.Printf("[IMPORT] All batches completed: %d files imported, %d failed, %d events",
-		totalResult.FilesImported, totalResult.FilesFailed, totalResult.EventsImported)
+	observability.Info("ImportLogs all batches completed", zap.String("module", "handlers"),
+		zap.Int("filesImported", totalResult.FilesImported), zap.Int("filesFailed", totalResult.FilesFailed), zap.Int64("eventsImported", totalResult.EventsImported))
 
 	if totalResult.FilesImported > 0 && req.AlertOnImport && h.alertEngine != nil {
 		if !totalResult.StartTime.IsZero() {
@@ -1191,7 +1206,7 @@ func (h *ImportHandler) GetImportHistory(c *gin.Context) {
 
 	entries, total, err := h.db.ListImportLogs(limit, offset)
 	if err != nil {
-		log.Printf("[IMPORT] Failed to get import history: %v", err)
+		observability.Error("GetImportHistory failed", zap.String("module", "handlers"), zap.Error(err))
 		c.JSON(500, ErrorResponse{Error: "failed to get import history", Code: types.ErrCodeInternalError})
 		return
 	}
@@ -1317,7 +1332,7 @@ func (h *TimelineHandler) GetTimeline(c *gin.Context) {
 	eventFilter.Offset = 0
 	events, totalEvents, err := h.db.ListEvents(eventFilter)
 	if err != nil {
-		log.Printf("[ERROR] failed to fetch events for timeline: %v", err)
+		observability.Error("Failed to fetch events for timeline", zap.String("module", "handlers"), zap.Error(err))
 	}
 
 	alertFilter := &storage.AlertFilter{
@@ -1349,7 +1364,7 @@ func (h *TimelineHandler) GetTimeline(c *gin.Context) {
 	alertFilter.Offset = 0
 	alerts, err := h.db.AlertRepo().Query(alertFilter)
 	if err != nil {
-		log.Printf("[ERROR] failed to fetch alerts for timeline: %v", err)
+		observability.Error("Failed to fetch alerts for timeline", zap.String("module", "handlers"), zap.Error(err))
 	}
 
 	totalAlerts, _ := h.db.AlertRepo().CountAlertsWithFilter(alertFilter)
@@ -1536,7 +1551,7 @@ func (h *TimelineHandler) GetTimelineStats(c *gin.Context) {
 
 	events, totalEvents, err := h.db.ListEvents(eventFilter)
 	if err != nil {
-		log.Printf("[ERROR] failed to fetch events for timeline stats: %v", err)
+		observability.Error("Failed to fetch events for timeline stats", zap.String("module", "handlers"), zap.Error(err))
 	}
 
 	stats := &TimelineStats{
@@ -1564,7 +1579,7 @@ func (h *TimelineHandler) GetTimelineStats(c *gin.Context) {
 	}
 	_, err = h.db.AlertRepo().Query(alertFilter)
 	if err != nil {
-		log.Printf("[ERROR] failed to fetch alerts for timeline stats: %v", err)
+		observability.Error("Failed to fetch alerts for timeline stats", zap.String("module", "handlers"), zap.Error(err))
 	}
 	totalAlerts, _ := h.db.AlertRepo().CountAlerts()
 	stats.TotalAlerts = totalAlerts
@@ -1636,7 +1651,7 @@ func (h *TimelineHandler) GetAttackChains(c *gin.Context) {
 
 	events, _, err := h.db.ListEvents(eventFilter)
 	if err != nil {
-		log.Printf("[ERROR] failed to fetch events for attack chains: %v", err)
+		observability.Error("Failed to fetch events for attack chains", zap.String("module", "handlers"), zap.Error(err))
 	}
 
 	chains := detectAttackChains(events)
@@ -1764,7 +1779,7 @@ func (h *TimelineHandler) ExportTimeline(c *gin.Context) {
 
 	events, _, err := h.db.ListEvents(eventFilter)
 	if err != nil {
-		log.Printf("[ERROR] failed to fetch events for timeline export: %v", err)
+		observability.Error("Failed to fetch events for timeline export", zap.String("module", "handlers"), zap.Error(err))
 	}
 
 	alertFilter := &storage.AlertFilter{Limit: 5000}
@@ -1776,7 +1791,7 @@ func (h *TimelineHandler) ExportTimeline(c *gin.Context) {
 	}
 	alerts, err := h.db.AlertRepo().Query(alertFilter)
 	if err != nil {
-		log.Printf("[ERROR] failed to fetch alerts for timeline export: %v", err)
+		observability.Error("Failed to fetch alerts for timeline export", zap.String("module", "handlers"), zap.Error(err))
 	}
 
 	eventEntries := make([]*TimelineEntry, 0, len(events))

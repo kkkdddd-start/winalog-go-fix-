@@ -3,7 +3,6 @@
 package api
 
 import (
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -12,7 +11,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/kkkdddd-start/winalog-go/internal/collectors"
 	"github.com/kkkdddd-start/winalog-go/internal/config"
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
 	"github.com/kkkdddd-start/winalog-go/internal/storage"
+	"go.uber.org/zap"
 	"golang.org/x/sys/windows"
 )
 
@@ -40,10 +41,10 @@ func (h *SystemHandler) GetProcesses(c *gin.Context) {
 	enabledStr := c.DefaultQuery("enabled", "true")
 	enabled := enabledStr == "true" || enabledStr == "1"
 
-	log.Printf("[INFO] GetProcesses called with enabled=%v, limit=%d", enabled, limit)
+	observability.Info("GetProcesses called", zap.String("module", "handlers_system_windows"), zap.Bool("enabled", enabled), zap.Int("limit", limit))
 
 	if !enabled {
-		log.Printf("[INFO] GetProcesses skipped - module disabled")
+		observability.Info("GetProcesses skipped - module disabled", zap.String("module", "handlers_system_windows"))
 		c.JSON(200, ProcessResponse{
 			Processes: []*ProcessInfo{},
 			Total:     0,
@@ -54,12 +55,12 @@ func (h *SystemHandler) GetProcesses(c *gin.Context) {
 	collector := collectors.NewProcessInfoCollector()
 	processes, err := collector.CollectProcessInfoWithSignature()
 	if err != nil {
-		log.Printf("[ERROR] GetProcesses failed: %v", err)
+		observability.Error("GetProcesses failed", zap.String("module", "handlers_system_windows"), zap.Error(err))
 		c.JSON(500, gin.H{"error": err.Error()})
 		return
 	}
 
-	log.Printf("[INFO] GetProcesses returned %d processes", len(processes))
+	observability.Info("GetProcesses returned results", zap.String("module", "handlers_system_windows"), zap.Int("count", len(processes)))
 
 	result := make([]*ProcessInfo, 0, len(processes))
 	for _, p := range processes {
@@ -122,9 +123,9 @@ func (h *SystemHandler) GetProcesses(c *gin.Context) {
 			})
 		}
 		if err := systemRepo.SaveProcesses(storageProcesses); err != nil {
-			log.Printf("[ERROR] Failed to save processes to database: %v", err)
+			observability.Error("Failed to save processes to database", zap.String("module", "handlers_system_windows"), zap.Error(err))
 		} else {
-			log.Printf("[INFO] Saved %d processes to database", len(storageProcesses))
+			observability.Info("Saved processes to database", zap.String("module", "handlers_system_windows"), zap.Int("count", len(storageProcesses)))
 		}
 	}
 
@@ -147,10 +148,10 @@ func (h *SystemHandler) GetUsers(c *gin.Context) {
 	enabledStr := c.DefaultQuery("enabled", "true")
 	enabled := enabledStr == "true" || enabledStr == "1"
 
-	log.Printf("[INFO] GetUsers called with enabled=%v", enabled)
+	observability.Info("GetUsers called", zap.String("module", "handlers_system_windows"), zap.Bool("enabled", enabled))
 
 	if !enabled {
-		log.Printf("[INFO] GetUsers skipped - module disabled")
+		observability.Info("GetUsers skipped - module disabled", zap.String("module", "handlers_system_windows"))
 		c.JSON(http.StatusOK, UserResponse{
 			Users: []*UserInfo{},
 			Total: 0,
@@ -160,12 +161,12 @@ func (h *SystemHandler) GetUsers(c *gin.Context) {
 
 	users, err := collectors.ListLocalUsers()
 	if err != nil {
-		log.Printf("[ERROR] GetUsers failed: %v", err)
+		observability.Error("GetUsers failed", zap.String("module", "handlers_system_windows"), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	log.Printf("[INFO] GetUsers returned %d users", len(users))
+	observability.Info("GetUsers returned results", zap.String("module", "handlers_system_windows"), zap.Int("count", len(users)))
 
 	result := make([]*UserInfo, 0, len(users))
 	for _, u := range users {
@@ -210,9 +211,9 @@ func (h *SystemHandler) GetUsers(c *gin.Context) {
 			})
 		}
 		if err := systemRepo.SaveUsers(storageUsers); err != nil {
-			log.Printf("[ERROR] Failed to save users to database: %v", err)
+			observability.Error("Failed to save users to database", zap.String("module", "handlers_system_windows"), zap.Error(err))
 		} else {
-			log.Printf("[INFO] Saved %d users to database", len(storageUsers))
+			observability.Info("Saved users to database", zap.String("module", "handlers_system_windows"), zap.Int("count", len(storageUsers)))
 		}
 	}
 
@@ -235,10 +236,10 @@ func (h *SystemHandler) GetScheduledTasks(c *gin.Context) {
 	enabledStr := c.DefaultQuery("enabled", "true")
 	enabled := enabledStr == "true" || enabledStr == "1"
 
-	log.Printf("[INFO] GetScheduledTasks called with enabled=%v", enabled)
+	observability.Info("GetScheduledTasks called", zap.String("module", "handlers_system_windows"), zap.Bool("enabled", enabled))
 
 	if !enabled {
-		log.Printf("[INFO] GetScheduledTasks skipped - module disabled")
+		observability.Info("GetScheduledTasks skipped - module disabled", zap.String("module", "handlers_system_windows"))
 		c.JSON(http.StatusOK, TaskResponse{
 			Tasks: []*TaskInfo{},
 			Total: 0,
@@ -248,12 +249,12 @@ func (h *SystemHandler) GetScheduledTasks(c *gin.Context) {
 
 	tasks, err := collectors.ListScheduledTasks()
 	if err != nil {
-		log.Printf("[ERROR] GetScheduledTasks failed: %v", err)
+		observability.Error("GetScheduledTasks failed", zap.String("module", "handlers_system_windows"), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	log.Printf("[INFO] GetScheduledTasks returned %d tasks", len(tasks))
+	observability.Info("GetScheduledTasks returned results", zap.String("module", "handlers_system_windows"), zap.Int("count", len(tasks)))
 
 	result := make([]*TaskInfo, 0, len(tasks))
 	for _, t := range tasks {
@@ -291,9 +292,9 @@ func (h *SystemHandler) GetScheduledTasks(c *gin.Context) {
 			})
 		}
 		if err := systemRepo.SaveScheduledTasks(storageTasks); err != nil {
-			log.Printf("[ERROR] Failed to save scheduled tasks to database: %v", err)
+			observability.Error("Failed to save scheduled tasks to database", zap.String("module", "handlers_system_windows"), zap.Error(err))
 		} else {
-			log.Printf("[INFO] Saved %d scheduled tasks to database", len(storageTasks))
+			observability.Info("Saved scheduled tasks to database", zap.String("module", "handlers_system_windows"), zap.Int("count", len(storageTasks)))
 		}
 	}
 

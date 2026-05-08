@@ -2,10 +2,12 @@ import { useState, useEffect, useCallback } from 'react'
 import { useI18n } from '../locales/I18n'
 import { monitorAPI } from '../api'
 import { message } from 'antd'
+import { debugLog } from '../utils/logger'
 
 interface MonitorStats {
   is_collecting: boolean
   total_events: number
+  total_count: number
   buffer_size: number
   last_event_id: number
   channels: string[]
@@ -93,7 +95,7 @@ function Monitor() {
     try {
       const response = await monitorAPI.getStats()
       const backendStats = response.data.stats
-      console.log('[MONITOR] fetchStats:', backendStats)
+      debugLog('[MONITOR] fetchStats:', backendStats)
       setStats(backendStats)
       setStatsError(null)
       setConfig({
@@ -119,7 +121,9 @@ function Monitor() {
         filter.type = activeTab
       }
       const response = await monitorAPI.getEvents(filter)
-      setEvents(response.data.events || [])
+      const newEvents = response.data.events || []
+      debugLog(`[MONITOR] fetchEvents: tab=${activeTab}, received ${newEvents.length} events`)
+      setEvents(newEvents)
       setEventsError(null)
     } catch (error: any) {
       const msg = error.response?.status === 404
@@ -146,10 +150,10 @@ function Monitor() {
   }, [fetchEvents, stats?.is_collecting])
 
   const handleToggle = async (key: keyof MonitorConfig) => {
-    console.log('[MONITOR] handleToggle called:', key)
-    console.log('[MONITOR] stats:', stats)
-    console.log('[MONITOR] stats?.is_collecting:', stats?.is_collecting)
-    console.log('[MONITOR] config:', config)
+    debugLog('[MONITOR] handleToggle called:', key)
+    debugLog('[MONITOR] stats:', stats)
+    debugLog('[MONITOR] stats?.is_collecting:', stats?.is_collecting)
+    debugLog('[MONITOR] config:', config)
 
     if (!stats?.is_collecting) {
       console.warn('[MONITOR] Cannot toggle: monitor is not running, need to start monitor first')
@@ -161,13 +165,13 @@ function Monitor() {
     const newConfig = { ...config, [key]: newValue }
     const oldConfig = { ...config }
 
-    console.log('[MONITOR] Toggling', key, 'from', oldConfig[key as keyof MonitorConfig], 'to', newValue)
+    debugLog('[MONITOR] Toggling', key, 'from', oldConfig[key as keyof MonitorConfig], 'to', newValue)
     setConfig(newConfig)
 
     try {
-      console.log('[MONITOR] Sending API request to /monitor/config with:', newConfig)
+      debugLog('[MONITOR] Sending API request to /monitor/config with:', newConfig)
       const response = await monitorAPI.updateConfig(newConfig)
-      console.log('[MONITOR] updateConfig success:', response.data)
+      debugLog('[MONITOR] updateConfig success:', response.data)
       message.success('配置已更新')
       fetchStats()
     } catch (error: any) {
@@ -180,21 +184,21 @@ function Monitor() {
 
   const handleStartStop = async () => {
     const action = stats?.is_collecting ? 'stop' : 'start'
-    console.log('[MONITOR] handleStartStop called, action:', action)
-    console.log('[MONITOR] stats?.is_collecting:', stats?.is_collecting)
+    debugLog('[MONITOR] handleStartStop called, action:', action)
+    debugLog('[MONITOR] stats?.is_collecting:', stats?.is_collecting)
 
     setLoading(true)
     try {
       if (stats?.is_collecting) {
-        console.log('[MONITOR] Stopping monitor...')
+        debugLog('[MONITOR] Stopping monitor...')
         await monitorAPI.updateConfig({
           process_enabled: false,
           network_enabled: false,
         })
       }
-      console.log('[MONITOR] Sending start/stop API request:', action)
+      debugLog('[MONITOR] Sending start/stop API request:', action)
       const response = await monitorAPI.startStop(action)
-      console.log('[MONITOR] startStop success:', response.data)
+      debugLog('[MONITOR] startStop success:', response.data)
       message.success(action === 'start' ? '监控已启动' : '监控已停止')
       fetchStats()
       fetchEvents()
@@ -319,7 +323,7 @@ function Monitor() {
           </div>
         )
       default:
-        return <span>Unknown event type</span>
+        return <span>未知事件类型</span>
     }
   }
 
@@ -485,24 +489,24 @@ function Monitor() {
               className={`filter-tab ${activeTab === 'all' ? 'active' : ''}`}
               onClick={() => setActiveTab('all')}
             >
-              <span className="tab-label">All</span>
-              <span className="tab-count">{events.length}</span>
+              <span className="tab-label">全部</span>
+              <span className="tab-count">{stats?.total_count ?? events.length}</span>
             </button>
             <button
               className={`filter-tab process ${activeTab === 'process' ? 'active' : ''}`}
               onClick={() => setActiveTab('process')}
             >
               <ProcessIcon />
-              <span className="tab-label">Process</span>
-              <span className="tab-count">{events.filter(e => e.type === 'process').length}</span>
+              <span className="tab-label">进程</span>
+              <span className="tab-count">{stats?.process_count ?? events.filter(e => e.type === 'process').length}</span>
             </button>
             <button
               className={`filter-tab network ${activeTab === 'network' ? 'active' : ''}`}
               onClick={() => setActiveTab('network')}
             >
               <NetworkIcon />
-              <span className="tab-label">Network</span>
-              <span className="tab-count">{events.filter(e => e.type === 'network').length}</span>
+              <span className="tab-label">网络</span>
+              <span className="tab-count">{stats?.network_count ?? events.filter(e => e.type === 'network').length}</span>
             </button>
           </div>
           <button

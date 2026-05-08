@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -16,6 +15,7 @@ import (
 	monitorApi "github.com/kkkdddd-start/winalog-go/internal/monitor/api"
 	"github.com/kkkdddd-start/winalog-go/internal/observability"
 	"github.com/kkkdddd-start/winalog-go/internal/storage"
+	"go.uber.org/zap"
 )
 
 type Server struct {
@@ -54,7 +54,6 @@ func NewServer(db *storage.DB, cfg *config.Config, configPath, addr string) *Ser
 	gin.SetMode(gin.ReleaseMode)
 	engine := gin.New()
 
-	_ = initLogFile()
 	observability.InitMetricsLogger()
 
 	engine.Use(recoveryMiddleware())
@@ -82,10 +81,12 @@ func (s *Server) setupHandlers() {
 	})
 	s.alertEng = &AlertHandler{
 		db:          s.db,
+		cfg:         s.cfg,
 		alertEngine: s.alertEngine,
 	}
 	s.importEng = &ImportHandler{
 		db:          s.db,
+		cfg:         s.cfg,
 		alertEngine: s.alertEngine,
 	}
 	s.liveEng = NewLiveHandler(s.db)
@@ -93,7 +94,7 @@ func (s *Server) setupHandlers() {
 	s.timelineEng = &TimelineHandler{
 		db: s.db,
 	}
-	s.systemEng = NewSystemHandler(s.db)
+	s.systemEng = NewSystemHandler(s.db, float64(s.cfg.Parser.MemoryLimit))
 	s.rulesEng = NewRulesHandler(s.db)
 	s.reportsEng = NewReportsHandler(s.db)
 	s.forensicsEng = NewForensicsHandler(s.db)
@@ -103,8 +104,9 @@ func (s *Server) setupHandlers() {
 	analyzerManager := analyzers.NewDefaultManager()
 	s.analyzeEng = NewAnalyzeHandler(s.db, analyzerManager)
 
-	s.collectEng = NewCollectHandler(s.db, s.alertEngine)
+	s.collectEng = NewCollectHandler(s.db, s.cfg, s.alertEngine)
 	s.suppressEng = NewSuppressHandler(s.db, s.alertEngine)
+	s.suppressEng.loadRulesToEngine()
 	s.uebaEng = NewUEBAHandler(s.db)
 	s.correlationEng = NewCorrelationHandler(s.db)
 	s.multiEng = NewMultiHandler(s.db)
@@ -116,11 +118,11 @@ func (s *Server) setupHandlers() {
 	monitorEngine, err := monitor.NewMonitorEngine("monitor-config.json")
 	if err == nil {
 		s.monitorEng = monitorApi.NewMonitorHandler(monitorEngine)
-		log.Println("[MONITOR] Live monitoring engine initialized successfully")
-		log.Println("[MONITOR] Monitor routes registered: GET /api/monitor/stats, GET /api/monitor/events, POST /api/monitor/config")
+		observability.Info("Live monitoring engine initialized successfully", zap.String("module", "server"))
+		observability.Info("Monitor routes registered", zap.String("module", "server"))
 	} else {
-		log.Printf("[MONITOR] Failed to initialize live monitoring engine: %v", err)
-		log.Println("[MONITOR] Live monitoring is disabled - this is expected on non-Windows systems")
+		observability.Warn("Failed to initialize live monitoring engine", zap.String("module", "server"), zap.Error(err))
+		observability.Info("Live monitoring disabled on non-Windows systems", zap.String("module", "server"))
 	}
 }
 
@@ -150,7 +152,7 @@ func (s *Server) setupRoutes() {
 		path := c.Request.URL.Path
 
 		if strings.Contains(path, "..") {
-			log.Printf("[WARN] Blocked path traversal attempt: %s", path)
+			observability.Warn("Blocked path traversal attempt", zap.String("module", "server"), zap.String("path", path))
 			c.Data(403, "text/plain", []byte("Forbidden"))
 			return
 		}
@@ -193,7 +195,7 @@ func (s *Server) setupRoutes() {
 }
 
 func (s *Server) Start() error {
-	log.Printf("Starting HTTP API server on %s", s.addr)
+	observability.Info("Starting HTTP API server", zap.String("module", "server"), zap.String("addr", s.addr))
 
 	requestTimeout := s.cfg.API.RequestTimeout
 	if requestTimeout == 0 {
@@ -213,7 +215,8 @@ func (s *Server) Start() error {
 		MaxHeaderBytes: 1 << 20,
 	}
 
-	log.Printf("HTTP server timeouts - Read: %v, Write: %v", requestTimeout, writeTimeout)
+	observability.Info("HTTP server timeouts configured", zap.String("module", "server"),
+		zap.Duration("read", requestTimeout), zap.Duration("write", writeTimeout))
 
 	if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return fmt.Errorf("failed to start server: %w", err)
@@ -230,16 +233,11 @@ func (s *Server) Stop() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	log.Println("Shutting down HTTP server gracefully...")
+	observability.Info("Shutting down HTTP server gracefully", zap.String("module", "server"))
 	if err := s.httpServer.Shutdown(ctx); err != nil {
 		return fmt.Errorf("server shutdown error: %w", err)
 	}
-	log.Println("HTTP server gracefully stopped")
-
-	if logFileInstance != nil {
-		logFileInstance.Close()
-		logFileInstance = nil
-	}
+	observability.Info("HTTP server gracefully stopped", zap.String("module", "server"))
 
 	return nil
 }
@@ -247,7 +245,10 @@ func (s *Server) Stop() error {
 func (s *Server) ReloadConfig(cfg *config.Config) {
 	s.cfg = cfg
 	s.settingsEng.UpdateConfig(cfg)
-	log.Println("Configuration reloaded successfully")
+	s.importEng.cfg = cfg
+	s.collectEng.cfg = cfg
+	s.alertEng.cfg = cfg
+	observability.Info("Configuration reloaded successfully", zap.String("module", "server"))
 }
 
 func getStaticContentType(path string) string {

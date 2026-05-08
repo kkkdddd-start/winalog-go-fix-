@@ -10,6 +10,7 @@ type MonitorStats struct {
 	IsRunning      bool      `json:"is_running"`
 	ProcessEnabled bool      `json:"process_enabled"`
 	NetworkEnabled bool      `json:"network_enabled"`
+	TotalCount     uint64    `json:"total_count"`
 	ProcessCount   uint64    `json:"process_count"`
 	NetworkCount   uint64    `json:"network_count"`
 	AlertCount     uint64    `json:"alert_count"`

@@ -1,12 +1,59 @@
 package observability
 
 import (
+	"fmt"
+	"log"
 	"os"
+	"runtime/debug"
+	"strings"
+	"sync"
 	"time"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
+
+// DebugEnabled 返回是否启用调试日志
+var DebugEnabled = os.Getenv("WINALOG_DEBUG") == "true"
+
+// DebugPrintf 条件输出调试日志，仅当 WINALOG_DEBUG=true 时输出
+func DebugPrintf(format string, args ...interface{}) {
+	if DebugEnabled {
+		log.Printf(format, args...)
+	}
+}
+
+// Debugf 返回格式化字符串，用于调试信息拼接
+func Debugf(format string, args ...interface{}) string {
+	return fmt.Sprintf(format, args...)
+}
+
+// PanicRecover 标准 panic 恢复处理，输出错误日志和堆栈跟踪
+func PanicRecover(module string, fields ...zap.Field) {
+	if r := recover(); r != nil {
+		stack := string(debug.Stack())
+		allFields := append(fields,
+			zap.String("module", module),
+			zap.Any("panic", r),
+			zap.String("stack", stack),
+		)
+		Error("Panic recovered", allFields...)
+	}
+}
+
+// logFileWriterAdapter 将 LogFile 适配为 zapcore.WriteSyncer，使用同一个文件句柄
+var logFileWriter zapcore.WriteSyncer
+var logFileWriterOnce sync.Once
+
+func getLogWriter() zapcore.WriteSyncer {
+	logFileWriterOnce.Do(func() {
+		lf := GetLogFile()
+		if lf != nil {
+			logFileWriter = zapcore.AddSync(lf)
+		}
+	})
+	return logFileWriter
+}
 
 type LoggerConfig struct {
 	Level      string
@@ -35,21 +82,6 @@ func NewLogger(config *LoggerConfig) (*Logger, error) {
 		}
 	}
 
-	var encoder zapcore.Encoder
-	var encoderConfig zapcore.EncoderConfig
-
-	if config.Format == FormatJSON {
-		encoderConfig = zap.NewProductionEncoderConfig()
-		encoderConfig.TimeKey = "timestamp"
-		encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-		encoder = zapcore.NewJSONEncoder(encoderConfig)
-	} else {
-		encoderConfig = zap.NewDevelopmentEncoderConfig()
-		encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-		encoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-		encoder = zapcore.NewConsoleEncoder(encoderConfig)
-	}
-
 	level := zapcore.InfoLevel
 	switch config.Level {
 	case "debug":
@@ -62,22 +94,36 @@ func NewLogger(config *LoggerConfig) (*Logger, error) {
 		level = zapcore.FatalLevel
 	}
 
-	var writeSyncer zapcore.WriteSyncer
-	if config.OutputPath == "stdout" || config.OutputPath == "" {
-		writeSyncer = zapcore.AddSync(os.Stdout)
-	} else {
-		file, err := os.OpenFile(config.OutputPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		if err != nil {
-			return nil, err
-		}
-		writeSyncer = zapcore.NewMultiWriteSyncer(
-			zapcore.AddSync(os.Stdout),
-			zapcore.AddSync(file),
+	// stdout: console 格式（人类可读）
+	stdoutEncoderConfig := zap.NewDevelopmentEncoderConfig()
+	stdoutEncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	stdoutEncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	stdoutCore := zapcore.NewCore(
+		zapcore.NewConsoleEncoder(stdoutEncoderConfig),
+		zapcore.AddSync(os.Stdout),
+		level,
+	)
+
+	// 日志文件: JSON 格式（便于 UI 解析）
+	var cores []zapcore.Core
+	cores = append(cores, stdoutCore)
+
+	if fileWriter := getLogWriter(); fileWriter != nil {
+		fileEncoderConfig := zap.NewProductionEncoderConfig()
+		fileEncoderConfig.TimeKey = "timestamp"
+		fileEncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+		fileEncoderConfig.LevelKey = "level"
+		fileEncoderConfig.EncodeLevel = zapcore.LowercaseLevelEncoder
+		fileEncoderConfig.MessageKey = "message"
+		fileCore := zapcore.NewCore(
+			zapcore.NewJSONEncoder(fileEncoderConfig),
+			fileWriter,
+			level,
 		)
+		cores = append(cores, fileCore)
 	}
 
-	core := zapcore.NewCore(encoder, writeSyncer, level)
-	logger := zap.New(core, zap.AddCaller(), zap.AddCallerSkip(1))
+	logger := zap.New(zapcore.NewTee(cores...), zap.AddCaller(), zap.AddCallerSkip(1))
 
 	return &Logger{
 		Logger: logger,
@@ -86,7 +132,10 @@ func NewLogger(config *LoggerConfig) (*Logger, error) {
 }
 
 func (l *Logger) Sync() error {
-	return l.Logger.Sync()
+	if l.Logger != nil {
+		return l.Logger.Sync()
+	}
+	return nil
 }
 
 func (l *Logger) GetConfig() *LoggerConfig {
@@ -107,6 +156,63 @@ func GetLogger() *Logger {
 		defaultLogger, _ = NewLogger(nil)
 	}
 	return defaultLogger
+}
+
+// SetLogLevel 动态修改日志级别，无需重启
+func SetLogLevel(level string) error {
+	l := GetLogger()
+	if l == nil {
+		return fmt.Errorf("logger not initialized")
+	}
+
+	var newLevel zapcore.Level
+	switch strings.ToLower(level) {
+	case "debug":
+		newLevel = zapcore.DebugLevel
+	case "info":
+		newLevel = zapcore.InfoLevel
+	case "warn":
+		newLevel = zapcore.WarnLevel
+	case "error":
+		newLevel = zapcore.ErrorLevel
+	case "fatal":
+		newLevel = zapcore.FatalLevel
+	default:
+		return fmt.Errorf("unknown log level: %s", level)
+	}
+
+	// 使用 atomic 替换（zap 的 core 支持原子更新）
+	stdoutCfg := zap.NewDevelopmentEncoderConfig()
+	stdoutCfg.EncodeTime = zapcore.ISO8601TimeEncoder
+	stdoutCfg.EncodeLevel = zapcore.CapitalColorLevelEncoder
+
+	fileCfg := zap.NewProductionEncoderConfig()
+	fileCfg.TimeKey = "timestamp"
+	fileCfg.EncodeTime = zapcore.ISO8601TimeEncoder
+	fileCfg.LevelKey = "level"
+	fileCfg.EncodeLevel = zapcore.LowercaseLevelEncoder
+	fileCfg.MessageKey = "message"
+
+	l.Logger = l.Logger.WithOptions(zap.WrapCore(func(core zapcore.Core) zapcore.Core {
+		levelEnabler := zap.NewAtomicLevelAt(newLevel)
+		var cores []zapcore.Core
+		cores = append(cores, zapcore.NewCore(
+			zapcore.NewConsoleEncoder(stdoutCfg),
+			zapcore.AddSync(os.Stdout),
+			levelEnabler,
+		))
+		if fileWriter := getLogWriter(); fileWriter != nil {
+			cores = append(cores, zapcore.NewCore(
+				zapcore.NewJSONEncoder(fileCfg),
+				fileWriter,
+				levelEnabler,
+			))
+		}
+		return zapcore.NewTee(cores...)
+	}))
+
+	defaultLogger = l
+	return nil
 }
 
 func (l *Logger) Debug(msg string, fields ...zap.Field) {

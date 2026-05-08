@@ -15,17 +15,20 @@ import (
 	"sync"
 	"time"
 
+	"github.com/kkkdddd-start/winalog-go/internal/config"
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
 	"github.com/kkkdddd-start/winalog-go/internal/parsers"
 	"github.com/kkkdddd-start/winalog-go/internal/storage"
 	"github.com/kkkdddd-start/winalog-go/internal/types"
+	"go.uber.org/zap"
 )
 
 type Engine struct {
 	db          *storage.DB
+	cfg         *config.Config
 	parsers     *parsers.ParserRegistry
 	eventRepo   *storage.EventRepo
 	alertRepo   *storage.AlertRepo
-	importCfg   ImportConfig
 	searchCache *searchCache
 }
 
@@ -42,15 +45,6 @@ type cacheEntry struct {
 	key     string
 }
 
-type ImportConfig struct {
-	Workers          int
-	BatchSize        int
-	SkipPatterns     []string
-	Incremental      bool
-	CalculateHash    bool
-	ProgressCallback bool
-}
-
 type ImportProgress struct {
 	TotalFiles      int
 	CurrentFile     int
@@ -61,45 +55,40 @@ type ImportProgress struct {
 	EstimatedLeft   time.Duration
 }
 
-func NewEngine(db *storage.DB) *Engine {
-	fmt.Printf("[ENGINE] >>> NewEngine ENTERED, db=%p\n", db)
+func NewEngine(db *storage.DB, cfg *config.Config) *Engine {
+	observability.Debug("NewEngine entered", zap.String("module", "engine"), zap.Any("db", db))
+	if cfg == nil {
+		cfg = config.DefaultConfig()
+	}
 	e := &Engine{
 		db:        db,
+		cfg:       cfg,
 		parsers:   parsers.GetGlobalRegistry(),
 		eventRepo: storage.NewEventRepo(db),
 		alertRepo: storage.NewAlertRepo(db),
-		importCfg: ImportConfig{
-			Workers:          4,
-			BatchSize:        10000,
-			SkipPatterns:     []string{"Diagnostics", "Debug"},
-			Incremental:      true,
-			CalculateHash:    true,
-			ProgressCallback: true,
-		},
 		searchCache: &searchCache{
 			entries: make(map[string]*cacheEntry),
 			maxAge:  30 * time.Second,
 			maxSize: 100,
 		},
 	}
-	fmt.Printf("[ENGINE] >>> NewEngine EXIT, e=%p, parsers=%p\n", e, e.parsers)
+	observability.Debug("NewEngine completed", zap.String("module", "engine"), zap.Any("engine", e), zap.Any("parsers", e.parsers))
 	return e
 }
 
-func (e *Engine) SetImportConfig(cfg ImportConfig) {
-	e.importCfg = cfg
+func (e *Engine) SyncConfig(cfg *config.Config) {
+	e.cfg = cfg
 }
 
 func (e *Engine) Import(ctx context.Context, req *ImportRequest, progressFn func(*ImportProgress)) (*ImportResult, error) {
-	fmt.Printf("[IMPORT] >>> Import ENTERED, ctx=%p, req=%p, req.Paths=%d\n", ctx, req, len(req.Paths))
+	observability.Debug("Import entered", zap.String("module", "engine"), zap.Int("paths", len(req.Paths)))
 	if req == nil {
-		fmt.Printf("[IMPORT] >>> FATAL: req is nil!\n")
+		observability.Error("Import called with nil request", zap.String("module", "engine"))
 		return nil, fmt.Errorf("ImportRequest is nil")
 	}
-	fmt.Printf("[IMPORT] >>> Accessing importCfg.Workers\n")
-	workers := e.importCfg.Workers
-	batchSize := e.importCfg.BatchSize
-	fmt.Printf("[IMPORT] >>> importCfg accessed: Workers=%d, BatchSize=%d\n", workers, batchSize)
+	workers := e.cfg.Import.Workers
+	batchSize := e.cfg.Import.BatchSize
+	observability.Debug("Import config loaded", zap.String("module", "engine"), zap.Int("workers", workers), zap.Int("batchSize", batchSize))
 	if req.Workers <= 0 {
 		req.Workers = workers
 	}
@@ -107,8 +96,7 @@ func (e *Engine) Import(ctx context.Context, req *ImportRequest, progressFn func
 		req.BatchSize = batchSize
 	}
 
-	fmt.Printf("[IMPORT] >>> Import config: Workers=%d, BatchSize=%d\n", req.Workers, req.BatchSize)
-	fmt.Printf("[IMPORT] >>> About to call importWithProgress\n")
+	observability.Debug("Starting importWithProgress", zap.String("module", "engine"), zap.Int("workers", req.Workers), zap.Int("batchSize", req.BatchSize))
 	return e.importWithProgress(ctx, req, progressFn)
 }
 
@@ -117,21 +105,13 @@ func (e *Engine) importWithProgress(ctx context.Context, req *ImportRequest, pro
 		StartTime: time.Now(),
 	}
 
-	files := collectFiles(req.Paths, e.importCfg.SkipPatterns, req.EnabledFormats)
-	fmt.Printf("[IMPORT] collectFiles returned %d files from %d input paths\n", len(files), len(req.Paths))
+	files := collectFiles(req.Paths, e.cfg.Import.SkipPatterns, req.EnabledFormats)
+	observability.Debug("Files collected", zap.String("module", "engine"), zap.Int("files", len(files)), zap.Int("inputPaths", len(req.Paths)))
 
 	availableFiles, missingFiles := checkAvailableFiles(files)
-	fmt.Printf("[IMPORT] checkAvailableFiles: %d available, %d missing\n", len(availableFiles), len(missingFiles))
+	observability.Debug("File availability check", zap.String("module", "engine"), zap.Int("available", len(availableFiles)), zap.Int("missing", len(missingFiles)))
 	if len(missingFiles) > 0 {
-		fmt.Printf("[IMPORT] Warning: %d files do not exist:\n", len(missingFiles))
-		for _, f := range missingFiles {
-			if len(missingFiles) <= 10 {
-				fmt.Printf("  - %s\n", f)
-			}
-		}
-		if len(missingFiles) > 10 {
-			fmt.Printf("  ... and %d more\n", len(missingFiles)-10)
-		}
+		observability.Warn("Some files do not exist", zap.String("module", "engine"), zap.Int("missing", len(missingFiles)), zap.Any("paths", missingFiles))
 	}
 
 	if len(availableFiles) == 0 {
@@ -265,7 +245,7 @@ func (e *Engine) importFile(ctx context.Context, path string, logName string) (*
 		}
 		batch = append(batch, event)
 
-		if len(batch) >= e.importCfg.BatchSize {
+		if len(batch) >= e.cfg.Import.BatchSize {
 			batchNum++
 			if err := e.eventRepo.InsertBatch(batch); err != nil {
 				importErr = fmt.Errorf("batch %d failed: %w", batchNum, err)
@@ -298,7 +278,7 @@ func (e *Engine) importFile(ctx context.Context, path string, logName string) (*
 	_ = e.db.UpdateImportLog(importID, int(totalEvents), int(duration.Milliseconds()), "success", "")
 
 	if err := e.eventRepo.FlushFTS(); err != nil {
-		fmt.Printf("[IMPORT] Warning: FlushFTS failed for import %d: %v\n", importID, err)
+		observability.Warn("FlushFTS failed", zap.String("module", "engine"), zap.Int64("importID", importID), zap.Error(err))
 	}
 
 	return &ImportResult{

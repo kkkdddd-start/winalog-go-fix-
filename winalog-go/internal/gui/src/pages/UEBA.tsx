@@ -311,7 +311,7 @@ function UEBA() {
                   <h3>{t('ueba.noAnomalies')}</h3>
                   <p>{t('ueba.noAnomaliesDesc')}</p>
                   <div className="empty-hint">
-                    <p>No suspicious behavior detected in the selected time window.</p>
+                    <p>在所选时间窗口内未检测到可疑行为。</p>
                   </div>
                 </div>
               ) : (
@@ -408,13 +408,13 @@ function UEBA() {
         <div className="tab-content">
           <div className="profiles-header">
             <h3>{t('ueba.userProfiles')}</h3>
-            <p className="profiles-subtitle">User behavior baseline and risk assessment</p>
+            <p className="profiles-subtitle">用户行为基线与风险评估</p>
           </div>
           
           {loading ? (
             <div className="loading-state">
               <span className="btn-spinner"></span>
-              <span>Loading profiles...</span>
+              <span>加载用户档案中...</span>
             </div>
           ) : profiles.length === 0 ? (
             <div className="empty-state">
@@ -422,7 +422,7 @@ function UEBA() {
               <h3>{t('ueba.noProfiles')}</h3>
               <p>{t('ueba.noProfilesDesc')}</p>
               <div className="empty-hint">
-                <p>Run the UEBA analysis first to establish user behavior baselines.</p>
+                <p>请先运行 UEBA 分析以建立用户行为基线。</p>
                 <button 
                   className="btn-primary"
                   onClick={() => {
@@ -474,7 +474,7 @@ function UEBA() {
                           style={{ width: `${profile.risk_score}%` }}
                         />
                       </div>
-                      <span className="risk-label">Risk Score</span>
+                      <span className="risk-label">风险评分</span>
                     </div>
                   )}
                 </div>

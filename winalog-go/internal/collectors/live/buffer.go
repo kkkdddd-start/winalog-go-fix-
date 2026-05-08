@@ -1,11 +1,12 @@
 package live
 
 import (
-	"log"
 	"sync"
 	"time"
 
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
 	"github.com/kkkdddd-start/winalog-go/internal/types"
+	"go.uber.org/zap"
 )
 
 type EventBuffer struct {
@@ -47,10 +48,18 @@ func (b *EventBuffer) AddBatch(events []*types.Event) {
 	defer b.mu.Unlock()
 
 	b.events = append(b.events, events...)
-	log.Printf("[LIVE] [BUFFER] AddBatch: added %d events, buffer size now %d (maxSize=%d)", len(events), len(b.events), b.maxSize)
+	observability.Debug("AddBatch: added events",
+		zap.String("module", "buffer"),
+		zap.Int("added", len(events)),
+		zap.Int("buffer_size", len(b.events)),
+		zap.Int("max_size", b.maxSize))
 
 	if len(b.events) >= b.maxSize || b.shouldFlush() {
-		log.Printf("[LIVE] [BUFFER] Triggering flush: len=%d >= maxSize=%d || shouldFlush=%v", len(b.events), b.maxSize, b.shouldFlush())
+		observability.Debug("Triggering flush",
+			zap.String("module", "buffer"),
+			zap.Int("len", len(b.events)),
+			zap.Int("max_size", b.maxSize),
+			zap.Bool("should_flush", b.shouldFlush()))
 		b.flushLocked()
 	}
 }
@@ -75,12 +84,16 @@ func (b *EventBuffer) flushLocked() {
 	b.events = b.events[:0]
 	b.lastFlush = time.Now()
 
-	log.Printf("[LIVE] [BUFFER] flushLocked: flushing %d events", len(events))
+	observability.Debug("flushLocked: flushing events",
+		zap.String("module", "buffer"),
+		zap.Int("count", len(events)))
 
 	if b.onFlush != nil {
 		go b.onFlush(events)
 	} else {
-		log.Printf("[LIVE] [BUFFER] flushLocked: onFlush callback is nil, dropping %d events", len(events))
+		observability.Warn("flushLocked: onFlush callback is nil, dropping events",
+			zap.String("module", "buffer"),
+			zap.Int("count", len(events)))
 	}
 }
 

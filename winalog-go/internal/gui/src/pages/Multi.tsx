@@ -79,7 +79,7 @@ function Multi() {
       const res = await multiAPI.analyze(params)
       setResult(res.data)
     } catch (err: any) {
-      setError(err.response?.data?.error || 'Failed to run multi-machine analysis')
+      setError(err.response?.data?.error || t('multi.analysisFailed'))
     } finally {
       setLoading(false)
     }
@@ -91,10 +91,10 @@ function Multi() {
 
   const getSeverityLabel = (severity: string) => {
     const labels: Record<string, string> = {
-      critical: t('severity.critical') || 'Critical',
-      high: t('severity.high') || 'High',
-      medium: t('severity.medium') || 'Medium',
-      low: t('severity.low') || 'Low',
+      critical: t('common.severity.critical'),
+      high: t('common.severity.high'),
+      medium: t('common.severity.medium'),
+      low: t('common.severity.low'),
     }
     return labels[severity.toLowerCase()] || severity
   }
@@ -299,7 +299,7 @@ function Multi() {
                   <h3>{t('multi.noMachines')}</h3>
                   <p>{t('multi.noMachinesDesc')}</p>
                   <div className="empty-hint">
-                    <p>💡 Import event logs from multiple machines to enable cross-machine analysis.</p>
+                    <p>💡 {t('multi.importHint')}</p>
                   </div>
                 </div>
               ) : (
@@ -330,10 +330,10 @@ function Multi() {
                         })}
                       </div>
                       <div className="graph-legend">
-                        <span className="legend-item">🖥️ Server</span>
-                        <span className="legend-item">🌐 DC (Domain Controller)</span>
-                        <span className="legend-item">💻 Workstation</span>
-                        <span className="legend-item suspicious">⚠️ Involved in lateral movement</span>
+                        <span className="legend-item">🖥️ {t('multi.server')}</span>
+                        <span className="legend-item">🌐 {t('multi.dc')}</span>
+                        <span className="legend-item">💻 {t('multi.workstation')}</span>
+                        <span className="legend-item suspicious">⚠️ {t('multi.involvedInLateral')}</span>
                       </div>
                     </div>
                   </div>
@@ -352,7 +352,7 @@ function Multi() {
                           </div>
                           <div className="machine-details">
                             <div className="detail-row">
-                              <span className="label">IP:</span>
+                              <span className="label">{t('multi.ip')}:</span>
                               <span className="value">{machine.ip || 'N/A'}</span>
                             </div>
                             <div className="detail-row">
@@ -361,11 +361,11 @@ function Multi() {
                             </div>
                             <div className="detail-row">
                               <span className="label">{t('multi.role')}:</span>
-                              <span className="value">{machine.role || 'Unknown'}</span>
+                              <span className="value">{machine.role || t('common.unknown')}</span>
                             </div>
                             <div className="detail-row">
-                              <span className="label">OS:</span>
-                              <span className="value">{machine.os_version || 'Unknown'}</span>
+                              <span className="label">{t('multi.os')}:</span>
+                              <span className="value">{machine.os_version || t('common.unknown')}</span>
                             </div>
                             <div className="detail-row">
                               <span className="label">{t('multi.lastSeen')}:</span>
@@ -374,7 +374,7 @@ function Multi() {
                           </div>
                           {isInLateral && (
                             <div className="machine-alert-indicator">
-                              <span>⚠️ Involved in lateral movement</span>
+                              <span>⚠️ {t('multi.involvedInLateral')}</span>
                             </div>
                           )}
                         </div>
@@ -447,7 +447,7 @@ function Multi() {
                   <div className="lateral-summary">
                     <div className="lateral-stat">
                       <span className="stat-icon">🔄</span>
-                      <span className="stat-text">{result.lateral_movement.length} lateral movements detected</span>
+                      <span className="stat-text">{result.lateral_movement.length} {t('multi.lateralMovementsDetected')}</span>
                     </div>
                   </div>
                   <div className="lateral-table">
@@ -461,7 +461,7 @@ function Multi() {
                           <th>{t('multi.event')}</th>
                           <th>{t('multi.description')}</th>
                           <th>{t('multi.severity')}</th>
-                          <th>MITRE</th>
+                          <th>{t('multi.mitre')}</th>
                         </tr>
                       </thead>
                       <tbody>

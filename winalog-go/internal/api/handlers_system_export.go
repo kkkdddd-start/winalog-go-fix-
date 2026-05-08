@@ -267,3 +267,57 @@ func (h *SystemHandler) ExportScheduledTasks(c *gin.Context) {
 	}
 	w.Flush()
 }
+
+func (h *SystemHandler) ExportInstalledPatches(c *gin.Context) {
+	patches, err := collectors.CollectInstalledPatches(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Header("Content-Disposition", "attachment; filename=patches_export.csv")
+	c.Header("Content-Type", "text/csv")
+
+	w := csv.NewWriter(c.Writer)
+	w.Write([]string{"KB ID", "Description", "Installed On", "Installed By"})
+	for _, p := range patches {
+		w.Write([]string{
+			p.KBID,
+			p.Description,
+			p.InstalledOn,
+			p.InstalledBy,
+		})
+	}
+	w.Flush()
+}
+
+func (h *SystemHandler) ExportInstalledSoftware(c *gin.Context) {
+	software, err := collectors.CollectInstalledSoftware(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.Header("Content-Disposition", "attachment; filename=software_export.csv")
+	c.Header("Content-Type", "text/csv")
+
+	w := csv.NewWriter(c.Writer)
+	w.Write([]string{"Name", "Version", "Publisher", "Install Date", "Install Location", "Size (MB)", "Architecture", "Source"})
+	for _, s := range software {
+		sizeStr := ""
+		if s.EstimatedSizeMB > 0 {
+			sizeStr = strconv.FormatFloat(s.EstimatedSizeMB, 'f', 1, 64)
+		}
+		w.Write([]string{
+			s.Name,
+			s.Version,
+			s.Publisher,
+			s.InstallDate,
+			s.InstallLocation,
+			sizeStr,
+			s.Architecture,
+			s.Source,
+		})
+	}
+	w.Flush()
+}

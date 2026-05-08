@@ -3,24 +3,31 @@ package api
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kkkdddd-start/winalog-go/internal/collectors"
 	"github.com/kkkdddd-start/winalog-go/internal/config"
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
 	"github.com/kkkdddd-start/winalog-go/internal/storage"
 	"github.com/kkkdddd-start/winalog-go/internal/types"
 	"github.com/kkkdddd-start/winalog-go/internal/utils"
+	"go.uber.org/zap"
 )
 
 type SystemHandler struct {
-	db *storage.DB
+	db               *storage.DB
+	mu               sync.Mutex
+	prevTotalEvents  int64
+	prevTotalAlerts  int64
+	prevSampleTime   time.Time
+	memoryLimitMB    float64
 }
 
 type SystemInfo struct {
@@ -51,6 +58,7 @@ type MetricsResponse struct {
 	CPUCount            int     `json:"cpu_count"`
 	GoVersion           string  `json:"go_version"`
 	MemoryUsageMB       float64 `json:"memory_usage_mb"`
+	MemoryLimitMB       float64 `json:"memory_limit_mb"`
 	SystemMemoryTotalMB float64 `json:"system_memory_total_mb"`
 	SystemMemoryFreeMB  float64 `json:"system_memory_free_mb"`
 }
@@ -205,6 +213,16 @@ type TaskResponse struct {
 	Total int         `json:"total"`
 }
 
+type PatchResponse struct {
+	Patches []*types.PatchInfo `json:"patches"`
+	Total   int                `json:"total"`
+}
+
+type SoftwareResponse struct {
+	Software []*types.InstalledSoftware `json:"software"`
+	Total    int                        `json:"total"`
+}
+
 type TaskInfo struct {
 	Name        string `json:"name"`
 	Path       string `json:"path"`
@@ -227,8 +245,12 @@ var startTime = time.Now()
 // @Tags system
 // @Param db query string true "数据库实例"
 // @Router /api/system [get]
-func NewSystemHandler(db *storage.DB) *SystemHandler {
-	return &SystemHandler{db: db}
+func NewSystemHandler(db *storage.DB, memoryLimitMB float64) *SystemHandler {
+	return &SystemHandler{
+		db:            db,
+		prevSampleTime: time.Now(),
+		memoryLimitMB:  memoryLimitMB,
+	}
 }
 
 // GetSystemInfo godoc
@@ -320,13 +342,41 @@ func (h *SystemHandler) GetMetrics(c *gin.Context) {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
+	h.mu.Lock()
+	now := time.Now()
+	elapsed := now.Sub(h.prevSampleTime).Seconds()
+	if elapsed <= 0 {
+		elapsed = 1
+	}
+
+	var eventsPerMin, alertsPerHour float64
+	if h.prevSampleTime.IsZero() {
+		eventsPerMin = 0
+		alertsPerHour = 0
+	} else {
+		deltaEvents := totalEvents - h.prevTotalEvents
+		deltaAlerts := totalAlerts - h.prevTotalAlerts
+		eventsPerMin = float64(deltaEvents) / elapsed * 60
+		alertsPerHour = float64(deltaAlerts) / elapsed * 3600
+	}
+
+	h.prevTotalEvents = totalEvents
+	h.prevTotalAlerts = totalAlerts
+	h.prevSampleTime = now
+	h.mu.Unlock()
+
 	metrics := MetricsResponse{
-		TotalEvents:   totalEvents,
-		TotalAlerts:   totalAlerts,
-		UptimeSeconds: int64(time.Since(startTime).Seconds()),
-		CPUCount:      runtime.NumCPU(),
-		GoVersion:     runtime.Version(),
-		MemoryUsageMB: float64(m.Alloc) / 1024 / 1024,
+		TotalEvents:         totalEvents,
+		TotalAlerts:         totalAlerts,
+		EventsPerMin:        eventsPerMin,
+		AlertsPerHour:       alertsPerHour,
+		UptimeSeconds:       int64(time.Since(startTime).Seconds()),
+		CPUCount:            runtime.NumCPU(),
+		GoVersion:           runtime.Version(),
+		MemoryUsageMB:       float64(m.Alloc) / 1024 / 1024,
+		MemoryLimitMB:       h.memoryLimitMB,
+		SystemMemoryTotalMB: 0,
+		SystemMemoryFreeMB:  0,
 	}
 
 	c.JSON(http.StatusOK, metrics)
@@ -351,7 +401,7 @@ func (h *SystemHandler) GetNetworkConnections(c *gin.Context) {
 	saveStr := c.DefaultQuery("save", "false")
 	shouldSave := saveStr == "true" || saveStr == "1"
 
-	log.Printf("[INFO] GetNetworkConnections called with enabled=%v, save=%v", enabled, shouldSave)
+	observability.Info("GetNetworkConnections called", zap.String("module", "handlers_system"), zap.Bool("enabled", enabled), zap.Bool("save", shouldSave))
 
 	if runtime.GOOS != "windows" {
 		c.JSON(http.StatusOK, NetworkConnectionResponse{
@@ -362,7 +412,7 @@ func (h *SystemHandler) GetNetworkConnections(c *gin.Context) {
 	}
 
 	if !enabled {
-		log.Printf("[INFO] GetNetworkConnections skipped - module disabled")
+		observability.Info("GetNetworkConnections skipped - module disabled", zap.String("module", "handlers_system"))
 		c.JSON(http.StatusOK, NetworkConnectionResponse{
 			Connections: []*NetworkConnInfo{},
 			Total:       0,
@@ -384,7 +434,7 @@ func (h *SystemHandler) GetNetworkConnections(c *gin.Context) {
 
 	connections, err := collectors.ListNetworkConnections()
 	if err != nil {
-		log.Printf("[ERROR] GetNetworkConnections failed: %v", err)
+		observability.Error("GetNetworkConnections failed", zap.String("module", "handlers_system"), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -427,9 +477,9 @@ func (h *SystemHandler) GetNetworkConnections(c *gin.Context) {
 			})
 		}
 		if err := systemRepo.SaveNetworkConnections(storageConnections); err != nil {
-			log.Printf("[ERROR] Failed to save network connections to database: %v", err)
+			observability.Error("Failed to save network connections to database", zap.String("module", "handlers_system"), zap.Error(err))
 		} else {
-			log.Printf("[INFO] Saved %d network connections to database", len(storageConnections))
+			observability.Info("Saved network connections to database", zap.String("module", "handlers_system"), zap.Int("count", len(storageConnections)))
 		}
 	}
 
@@ -491,6 +541,80 @@ func (h *SystemHandler) GetPrometheusMetrics(c *gin.Context) {
 	c.Data(http.StatusOK, "text/plain; charset=utf-8", []byte(output))
 }
 
+// GetInstalledPatches godoc
+// @Summary 获取已安装补丁列表
+// @Description 返回系统已安装的 Windows 更新补丁
+// @Tags system
+// @Produce json
+// @Success 200 {object} PatchResponse
+// @Router /api/system/patches [get]
+func (h *SystemHandler) GetInstalledPatches(c *gin.Context) {
+	observability.Info("GetInstalledPatches called", zap.String("module", "handlers_system"))
+
+	if runtime.GOOS != "windows" {
+		c.JSON(http.StatusOK, PatchResponse{
+			Patches: []*types.PatchInfo{},
+			Total:   0,
+		})
+		return
+	}
+
+	patches, err := collectors.CollectInstalledPatches(c.Request.Context())
+	if err != nil {
+		observability.Error("GetInstalledPatches failed", zap.String("module", "handlers_system"), zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to collect patch info: %v", err),
+		})
+		return
+	}
+
+	if patches == nil {
+		patches = []*types.PatchInfo{}
+	}
+
+	c.JSON(http.StatusOK, PatchResponse{
+		Patches: patches,
+		Total:   len(patches),
+	})
+}
+
+// GetInstalledSoftware godoc
+// @Summary 获取已安装软件列表
+// @Description 返回系统已安装的软件列表（等价于添加/删除程序）
+// @Tags system
+// @Produce json
+// @Success 200 {object} SoftwareResponse
+// @Router /api/system/software [get]
+func (h *SystemHandler) GetInstalledSoftware(c *gin.Context) {
+	observability.Info("GetInstalledSoftware called", zap.String("module", "handlers_system"))
+
+	if runtime.GOOS != "windows" {
+		c.JSON(http.StatusOK, SoftwareResponse{
+			Software: []*types.InstalledSoftware{},
+			Total:    0,
+		})
+		return
+	}
+
+	software, err := collectors.CollectInstalledSoftware(c.Request.Context())
+	if err != nil {
+		observability.Error("GetInstalledSoftware failed", zap.String("module", "handlers_system"), zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("Failed to collect software info: %v", err),
+		})
+		return
+	}
+
+	if software == nil {
+		software = []*types.InstalledSoftware{}
+	}
+
+	c.JSON(http.StatusOK, SoftwareResponse{
+		Software: software,
+		Total:    len(software),
+	})
+}
+
 // SetupSystemRoutes godoc
 // @Summary 设置系统路由
 // @Description 配置系统信息相关的API路由
@@ -506,6 +630,8 @@ func (h *SystemHandler) GetPrometheusMetrics(c *gin.Context) {
 // @Router /api/system/registry [get]
 // @Router /api/system/tasks [get]
 // @Router /api/system/process/{pid}/dlls [get]
+// @Router /api/system/patches [get]
+// @Router /api/system/software [get]
 func SetupSystemRoutes(r *gin.Engine, systemHandler *SystemHandler) {
 	system := r.Group("/api/system")
 	{
@@ -529,6 +655,11 @@ func SetupSystemRoutes(r *gin.Engine, systemHandler *SystemHandler) {
 		system.GET("/users/export", systemHandler.ExportUsers)
 		system.GET("/registry/export", systemHandler.ExportRegistryPersistence)
 		system.GET("/tasks/export", systemHandler.ExportScheduledTasks)
+
+		system.GET("/patches", systemHandler.GetInstalledPatches)
+		system.GET("/software", systemHandler.GetInstalledSoftware)
+		system.GET("/patches/export", systemHandler.ExportInstalledPatches)
+		system.GET("/software/export", systemHandler.ExportInstalledSoftware)
 	}
 }
 
@@ -559,7 +690,7 @@ func getTimezone() string {
 func (h *SystemHandler) GetEnvironmentVariables(c *gin.Context) {
 	vars, err := collectors.ListEnvironmentVariables()
 	if err != nil {
-		log.Printf("[ERROR] GetEnvironmentVariables failed: %v", err)
+		observability.Error("GetEnvironmentVariables failed", zap.String("module", "handlers_system"), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -593,7 +724,7 @@ func (h *SystemHandler) GetLoadedDLLs(c *gin.Context) {
 	enabledStr := c.DefaultQuery("enabled", "true")
 	enabled := enabledStr == "true" || enabledStr == "1"
 
-	log.Printf("[INFO] GetLoadedDLLs called with enabled=%v", enabled)
+	observability.Info("GetLoadedDLLs called", zap.String("module", "handlers_system"), zap.Bool("enabled", enabled))
 
 	if runtime.GOOS != "windows" {
 		c.JSON(http.StatusOK, DLLResponse{
@@ -604,7 +735,7 @@ func (h *SystemHandler) GetLoadedDLLs(c *gin.Context) {
 	}
 
 	if !enabled {
-		log.Printf("[INFO] GetLoadedDLLs skipped - module disabled")
+		observability.Info("GetLoadedDLLs skipped - module disabled", zap.String("module", "handlers_system"))
 		c.JSON(http.StatusOK, DLLResponse{
 			Modules: []*DLLInfo{},
 			Total:   0,
@@ -624,12 +755,12 @@ func (h *SystemHandler) GetLoadedDLLs(c *gin.Context) {
 
 	dlls, err := collectors.ListLoadedDLLs()
 	if err != nil {
-		log.Printf("[ERROR] GetLoadedDLLs failed: %v", err)
+		observability.Error("GetLoadedDLLs failed", zap.String("module", "handlers_system"), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	log.Printf("[INFO] GetLoadedDLLs: collected %d DLLs, limit=%d", len(dlls), limit)
+	observability.Info("GetLoadedDLLs collected results", zap.String("module", "handlers_system"), zap.Int("count", len(dlls)), zap.Int("limit", limit))
 
 	result := make([]*DLLInfo, 0, len(dlls))
 	for _, dll := range dlls {
@@ -670,7 +801,7 @@ func (h *SystemHandler) GetDrivers(c *gin.Context) {
 	saveStr := c.DefaultQuery("save", "false")
 	shouldSave := saveStr == "true" || saveStr == "1"
 
-	log.Printf("[INFO] GetDrivers called with enabled=%v, save=%v", enabled, shouldSave)
+	observability.Info("GetDrivers called", zap.String("module", "handlers_system"), zap.Bool("enabled", enabled), zap.Bool("save", shouldSave))
 
 	if runtime.GOOS != "windows" {
 		c.JSON(http.StatusOK, DriverResponse{
@@ -681,7 +812,7 @@ func (h *SystemHandler) GetDrivers(c *gin.Context) {
 	}
 
 	if !enabled {
-		log.Printf("[INFO] GetDrivers skipped - module disabled")
+		observability.Info("GetDrivers skipped - module disabled", zap.String("module", "handlers_system"))
 		c.JSON(http.StatusOK, DriverResponse{
 			Drivers: []*DriverInfo{},
 			Total:   0,
@@ -691,7 +822,7 @@ func (h *SystemHandler) GetDrivers(c *gin.Context) {
 
 	drivers, err := collectors.CollectDriverInfo(context.Background())
 	if err != nil {
-		log.Printf("[ERROR] GetDrivers failed: %v", err)
+		observability.Error("GetDrivers failed", zap.String("module", "handlers_system"), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -726,9 +857,9 @@ func (h *SystemHandler) GetDrivers(c *gin.Context) {
 			})
 		}
 		if err := systemRepo.SaveDrivers(storageDrivers); err != nil {
-			log.Printf("[ERROR] Failed to save drivers to database: %v", err)
+			observability.Error("Failed to save drivers to database", zap.String("module", "handlers_system"), zap.Error(err))
 		} else {
-			log.Printf("[INFO] Saved %d drivers to database", len(storageDrivers))
+			observability.Info("Saved drivers to database", zap.String("module", "handlers_system"), zap.Int("count", len(storageDrivers)))
 		}
 	}
 
@@ -754,7 +885,7 @@ func (h *SystemHandler) GetRegistryPersistence(c *gin.Context) {
 	saveStr := c.DefaultQuery("save", "false")
 	shouldSave := saveStr == "true" || saveStr == "1"
 
-	log.Printf("[INFO] GetRegistryPersistence called with enabled=%v, save=%v", enabled, shouldSave)
+	observability.Info("GetRegistryPersistence called", zap.String("module", "handlers_system"), zap.Bool("enabled", enabled), zap.Bool("save", shouldSave))
 
 	if runtime.GOOS != "windows" {
 		c.JSON(http.StatusOK, RegistryPersistenceResponse{
@@ -777,7 +908,7 @@ func (h *SystemHandler) GetRegistryPersistence(c *gin.Context) {
 	}
 
 	if !enabled {
-		log.Printf("[INFO] GetRegistryPersistence skipped - module disabled")
+		observability.Info("GetRegistryPersistence skipped - module disabled", zap.String("module", "handlers_system"))
 		c.JSON(http.StatusOK, RegistryPersistenceResponse{
 			RunKeys:        []*RegistryKeyInfo{},
 			UserInit:       []*RegistryKeyInfo{},
@@ -799,7 +930,7 @@ func (h *SystemHandler) GetRegistryPersistence(c *gin.Context) {
 
 	persistence, err := collectors.CollectRegistryPersistence(context.Background())
 	if err != nil {
-		log.Printf("[ERROR] GetRegistryPersistence failed: %v", err)
+		observability.Error("GetRegistryPersistence failed", zap.String("module", "handlers_system"), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -891,9 +1022,9 @@ func (h *SystemHandler) GetRegistryPersistence(c *gin.Context) {
 			}
 		}
 		if err := systemRepo.SaveRegistryPersistence(storageRegistry); err != nil {
-			log.Printf("[ERROR] Failed to save registry persistence to database: %v", err)
+			observability.Error("Failed to save registry persistence to database", zap.String("module", "handlers_system"), zap.Error(err))
 		} else {
-			log.Printf("[INFO] Saved %d registry persistence entries to database", len(storageRegistry))
+			observability.Info("Saved registry persistence entries to database", zap.String("module", "handlers_system"), zap.Int("count", len(storageRegistry)))
 		}
 	}
 
@@ -945,7 +1076,7 @@ func (h *SystemHandler) GetProcessDLLs(c *gin.Context) {
 
 	dlls, err := collectors.GetProcessDLLs(pid)
 	if err != nil {
-		log.Printf("[ERROR] GetProcessDLLs failed: %v", err)
+		observability.Error("GetProcessDLLs failed", zap.String("module", "handlers_system"), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

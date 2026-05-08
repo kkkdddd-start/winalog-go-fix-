@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -13,10 +12,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/kkkdddd-start/winalog-go/internal/exporters"
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
 	"github.com/kkkdddd-start/winalog-go/internal/reports"
 	reporttemplate "github.com/kkkdddd-start/winalog-go/internal/reports/template"
 	"github.com/kkkdddd-start/winalog-go/internal/storage"
 	"github.com/kkkdddd-start/winalog-go/internal/types"
+	"go.uber.org/zap"
 )
 
 func parseReportTimeString(s string) time.Time {
@@ -169,7 +170,7 @@ func (h *ReportsHandler) ListReports(c *gin.Context) {
 		LIMIT 100
 	`)
 	if err != nil {
-		log.Printf("[ERROR] ListReports failed: %v", err)
+		observability.Error("ListReports failed", zap.String("module", "handlers_reports"), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
 		return
 	}
@@ -255,7 +256,7 @@ func (h *ReportsHandler) GenerateReport(c *gin.Context) {
 		reportID, req.Type, req.Format, req.Title, req.Description, generatedAt, "")
 
 	if err != nil {
-		log.Printf("[ERROR] GenerateReport insert failed: %v", err)
+		observability.Error("GenerateReport insert failed", zap.String("module", "handlers_reports"), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
 		return
 	}
@@ -274,12 +275,13 @@ func (h *ReportsHandler) GenerateReport(c *gin.Context) {
 }
 
 func (h *ReportsHandler) generateReportAsync(reportID string, req ReportRequest, generatedAt time.Time) {
-	log.Printf("[REPORT] Starting async report generation: id=%s, type=%s, format=%s", reportID, req.Type, req.Format)
+	observability.Info("Starting async report generation", zap.String("module", "handlers_reports"),
+		zap.String("id", reportID), zap.String("type", req.Type), zap.String("format", req.Format))
 
 	defer func() {
 		if r := recover(); r != nil {
 			errMsg := fmt.Sprintf("panic recovered: %v", r)
-			log.Printf("[ERROR] generateReportAsync panic: %s", errMsg)
+			observability.Error("generateReportAsync panic recovered", zap.String("module", "handlers_reports"), zap.Any("panic", r))
 			_, _ = h.db.Exec(`UPDATE reports SET status = 'failed', error_message = ?, completed_at = ? WHERE id = ?`,
 				errMsg, time.Now(), reportID)
 		}
@@ -298,13 +300,15 @@ func (h *ReportsHandler) generateReportAsync(reportID string, req ReportRequest,
 		Description:  req.Description,
 	})
 	if err != nil {
-		log.Printf("[ERROR] generateReportAsync GenerateFromAPIRequest failed: id=%s, err=%v", reportID, err)
+		observability.Error("generateReportAsync GenerateFromAPIRequest failed", zap.String("module", "handlers_reports"),
+			zap.String("id", reportID), zap.Error(err))
 		_, _ = h.db.Exec(`UPDATE reports SET status = 'failed', error_message = ?, completed_at = ? WHERE id = ?`,
 			err.Error(), time.Now(), reportID)
 		return
 	}
 
-	log.Printf("[REPORT] Report data generated successfully: id=%s, type=%s", reportID, req.Type)
+	observability.Info("Report data generated successfully", zap.String("module", "handlers_reports"),
+		zap.String("id", reportID), zap.String("type", req.Type))
 
 	reportDir := filepath.Join(os.TempDir(), "winalog_reports")
 	_ = os.MkdirAll(reportDir, 0755)
@@ -333,13 +337,15 @@ func (h *ReportsHandler) generateReportAsync(reportID string, req ReportRequest,
 			err = h.svc.ExportPDF(pdfReq, f)
 			f.Close()
 			if err != nil {
-				log.Printf("[ERROR] generateReportAsync ExportPDF failed: id=%s, err=%v", reportID, err)
+				observability.Error("generateReportAsync ExportPDF failed", zap.String("module", "handlers_reports"),
+					zap.String("id", reportID), zap.Error(err))
 				_, _ = h.db.Exec(`UPDATE reports SET status = 'failed', error_message = ?, completed_at = ? WHERE id = ?`,
 					err.Error(), time.Now(), reportID)
 				return
 			}
 		} else {
-			log.Printf("[ERROR] generateReportAsync Create file failed: id=%s, path=%s, err=%v", reportID, filePath, err)
+			observability.Error("generateReportAsync Create file failed", zap.String("module", "handlers_reports"),
+				zap.String("id", reportID), zap.String("path", filePath), zap.Error(err))
 			_, _ = h.db.Exec(`UPDATE reports SET status = 'failed', error_message = ?, completed_at = ? WHERE id = ?`,
 				err.Error(), time.Now(), reportID)
 			return
@@ -349,13 +355,15 @@ func (h *ReportsHandler) generateReportAsync(reportID string, req ReportRequest,
 			err = h.svc.ExportHTMLFromReport(report, f)
 			f.Close()
 			if err != nil {
-				log.Printf("[ERROR] generateReportAsync ExportHTML failed: id=%s, err=%v", reportID, err)
+				observability.Error("generateReportAsync ExportHTML failed", zap.String("module", "handlers_reports"),
+					zap.String("id", reportID), zap.Error(err))
 				_, _ = h.db.Exec(`UPDATE reports SET status = 'failed', error_message = ?, completed_at = ? WHERE id = ?`,
 					err.Error(), time.Now(), reportID)
 				return
 			}
 		} else {
-			log.Printf("[ERROR] generateReportAsync Create file failed: id=%s, path=%s, err=%v", reportID, filePath, err)
+			observability.Error("generateReportAsync Create file failed", zap.String("module", "handlers_reports"),
+				zap.String("id", reportID), zap.String("path", filePath), zap.Error(err))
 			_, _ = h.db.Exec(`UPDATE reports SET status = 'failed', error_message = ?, completed_at = ? WHERE id = ?`,
 				err.Error(), time.Now(), reportID)
 			return
@@ -364,7 +372,8 @@ func (h *ReportsHandler) generateReportAsync(reportID string, req ReportRequest,
 		apiContent := reports.AdaptReportToAPI(report)
 		data, _ := json.MarshalIndent(apiContent, "", "  ")
 		if err := os.WriteFile(filePath, data, 0644); err != nil {
-			log.Printf("[ERROR] generateReportAsync WriteFile failed: id=%s, path=%s, err=%v", reportID, filePath, err)
+			observability.Error("generateReportAsync WriteFile failed", zap.String("module", "handlers_reports"),
+				zap.String("id", reportID), zap.String("path", filePath), zap.Error(err))
 			_, _ = h.db.Exec(`UPDATE reports SET status = 'failed', error_message = ?, completed_at = ? WHERE id = ?`,
 				err.Error(), time.Now(), reportID)
 			return
@@ -377,7 +386,8 @@ func (h *ReportsHandler) generateReportAsync(reportID string, req ReportRequest,
 		fileSize = fi.Size()
 	}
 
-	log.Printf("[REPORT] Report completed successfully: id=%s, path=%s, size=%d", reportID, filePath, fileSize)
+	observability.Info("Report completed successfully", zap.String("module", "handlers_reports"),
+		zap.String("id", reportID), zap.String("path", filePath), zap.Int64("size", fileSize))
 	_, _ = h.db.Exec(`UPDATE reports SET status = 'completed', completed_at = ?, file_path = ?, file_size = ? WHERE id = ?`,
 		time.Now(), filePath, fileSize, reportID)
 }
@@ -412,7 +422,7 @@ func (h *ReportsHandler) GetReport(c *gin.Context) {
 			c.JSON(http.StatusNotFound, ErrorResponse{Error: "report not found"})
 			return
 		}
-		log.Printf("[ERROR] GetReport query failed: %v", err)
+		observability.Error("GetReport query failed", zap.String("module", "handlers_reports"), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "GetReport query/scan error: " + err.Error()})
 		return
 	}
@@ -467,7 +477,7 @@ func (h *ReportsHandler) DownloadReport(c *gin.Context) {
 			c.JSON(http.StatusNotFound, ErrorResponse{Error: "report not found"})
 			return
 		}
-		log.Printf("[ERROR] DownloadReport query failed: %v", err)
+		observability.Error("DownloadReport query failed", zap.String("module", "handlers_reports"), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "GetReport query/scan error: " + err.Error()})
 		return
 	}
@@ -506,13 +516,13 @@ func (h *ReportsHandler) DownloadReport(c *gin.Context) {
 
 	absFilePath, err := filepath.Abs(filePath)
 	if err != nil {
-		log.Printf("[ERROR] DownloadReport filepath.Abs failed: %v", err)
+		observability.Error("DownloadReport filepath.Abs failed", zap.String("module", "handlers_reports"), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "Failed to resolve file path: " + err.Error()})
 		return
 	}
 	absReportDir, _ := filepath.Abs(filepath.Join(os.TempDir(), "winalog_reports"))
 	if !strings.HasPrefix(absFilePath, absReportDir) {
-		log.Printf("[WARN] DownloadReport blocked path traversal attempt: %s", filePath)
+		observability.Warn("DownloadReport blocked path traversal attempt", zap.String("module", "handlers_reports"), zap.String("path", filePath))
 		c.JSON(http.StatusForbidden, ErrorResponse{Error: "Access denied"})
 		return
 	}

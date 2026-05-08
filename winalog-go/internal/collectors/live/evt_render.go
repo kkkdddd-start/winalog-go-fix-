@@ -5,11 +5,12 @@ package live
 import (
 	"encoding/xml"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
 	"github.com/kkkdddd-start/winalog-go/internal/types"
+	"go.uber.org/zap"
 )
 
 type FullEventXML struct {
@@ -30,7 +31,9 @@ func ParseEventXML(xmlContent string) *types.Event {
 
 	var xmlData FullEventXML
 	if err := xml.Unmarshal([]byte(xmlContent), &xmlData); err != nil {
-		log.Printf("[WARN] [EvtPollCollector] XML parse error: %v", err)
+		observability.Warn("XML parse error",
+			zap.String("module", "evt_render"),
+			zap.Error(err))
 		return event
 	}
 

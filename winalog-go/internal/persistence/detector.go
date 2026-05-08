@@ -5,11 +5,12 @@ package persistence
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
+	"go.uber.org/zap"
 )
 
 type DetectorConfig struct {
@@ -77,7 +78,7 @@ func (e *DetectionEngine) RegisterAll(detectors []Detector) {
 func (e *DetectionEngine) Detect(ctx context.Context) *DetectionResult {
 	e.mu.Lock()
 	detectorCount := len(e.detectors)
-	log.Printf("[DEBUG] DetectionEngine.Detect started with %d detectors", detectorCount)
+	observability.DebugPrintf("[DEBUG] DetectionEngine.Detect started with %d detectors", detectorCount)
 
 	ResetWhitelistStats()
 	e.result = NewDetectionResult()
@@ -95,11 +96,14 @@ func (e *DetectionEngine) Detect(ctx context.Context) *DetectionResult {
 
 	for name, d := range detectors {
 		wg.Add(1)
-		log.Printf("[DEBUG] Running detector: %s", name)
+		observability.DebugPrintf("[DEBUG] Running detector: %s", name)
 		go func(name string, d Detector) {
 			defer func() {
 				if r := recover(); r != nil {
-					log.Printf("[ERROR] Detector %s panicked: %v", name, r)
+					observability.Error("Detector panicked",
+						zap.String("module", "detector"),
+						zap.String("detector", name),
+						zap.Any("panic", r))
 					errorChan <- fmt.Sprintf("%s: panic: %v", name, r)
 				}
 				wg.Done()
@@ -107,12 +111,18 @@ func (e *DetectionEngine) Detect(ctx context.Context) *DetectionResult {
 
 			detections, err := d.Detect(ctx)
 			if err != nil {
-				log.Printf("[ERROR] Detector %s failed: %v", name, err)
+				observability.Error("Detector failed",
+					zap.String("module", "detector"),
+					zap.String("detector", name),
+					zap.Error(err))
 				errorChan <- fmt.Sprintf("%s: %v", name, err)
 				return
 			}
 
-			log.Printf("[DEBUG] Detector %s returned %d detections", name, len(detections))
+			observability.Debug("Detector completed",
+				zap.String("module", "detector"),
+				zap.String("detector", name),
+				zap.Int("detections", len(detections)))
 
 			for _, det := range detections {
 				if det.ID == "" {
@@ -152,10 +162,15 @@ func (e *DetectionEngine) Detect(ctx context.Context) *DetectionResult {
 	e.result.Duration = e.result.EndTime.Sub(e.result.StartTime)
 	resultMu.Unlock()
 
-	log.Printf("[INFO] DetectionEngine.Detect completed: total=%d, errors=%d, duration=%v",
-		e.result.TotalCount, e.result.ErrorCount, e.result.Duration)
+	observability.Info("DetectionEngine.Detect completed",
+		zap.String("module", "detector"),
+		zap.Int("totalCount", e.result.TotalCount),
+		zap.Int("errorCount", e.result.ErrorCount),
+		zap.Duration("duration", e.result.Duration))
 
-	log.Printf("[INFO] Whitelist usage: %s", GetWhitelistStats().String())
+	observability.Info("Whitelist usage stats",
+		zap.String("module", "detector"),
+		zap.String("stats", GetWhitelistStats().String()))
 
 	highCount := 0
 	mediumCount := 0
@@ -175,20 +190,37 @@ func (e *DetectionEngine) Detect(ctx context.Context) *DetectionResult {
 	}
 
 	if highCount > 0 {
-		log.Printf("[ALERT] Detection summary: HIGH=%d, MEDIUM=%d, LOW=%d, INFO=%d (HIGH severity detected!)", highCount, mediumCount, lowCount, infoCount)
+		observability.Warn("Detection summary with HIGH severity",
+			zap.String("module", "detector"),
+			zap.Int("high", highCount),
+			zap.Int("medium", mediumCount),
+			zap.Int("low", lowCount),
+			zap.Int("info", infoCount))
 	} else {
-		log.Printf("[INFO] Detection summary: HIGH=%d, MEDIUM=%d, LOW=%d, INFO=%d", highCount, mediumCount, lowCount, infoCount)
+		observability.Info("Detection summary",
+			zap.String("module", "detector"),
+			zap.Int("high", highCount),
+			zap.Int("medium", mediumCount),
+			zap.Int("low", lowCount),
+			zap.Int("info", infoCount))
 	}
 
 	if len(e.result.Errors) > 0 {
-		log.Printf("[WARN] Detection completed with %d errors:", len(e.result.Errors))
+		observability.Warn("Detection completed with errors",
+			zap.String("module", "detector"),
+			zap.Int("errorCount", len(e.result.Errors)))
 		for i, err := range e.result.Errors {
 			if i < 5 {
-				log.Printf("[WARN]   Error[%d]: %s", i+1, err)
+				observability.Warn("Detection error detail",
+					zap.String("module", "detector"),
+					zap.Int("index", i+1),
+					zap.String("error", err))
 			}
 		}
 		if len(e.result.Errors) > 5 {
-			log.Printf("[WARN]   ... and %d more errors", len(e.result.Errors)-5)
+			observability.Warn("Detection errors truncated",
+				zap.String("module", "detector"),
+				zap.Int("remaining", len(e.result.Errors)-5))
 		}
 	}
 

@@ -32,12 +32,13 @@ type DatabaseConfig struct {
 }
 
 type ImportConfig struct {
-	Workers          int      `yaml:"workers"`
-	BatchSize        int      `yaml:"batch_size"`
-	SkipPatterns     []string `yaml:"skip_patterns"`
-	Incremental      bool     `yaml:"incremental"`
-	CalculateHash    bool     `yaml:"calculate_hash"`
-	ProgressCallback bool     `yaml:"progress_callback"`
+	Workers             int      `yaml:"workers"`
+	BatchSize           int      `yaml:"batch_size"`
+	MaxImportFileSizeMB int      `yaml:"max_import_file_size_mb"`
+	SkipPatterns        []string `yaml:"skip_patterns"`
+	Incremental         bool     `yaml:"incremental"`
+	CalculateHash       bool     `yaml:"calculate_hash"`
+	ProgressCallback    bool     `yaml:"progress_callback"`
 }
 
 type ParserConfig struct {
@@ -275,12 +276,13 @@ func DefaultConfig() *Config {
 			MaxOpenConns: 25,
 		},
 		Import: ImportConfig{
-			Workers:          4,
-			BatchSize:        10000,
-			SkipPatterns:     []string{"Diagnostics", "Debug"},
-			Incremental:      true,
-			CalculateHash:    true,
-			ProgressCallback: true,
+			Workers:             4,
+			BatchSize:           10000,
+			MaxImportFileSizeMB: 1024,
+			SkipPatterns:        []string{"Diagnostics", "Debug"},
+			Incremental:         true,
+			CalculateHash:       true,
+			ProgressCallback:    true,
 		},
 		Parser: ParserConfig{
 			Workers:     4,

@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,7 +13,9 @@ import (
 	_ "modernc.org/sqlite"
 
 	"github.com/kkkdddd-start/winalog-go/internal/collectors/live"
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
 	"github.com/kkkdddd-start/winalog-go/internal/types"
+	"go.uber.org/zap"
 )
 
 type LiveEventRow struct {
@@ -285,21 +286,21 @@ func (d *DB) Analyze() error {
 }
 
 func (d *DB) GetStats() (*DBStats, error) {
-	log.Printf("[DB] Getting database stats")
+	observability.Info("Getting database stats", zap.String("module", "db"))
 	d.rwMu.RLock()
 	defer d.rwMu.RUnlock()
 	var eventCount, alertCount, importCount int64
 
 	if err := d.conn.QueryRow("SELECT COUNT(*) FROM events").Scan(&eventCount); err != nil {
-		log.Printf("[DB] Failed to count events: %v", err)
+		observability.Error("Failed to count events", zap.String("module", "db"), zap.Error(err))
 		return nil, fmt.Errorf("failed to count events: %w", err)
 	}
 	if err := d.conn.QueryRow("SELECT COUNT(*) FROM alerts").Scan(&alertCount); err != nil {
-		log.Printf("[DB] Failed to count alerts: %v", err)
+		observability.Error("Failed to count alerts", zap.String("module", "db"), zap.Error(err))
 		return nil, fmt.Errorf("failed to count alerts: %w", err)
 	}
 	if err := d.conn.QueryRow("SELECT COUNT(*) FROM import_log").Scan(&importCount); err != nil {
-		log.Printf("[DB] Failed to count imports: %v", err)
+		observability.Error("Failed to count imports", zap.String("module", "db"), zap.Error(err))
 		return nil, fmt.Errorf("failed to count imports: %w", err)
 	}
 
@@ -314,7 +315,12 @@ func (d *DB) GetStats() (*DBStats, error) {
 		ImportCount:  importCount,
 		DatabaseSize: dbSize,
 	}
-	log.Printf("[DB] Stats: events=%d, alerts=%d, imports=%d, size=%d", eventCount, alertCount, importCount, dbSize)
+	observability.Info("Database stats",
+		zap.String("module", "db"),
+		zap.Int64("events", eventCount),
+		zap.Int64("alerts", alertCount),
+		zap.Int64("imports", importCount),
+		zap.Int64("size", dbSize))
 	return stats, nil
 }
 
@@ -673,7 +679,10 @@ type LiveEventFilter struct {
 }
 
 func (d *DB) QueryLiveEvents(sinceID int64, limit int, filter *LiveEventFilter) ([]LiveEventRow, int64, int64, error) {
-	log.Printf("[DB] Querying live events: sinceID=%d, limit=%d", sinceID, limit)
+	observability.Info("Querying live events",
+		zap.String("module", "db"),
+		zap.Int64("sinceID", sinceID),
+		zap.Int("limit", limit))
 	query := `
 		SELECT id, event_id, timestamp, level, level_name, source, log_name, computer, user, message, provider_name
 		FROM live_events
@@ -757,19 +766,25 @@ func (d *DB) QueryLiveEvents(sinceID int64, limit int, filter *LiveEventFilter) 
 		nextID = events[0].ID
 	}
 
-	log.Printf("[DB] QueryLiveEvents returned: count=%d, total=%d, nextID=%d", len(events), total, nextID)
+	observability.Info("QueryLiveEvents result",
+		zap.String("module", "db"),
+		zap.Int("count", len(events)),
+		zap.Int64("total", total),
+		zap.Int64("nextID", nextID))
 	return events, total, nextID, nil
 }
 
 func (d *DB) GetLiveEventsCount() (int64, error) {
-	log.Printf("[DB] Getting live events count")
+	observability.Info("Getting live events count", zap.String("module", "db"))
 	var count int64
 	err := d.QueryRow("SELECT COUNT(*) FROM live_events").Scan(&count)
 	if err != nil {
-		log.Printf("[DB] Failed to get live events count: %v", err)
+		observability.Error("Failed to get live events count", zap.String("module", "db"), zap.Error(err))
 		return 0, err
 	}
-	log.Printf("[DB] Live events count: %d", count)
+	observability.Info("Live events count result",
+		zap.String("module", "db"),
+		zap.Int64("count", count))
 	return count, nil
 }
 
@@ -786,11 +801,13 @@ func (d *DB) InsertLiveEvents(events []interface{}) error {
 		return nil
 	}
 
-	log.Printf("[DB] Inserting %d live events to database", len(events))
+	observability.Info("Inserting live events to database",
+		zap.String("module", "db"),
+		zap.Int("count", len(events)))
 
 	tx, rollback, err := d.BeginTx()
 	if err != nil {
-		log.Printf("[DB] Failed to begin transaction for live events: %v", err)
+		observability.Error("Failed to begin transaction for live events", zap.String("module", "db"), zap.Error(err))
 		return err
 	}
 	defer rollback()
@@ -800,7 +817,7 @@ func (d *DB) InsertLiveEvents(events []interface{}) error {
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
-		log.Printf("[DB] Failed to prepare statement for live events: %v", err)
+		observability.Error("Failed to prepare statement for live events", zap.String("module", "db"), zap.Error(err))
 		return err
 	}
 	defer stmt.Close()
@@ -854,7 +871,7 @@ func (d *DB) InsertLiveEvents(events []interface{}) error {
 			event.Source,
 		)
 		if err != nil {
-			log.Printf("[DB] Failed to insert live event: %v", err)
+			observability.Error("Failed to insert live event", zap.String("module", "db"), zap.Error(err))
 			return err
 		}
 		inserted++
@@ -862,11 +879,13 @@ func (d *DB) InsertLiveEvents(events []interface{}) error {
 
 	_, err = tx.Exec("COMMIT")
 	if err != nil {
-		log.Printf("[DB] Failed to commit live events transaction: %v", err)
+		observability.Error("Failed to commit live events transaction", zap.String("module", "db"), zap.Error(err))
 		return err
 	}
 
-	log.Printf("[DB] Successfully inserted %d live events", inserted)
+	observability.Info("Successfully inserted live events",
+		zap.String("module", "db"),
+		zap.Int("count", inserted))
 	return nil
 }
 

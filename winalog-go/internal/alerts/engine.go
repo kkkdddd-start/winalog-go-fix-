@@ -3,13 +3,14 @@ package alerts
 import (
 	"context"
 	"fmt"
-	"log"
 	"sync"
 	"time"
 
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
 	"github.com/kkkdddd-start/winalog-go/internal/rules"
 	"github.com/kkkdddd-start/winalog-go/internal/storage"
 	"github.com/kkkdddd-start/winalog-go/internal/types"
+	"go.uber.org/zap"
 )
 
 type Engine struct {
@@ -121,7 +122,10 @@ func (e *Engine) Evaluate(ctx context.Context, event *types.Event) ([]*types.Ale
 
 		matched, err := e.evaluator.Evaluate(rule, event)
 		if err != nil {
-			log.Printf("[ERROR] evaluator error for rule %s: %v", rule.Name, err)
+			observability.Error("evaluator error",
+				zap.String("module", "alerts"),
+				zap.String("rule_name", rule.Name),
+				zap.Error(err))
 			continue
 		}
 
@@ -192,7 +196,10 @@ func (e *Engine) EvaluateBatch(ctx context.Context, events []*types.Event) ([]*t
 
 					matched, err := e.evaluator.Evaluate(rule, evt)
 					if err != nil {
-						log.Printf("[ERROR] evaluator error for rule %s: %v", rule.Name, err)
+						observability.Error("evaluator error",
+							zap.String("module", "alerts"),
+							zap.String("rule_name", rule.Name),
+							zap.Error(err))
 						continue
 					}
 					if !matched {
@@ -490,7 +497,10 @@ func (e *Engine) EvaluateBatchWithProgress(ctx context.Context, events []*types.
 
 					matched, err := e.evaluator.Evaluate(rule, evt)
 					if err != nil {
-						log.Printf("[ERROR] evaluator error for rule %s: %v", rule.Name, err)
+						observability.Error("evaluator error",
+							zap.String("module", "alerts"),
+							zap.String("rule_name", rule.Name),
+							zap.Error(err))
 						continue
 					}
 					if !matched {

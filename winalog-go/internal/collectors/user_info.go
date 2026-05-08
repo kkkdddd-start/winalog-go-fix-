@@ -5,12 +5,13 @@ package collectors
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"strings"
 	"time"
 
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
 	"github.com/kkkdddd-start/winalog-go/internal/types"
 	"github.com/kkkdddd-start/winalog-go/internal/utils"
+	"go.uber.org/zap"
 )
 
 type UserInfoCollector struct {
@@ -47,21 +48,25 @@ func (c *UserInfoCollector) collectUserInfo() ([]*types.UserAccount, error) {
 
 	cmd := `Get-LocalUser | Select-Object Name, SID, Enabled, LastLogon, PasswordRequired, PasswordAge, PasswordExpires, FullName, Description, HomeDirectory, ProfilePath | ConvertTo-Json -Compress`
 
-	log.Printf("[INFO] Collecting local users with command: Get-LocalUser")
+	observability.Info("Collecting local users with command: Get-LocalUser",
+		zap.String("module", "user_info"))
 
 	result := utils.RunPowerShell(cmd)
 	if !result.Success() || result.Output == "" {
-		log.Printf("[WARN] Get-LocalUser failed or returned empty: %v, trying alternative method", result.Error)
+		observability.Warn("Get-LocalUser failed or returned empty, trying alternative method",
+			zap.String("module", "user_info"),
+			zap.Error(result.Error))
 		return c.collectUserInfoAlternative()
 	}
 
 	output := strings.TrimSpace(result.Output)
 	if output == "" || output == "null" || output == "[]" {
-		log.Printf("[WARN] Get-LocalUser returned empty result, trying alternative method")
+		observability.Warn("Get-LocalUser returned empty result, trying alternative method",
+			zap.String("module", "user_info"))
 		return c.collectUserInfoAlternative()
 	}
 
-	log.Printf("[DEBUG] Get-LocalUser raw output length: %d", len(output))
+	observability.DebugPrintf("[DEBUG] Get-LocalUser raw output length: %d", len(output))
 
 	var userRawList []struct {
 		Name             string      `json:"Name"`
@@ -106,7 +111,9 @@ func (c *UserInfoCollector) collectUserInfo() ([]*types.UserAccount, error) {
 				ProfilePath      string      `json:"ProfilePath"`
 			}{single}
 		} else {
-			log.Printf("[WARN] Failed to parse user JSON: %v", err)
+			observability.Warn("Failed to parse user JSON",
+				zap.String("module", "user_info"),
+				zap.Error(err))
 			return c.collectUserInfoAlternative()
 		}
 	}
@@ -119,7 +126,9 @@ func (c *UserInfoCollector) collectUserInfo() ([]*types.UserAccount, error) {
 
 		sidStr := extractSIDValue(userRaw.SID)
 		if sidStr == "" {
-			log.Printf("[WARN] Failed to extract SID value for user: %s", userRaw.Name)
+			observability.Warn("Failed to extract SID value for user",
+				zap.String("module", "user_info"),
+				zap.String("user", userRaw.Name))
 			continue
 		}
 
@@ -148,7 +157,9 @@ func (c *UserInfoCollector) collectUserInfo() ([]*types.UserAccount, error) {
 		parseCount++
 	}
 
-	log.Printf("[INFO] Get-LocalUser parsed %d users", parseCount)
+	observability.Info("Get-LocalUser parsed users",
+		zap.String("module", "user_info"),
+		zap.Int("count", parseCount))
 
 	if parseCount == 0 {
 		return c.collectUserInfoAlternative()
@@ -162,17 +173,21 @@ func (c *UserInfoCollector) collectUserInfoAlternative() ([]*types.UserAccount, 
 
 	cmd := `Get-WmiObject Win32_UserAccount -Filter "LocalAccount=True" | Select-Object Name, SID, Disabled, LastLogon, Description | ConvertTo-Json -Compress`
 
-	log.Printf("[INFO] Collecting users with alternative command: Get-WmiObject Win32_UserAccount")
+	observability.Info("Collecting users with alternative command: Get-WmiObject Win32_UserAccount",
+		zap.String("module", "user_info"))
 
 	result := utils.RunPowerShell(cmd)
 	if !result.Success() || result.Output == "" {
-		log.Printf("[WARN] Alternative method also failed: %v", result.Error)
+		observability.Warn("Alternative method also failed",
+			zap.String("module", "user_info"),
+			zap.Error(result.Error))
 		return users, nil
 	}
 
 	output := strings.TrimSpace(result.Output)
 	if output == "" || output == "null" || output == "[]" {
-		log.Printf("[INFO] Alternative method returned empty result")
+		observability.Info("Alternative method returned empty result",
+			zap.String("module", "user_info"))
 		return users, nil
 	}
 
@@ -221,7 +236,9 @@ func (c *UserInfoCollector) collectUserInfoAlternative() ([]*types.UserAccount, 
 		parseCount++
 	}
 
-	log.Printf("[INFO] Alternative method parsed %d users", parseCount)
+	observability.Info("Alternative method parsed users",
+		zap.String("module", "user_info"),
+		zap.Int("count", parseCount))
 	return users, nil
 }
 

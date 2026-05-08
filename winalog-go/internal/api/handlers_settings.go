@@ -2,10 +2,13 @@ package api
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kkkdddd-start/winalog-go/internal/config"
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
+	"go.uber.org/zap"
 )
 
 type SettingsHandler struct {
@@ -14,21 +17,23 @@ type SettingsHandler struct {
 }
 
 type Settings struct {
-	DatabasePath         string `json:"database_path"`
-	LogLevel             string `json:"log_level"`
-	MaxEvents            int    `json:"max_events"`
-	RetentionDays        int    `json:"retention_days"`
-	EnableAlerting       bool   `json:"enable_alerting"`
-	EnableLiveCollection bool   `json:"enable_live_collection"`
-	EnableAutoUpdate     bool   `json:"enable_auto_update"`
-	APIPort              int    `json:"api_port"`
-	APIHost              string `json:"api_host"`
-	CORSEnabled          bool   `json:"cors_enabled"`
-	MaxImportFileSize    int    `json:"max_import_file_size"`
-	ExportDirectory      string `json:"export_directory"`
-	ParserWorkers        int    `json:"parser_workers"`
-	MemoryLimit          int    `json:"memory_limit"`
-	RequestTimeout       int    `json:"request_timeout"`
+	DatabasePath          string `json:"database_path"`
+	LogLevel              string `json:"log_level"`
+	MaxEvents             int    `json:"max_events"`
+	RetentionDays         int    `json:"retention_days"`
+	EnableAlerting        bool   `json:"enable_alerting"`
+	EnableLiveCollection  bool   `json:"enable_live_collection"`
+	EnableAutoUpdate      bool   `json:"enable_auto_update"`
+	APIPort               int    `json:"api_port"`
+	APIHost               string `json:"api_host"`
+	CORSEnabled           bool   `json:"cors_enabled"`
+	CORSAllowedOrigins    string `json:"cors_allowed_origins"`
+	MaxImportFileSizeMB   int    `json:"max_import_file_size_mb"`
+	ExportDirectory       string `json:"export_directory"`
+	ParserWorkers         int    `json:"parser_workers"`
+	MemoryLimit           int    `json:"memory_limit"`
+	RequestTimeout        int    `json:"request_timeout"`
+	RequiresRestart       bool   `json:"requires_restart"`
 }
 
 // NewSettingsHandler godoc
@@ -54,6 +59,10 @@ func NewSettingsHandler(cfg *config.Config, configPath string) *SettingsHandler 
 // @Router /api/settings [get]
 func (h *SettingsHandler) GetSettings(c *gin.Context) {
 	retentionDays := int(h.cfg.Alerts.StatsRetention.Hours() / 24)
+	origins := ""
+	if len(h.cfg.API.CORS.AllowedOrigins) > 0 {
+		origins = strings.Join(h.cfg.API.CORS.AllowedOrigins, ",")
+	}
 	c.JSON(http.StatusOK, Settings{
 		DatabasePath:         h.cfg.Database.Path,
 		LogLevel:             h.cfg.Log.Level,
@@ -65,7 +74,8 @@ func (h *SettingsHandler) GetSettings(c *gin.Context) {
 		APIPort:              h.cfg.API.Port,
 		APIHost:              h.cfg.API.Host,
 		CORSEnabled:          len(h.cfg.API.CORS.AllowedOrigins) > 0,
-		MaxImportFileSize:    h.cfg.Import.BatchSize,
+		CORSAllowedOrigins:   origins,
+		MaxImportFileSizeMB:  h.cfg.Import.MaxImportFileSizeMB,
 		ExportDirectory:      h.cfg.Report.OutputDir,
 		ParserWorkers:        h.cfg.Parser.Workers,
 		MemoryLimit:          h.cfg.Parser.MemoryLimit,
@@ -100,7 +110,6 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 	}
 
 	h.cfg.Database.Path = settings.DatabasePath
-	h.cfg.Log.Level = settings.LogLevel
 	h.cfg.Search.MaxResults = settings.MaxEvents
 	h.cfg.Alerts.Enabled = settings.EnableAlerting
 	h.cfg.Alerts.EnableCollection = settings.EnableLiveCollection
@@ -108,11 +117,27 @@ func (h *SettingsHandler) SaveSettings(c *gin.Context) {
 	h.cfg.TUI.AutoUpdate = settings.EnableAutoUpdate
 	h.cfg.API.Port = settings.APIPort
 	h.cfg.API.Host = settings.APIHost
-	h.cfg.Import.BatchSize = settings.MaxImportFileSize
+	h.cfg.Import.MaxImportFileSizeMB = settings.MaxImportFileSizeMB
 	h.cfg.Report.OutputDir = settings.ExportDirectory
 	h.cfg.Parser.Workers = settings.ParserWorkers
 	h.cfg.Parser.MemoryLimit = settings.MemoryLimit
 	h.cfg.API.RequestTimeout = time.Duration(settings.RequestTimeout) * time.Second
+
+	if settings.CORSEnabled && settings.CORSAllowedOrigins != "" {
+		h.cfg.API.CORS.AllowedOrigins = strings.Split(settings.CORSAllowedOrigins, ",")
+		for i := range h.cfg.API.CORS.AllowedOrigins {
+			h.cfg.API.CORS.AllowedOrigins[i] = strings.TrimSpace(h.cfg.API.CORS.AllowedOrigins[i])
+		}
+	} else if !settings.CORSEnabled {
+		h.cfg.API.CORS.AllowedOrigins = nil
+	}
+
+	if settings.LogLevel != h.cfg.Log.Level {
+		h.cfg.Log.Level = settings.LogLevel
+		if err := observability.SetLogLevel(settings.LogLevel); err != nil {
+			observability.Warn("Failed to set log level at runtime", zap.String("module", "settings"), zap.String("level", settings.LogLevel), zap.Error(err))
+		}
+	}
 
 	if h.configPath != "" {
 		loader := config.NewLoader()

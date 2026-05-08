@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -16,8 +15,10 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
 	"github.com/kkkdddd-start/winalog-go/internal/types"
 	"github.com/kkkdddd-start/winalog-go/internal/utils"
+	"go.uber.org/zap"
 	"golang.org/x/sys/windows"
 )
 
@@ -123,7 +124,7 @@ func ListLoadedDLLs() ([]DLLModuleInfo, error) {
 
 	snapshot, err := windows.CreateToolhelp32Snapshot(windows.TH32CS_SNAPPROCESS|windows.TH32CS_SNAPMODULE|TH32CS_SNAPMODULE3264, 0)
 	if err != nil {
-		log.Printf("[DEBUG] [DLL] CreateToolhelp32Snapshot failed: %v", err)
+		observability.DebugPrintf("[DEBUG] [DLL] CreateToolhelp32Snapshot failed: %v", err)
 		return nil, err
 	}
 	defer windows.CloseHandle(snapshot)
@@ -133,7 +134,7 @@ func ListLoadedDLLs() ([]DLLModuleInfo, error) {
 
 	err = windows.Process32First(snapshot, &pe)
 	if err != nil {
-		log.Printf("[DEBUG] [DLL] Process32First failed: %v", err)
+		observability.DebugPrintf("[DEBUG] [DLL] Process32First failed: %v", err)
 		return nil, err
 	}
 
@@ -151,7 +152,7 @@ func ListLoadedDLLs() ([]DLLModuleInfo, error) {
 		if err != nil {
 			errorCount++
 			if errorCount <= 3 {
-				log.Printf("[DEBUG] [DLL] enumProcessModules(pid=%d, name=%s) error: %v", pid, processName, err)
+				observability.DebugPrintf("[DEBUG] [DLL] enumProcessModules(pid=%d, name=%s) error: %v", pid, processName, err)
 			}
 		} else if len(modules) > 0 {
 			for _, mod := range modules {
@@ -170,19 +171,27 @@ func ListLoadedDLLs() ([]DLLModuleInfo, error) {
 		}
 	}
 
-	log.Printf("[INFO] [DLL] ListLoadedDLLs: processes=%d, modules=%d, skipped=%d, errors=%d",
-		processCount, moduleCount, skipCount, errorCount)
+	observability.Info("ListLoadedDLLs completed",
+		zap.String("module", "dll_info"),
+		zap.Int("processes", processCount),
+		zap.Int("modules", moduleCount),
+		zap.Int("skipped", skipCount),
+		zap.Int("errors", errorCount))
 
 	if moduleCount == 0 && processCount > 0 {
-		log.Printf("[WARN] [DLL] No modules collected - possible permission or architecture issue (32-bit vs 64-bit)")
+		observability.Warn("No modules collected - possible permission or architecture issue",
+			zap.String("module", "dll_info"))
 	}
 
 	if processCount == 0 {
-		log.Printf("[WARN] [DLL] No processes found at all - CreateToolhelp32Snapshot may have failed silently")
+		observability.Warn("No processes found - CreateToolhelp32Snapshot may have failed silently",
+			zap.String("module", "dll_info"))
 	}
 
 	if len(dlls) > 0 {
-		log.Printf("[INFO] [DLL] Collecting signatures for %d DLLs...", len(dlls))
+		observability.Info("Collecting signatures for DLLs",
+			zap.String("module", "dll_info"),
+			zap.Int("count", len(dlls)))
 		sigMap := batchGetDLLSignatures(dlls)
 		for i := range dlls {
 			dllPath := dlls[i].Path
@@ -197,7 +206,8 @@ func ListLoadedDLLs() ([]DLLModuleInfo, error) {
 				dlls[i].Signer = sig.Signer
 			}
 		}
-		log.Printf("[INFO] [DLL] Signature collection completed")
+		observability.Info("Signature collection completed",
+			zap.String("module", "dll_info"))
 	}
 
 	return dlls, nil
@@ -271,7 +281,9 @@ foreach ($p in $paths) {
 
 		if strings.HasPrefix(cmdResult.Output, "[") {
 			if err := json.Unmarshal([]byte(cmdResult.Output), &sigResults); err != nil {
-				log.Printf("[WARN] [DLL] batchGetDLLSignatures: JSON parse error: %v", err)
+				observability.Warn("batchGetDLLSignatures JSON parse error",
+					zap.String("module", "dll_info"),
+					zap.Error(err))
 				continue
 			}
 		} else if strings.HasPrefix(cmdResult.Output, "{") {
@@ -288,7 +300,10 @@ foreach ($p in $paths) {
 		for _, sr := range sigResults {
 			pathBytes, err := base64.StdEncoding.DecodeString(sr.P)
 			if err != nil {
-				log.Printf("[WARN] [DLL] batchGetDLLSignatures: base64 decode error: %v, path: %s", err, sr.P)
+				observability.Warn("batchGetDLLSignatures base64 decode error",
+					zap.String("module", "dll_info"),
+					zap.Error(err),
+					zap.String("path", sr.P))
 				continue
 			}
 			decodedPath := string(pathBytes)
@@ -493,7 +508,9 @@ func GetDLLVersionsBatch(paths []string) (map[string]string, error) {
 
 		batchResults, err := fetchDLLVersionsFromFile(batch)
 		if err != nil {
-			log.Printf("[WARN] GetDLLVersionsBatch: batch fetch failed: %v", err)
+			observability.Warn("GetDLLVersionsBatch batch fetch failed",
+				zap.String("module", "dll_info"),
+				zap.Error(err))
 			continue
 		}
 		for k, v := range batchResults {
@@ -547,7 +564,9 @@ func parseDLLVersionResults(jsonOutput string) (map[string]string, error) {
 
 	if strings.HasPrefix(jsonOutput, "[") {
 		if err := json.Unmarshal([]byte(jsonOutput), &items); err != nil {
-			log.Printf("[WARN] parseDLLVersionResults: failed to parse JSON array: %v", err)
+			observability.Warn("parseDLLVersionResults failed to parse JSON array",
+				zap.String("module", "dll_info"),
+				zap.Error(err))
 			return results, nil
 		}
 	} else {
@@ -556,7 +575,9 @@ func parseDLLVersionResults(jsonOutput string) (map[string]string, error) {
 			V string `json:"v"`
 		}
 		if err := json.Unmarshal([]byte(jsonOutput), &single); err != nil {
-			log.Printf("[WARN] parseDLLVersionResults: failed to parse single item: %v", err)
+			observability.Warn("parseDLLVersionResults failed to parse single item",
+				zap.String("module", "dll_info"),
+				zap.Error(err))
 			return results, nil
 		}
 		if single.P != "" {

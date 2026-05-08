@@ -170,7 +170,7 @@ func TestIntegration_SystemHandler(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	handler := NewSystemHandler(db)
+	handler := NewSystemHandler(db, 2048)
 
 	router := gin.New()
 	router.GET("/api/system/info", handler.GetSystemInfo)

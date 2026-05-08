@@ -1,11 +1,12 @@
 package parsers
 
 import (
-	"fmt"
 	"sort"
 	"sync"
 
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
 	"github.com/kkkdddd-start/winalog-go/internal/types"
+	"go.uber.org/zap"
 )
 
 type ParseResult struct {
@@ -41,13 +42,13 @@ var (
 )
 
 func GetGlobalRegistry() *ParserRegistry {
-	fmt.Printf("[PARSER] >>> GetGlobalRegistry ENTERED\n")
+	observability.Debug("GetGlobalRegistry entered", zap.String("module", "parser"))
 	globalOnce.Do(func() {
-		fmt.Printf("[PARSER] >>> GetGlobalRegistry: initializing globalRegistry\n")
+		observability.Debug("Initializing global parser registry", zap.String("module", "parser"))
 		globalRegistry = NewParserRegistry()
-		fmt.Printf("[PARSER] >>> GetGlobalRegistry: globalRegistry initialized, registry=%p\n", globalRegistry)
+		observability.Debug("Global parser registry initialized", zap.String("module", "parser"))
 	})
-	fmt.Printf("[PARSER] >>> GetGlobalRegistry EXIT, returning %p\n", globalRegistry)
+	observability.Debug("GetGlobalRegistry returning", zap.String("module", "parser"))
 	return globalRegistry
 }
 

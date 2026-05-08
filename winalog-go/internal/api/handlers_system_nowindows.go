@@ -3,10 +3,11 @@
 package api
 
 import (
-	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
+	"go.uber.org/zap"
 )
 
 // GetUsers godoc
@@ -17,7 +18,7 @@ import (
 // @Success 200 {object} UserResponse
 // @Router /api/system/users [get]
 func (h *SystemHandler) GetUsers(c *gin.Context) {
-	log.Printf("[INFO] GetUsers called - not supported on this platform")
+	observability.Info("GetUsers called - not supported on this platform", zap.String("module", "handlers_system_nowindows"))
 
 	c.JSON(http.StatusOK, UserResponse{
 		Users: []*UserInfo{},
@@ -33,7 +34,7 @@ func (h *SystemHandler) GetUsers(c *gin.Context) {
 // @Success 200 {object} TaskResponse
 // @Router /api/system/tasks [get]
 func (h *SystemHandler) GetScheduledTasks(c *gin.Context) {
-	log.Printf("[INFO] GetScheduledTasks called - not supported on this platform")
+	observability.Info("GetScheduledTasks called - not supported on this platform", zap.String("module", "handlers_system_nowindows"))
 
 	c.JSON(http.StatusOK, TaskResponse{
 		Tasks: []*TaskInfo{},

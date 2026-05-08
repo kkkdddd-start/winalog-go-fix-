@@ -12,3 +12,5 @@ func (h *SystemHandler) ExportDrivers(c *gin.Context)           {}
 func (h *SystemHandler) ExportUsers(c *gin.Context)             {}
 func (h *SystemHandler) ExportRegistryPersistence(c *gin.Context) {}
 func (h *SystemHandler) ExportScheduledTasks(c *gin.Context)    {}
+func (h *SystemHandler) ExportInstalledPatches(c *gin.Context)   {}
+func (h *SystemHandler) ExportInstalledSoftware(c *gin.Context)  {}

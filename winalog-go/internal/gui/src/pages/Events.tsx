@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { eventsAPI, ExportParams, SearchParams, dashboardAPI } from '../api'
+import EventIDTooltip from '../components/EventIDTooltip'
 
 interface Event {
   id: number
@@ -330,7 +331,7 @@ function Events() {
   return (
     <div className="events-page">
       <div className="page-header">
-        <h2>Events</h2>
+        <h2>事件列表</h2>
         <div className="header-actions">
           <button className="btn-secondary" onClick={() => setShowFilters(!showFilters)}>
             {showFilters ? 'Hide Filters' : 'Show Filters'}
@@ -352,7 +353,7 @@ function Events() {
         <div className="search-input-wrapper">
           <input
             type="text"
-            placeholder="Search events by keyword..."
+            placeholder="搜索事件关键词..."
             value={filters?.keywords || ''}
             onChange={e => setFilters({...filters!, keywords: e.target.value})}
             onKeyDown={e => e.key === 'Enter' && handleSearch()}
@@ -382,7 +383,7 @@ function Events() {
         <div className="filters-panel">
           <div className="filter-row">
             <div className="filter-group">
-              <label>Start Time</label>
+              <label>开始时间</label>
               <input
                 type="datetime-local"
                 value={filters?.start_time || ''}
@@ -390,7 +391,7 @@ function Events() {
               />
             </div>
             <div className="filter-group">
-              <label>End Time</label>
+              <label>结束时间</label>
               <input
                 type="datetime-local"
                 value={filters?.end_time || ''}
@@ -398,7 +399,7 @@ function Events() {
               />
             </div>
             <div className="filter-group">
-              <label>Event IDs</label>
+              <label>事件 ID</label>
               <input
                 type="text"
                 placeholder="4624,4625,4672"
@@ -408,7 +409,7 @@ function Events() {
               />
             </div>
             <div className="filter-group">
-              <label>Log Names</label>
+              <label>日志名称</label>
               <select
                 value={filters?.log_names?.[0] || ''}
                 onChange={e => {
@@ -417,7 +418,7 @@ function Events() {
                 }}
                 className="select-input"
               >
-                <option value="">All Log Names</option>
+                <option value="">全部日志名称</option>
                 {availableLogNames.map(name => (
                   <option key={name} value={name}>{name}</option>
                 ))}
@@ -426,7 +427,7 @@ function Events() {
           </div>
           <div className="filter-row">
             <div className="filter-group">
-              <label>Sources</label>
+              <label>来源</label>
               <input
                 type="text"
                 placeholder="Microsoft-Windows-Security-Auditing"
@@ -436,7 +437,7 @@ function Events() {
               />
             </div>
             <div className="filter-group">
-              <label>Users</label>
+              <label>用户</label>
               <input
                 type="text"
                 placeholder="DOMAIN\User1,DOMAIN\Admin"
@@ -446,7 +447,7 @@ function Events() {
               />
             </div>
             <div className="filter-group">
-              <label>Computers</label>
+              <label>计算机</label>
               <input
                 type="text"
                 placeholder="WORKSTATION1,SRV01"
@@ -458,7 +459,7 @@ function Events() {
           </div>
           <div className="filter-row">
             <div className="filter-group">
-              <label>Level</label>
+              <label>级别</label>
               <div className="level-checkboxes">
                 {['Critical', 'Error', 'Warning', 'Info', 'Debug'].map(level => (
                   <label key={level} className="checkbox-label">
@@ -479,17 +480,17 @@ function Events() {
               </div>
             </div>
             <div className="filter-group">
-              <label>Sort By</label>
+              <label>排序字段</label>
               <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="select-input">
                 <option value="timestamp">Timestamp</option>
-                <option value="event_id">Event ID</option>
+                <option value="event_id">事件 ID</option>
                 <option value="level">Level</option>
                 <option value="source">Source</option>
-                <option value="log_name">Log Name</option>
+                <option value="log_name">日志名称</option>
               </select>
             </div>
             <div className="filter-group">
-              <label>Sort Order</label>
+              <label>排序方式</label>
               <select value={sortOrder} onChange={e => setSortOrder(e.target.value)} className="select-input">
                 <option value="desc">Descending</option>
                 <option value="asc">Ascending</option>
@@ -507,9 +508,9 @@ function Events() {
             </div>
           </div>
           <div className="filter-actions">
-            <button onClick={handleSearch} className="btn-primary">Apply Filters</button>
+            <button onClick={handleSearch} className="btn-primary">应用筛选</button>
             {searchMode && (
-              <button onClick={handleClearSearch} className="btn-secondary">Clear All</button>
+              <button onClick={handleClearSearch} className="btn-secondary">清除全部</button>
             )}
           </div>
         </div>
@@ -524,11 +525,11 @@ function Events() {
 
       <div className="stats-bar">
         <div className="stat-item">
-          <span className="stat-label">Total Events</span>
+          <span className="stat-label">总事件数</span>
           <span className="stat-value">{totalCount.toLocaleString()}</span>
         </div>
         <div className="stat-item">
-          <span className="stat-label">Current Page</span>
+          <span className="stat-label">当前页</span>
           <span className="stat-value">{page} / {totalPages}</span>
         </div>
       </div>
@@ -536,12 +537,12 @@ function Events() {
       {loading ? (
         <div className="loading-state">
           <div className="spinner"></div>
-          <div>Loading events...</div>
+          <div>加载事件中...</div>
         </div>
       ) : events.length === 0 ? (
         <div className="empty-state">
           <div className="empty-icon">📋</div>
-          <div>No events found</div>
+          <div>未找到事件</div>
         </div>
       ) : (
         <>
@@ -549,14 +550,14 @@ function Events() {
             <table className="events-table">
               <thead>
                 <tr>
-                  <th>ID</th>
-                  <th>Time</th>
-                  <th>Level</th>
-                  <th>Event ID</th>
-                  <th>Source</th>
-                  <th>Computer</th>
-                  <th>Message</th>
-                  <th>Action</th>
+                  <th>编号</th>
+                  <th>时间</th>
+                  <th>级别</th>
+                  <th>事件 ID</th>
+                  <th>来源</th>
+                  <th>计算机</th>
+                  <th>消息</th>
+                  <th>操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -571,7 +572,11 @@ function Events() {
                         {getLevelLabel(event.level)}
                       </span>
                     </td>
-                    <td className="event-id">{event.event_id}</td>
+                    <td className="event-id">
+                      <EventIDTooltip eventId={String(event.event_id)}>
+                        {event.event_id}
+                      </EventIDTooltip>
+                    </td>
                     <td 
                       className="source-cell"
                       title={event.source || ''}
@@ -584,7 +589,7 @@ function Events() {
                           setHoveredEvent(event)
                           setHoverPosition({ x: e.clientX - 200, y: e.clientY + 20 })
                         }}
-                        title="View details"
+                        title="查看详情"
                       >
                         ...
                       </button>
@@ -604,7 +609,7 @@ function Events() {
                           setHoveredEvent(event)
                           setHoverPosition({ x: e.clientX - 200, y: e.clientY + 20 })
                         }}
-                        title="View details"
+                        title="查看详情"
                       >
                         ...
                       </button>
@@ -615,9 +620,9 @@ function Events() {
                         onClick={() => {
                           navigator.clipboard.writeText(JSON.stringify(event, null, 2))
                         }}
-                        title="Copy all event data"
+                        title="复制事件数据"
                       >
-                        Copy
+                        复制
                       </button>
                       <button 
                         className="action-detail-btn" 
@@ -625,7 +630,7 @@ function Events() {
                           setHoveredEvent(event)
                           setHoverPosition({ x: e.clientX - 200, y: e.clientY + 20 })
                         }}
-                        title="View details"
+                        title="查看详情"
                       >
                         ...
                       </button>
@@ -715,7 +720,7 @@ function Events() {
                 }}
               >
                 <div className="float-panel-header">
-                  <span>Event Details</span>
+                  <span>事件详情</span>
                   <div className="float-panel-actions">
                     <button 
                       className="float-panel-copy"
@@ -760,13 +765,13 @@ function Events() {
                 </div>
                 <div className="float-panel-content">
                   <div><strong>ID:</strong> {hoveredEvent.id}</div>
-                  <div><strong>Time:</strong> {new Date(hoveredEvent.timestamp).toLocaleString()}</div>
-                  <div><strong>Level:</strong> {hoveredEvent.level}</div>
-                  <div><strong>Event ID:</strong> {hoveredEvent.event_id}</div>
-                  <div><strong>Source:</strong> {hoveredEvent.source || '-'}</div>
-                  <div><strong>Computer:</strong> {hoveredEvent.computer || '-'}</div>
-                  <div><strong>Log Name:</strong> {hoveredEvent.log_name}</div>
-                  <div style={{marginTop: '8px'}}><strong>Message:</strong></div>
+                  <div><strong>时间:</strong> {new Date(hoveredEvent.timestamp).toLocaleString()}</div>
+                  <div><strong>级别:</strong> {hoveredEvent.level}</div>
+                  <div><strong>事件 ID:</strong> {hoveredEvent.event_id}</div>
+                  <div><strong>来源:</strong> {hoveredEvent.source || '-'}</div>
+                  <div><strong>计算机:</strong> {hoveredEvent.computer || '-'}</div>
+                  <div><strong>日志名称:</strong> {hoveredEvent.log_name}</div>
+                  <div style={{marginTop: '8px'}}><strong>消息:</strong></div>
                   <div>{hoveredEvent.message || '-'}</div>
                 </div>
               </div>
@@ -775,7 +780,7 @@ function Events() {
                 <div className="modal-overlay" onClick={() => setShowRawModal(false)}>
                   <div className="modal-content modal-large" onClick={e => e.stopPropagation()}>
                     <div className="modal-header">
-                      <span>Raw JSON - Event #{hoveredEvent.id}</span>
+                       <span>原始数据 - 事件 #{hoveredEvent.id}</span>
                       <button className="modal-close" onClick={() => setShowRawModal(false)}>×</button>
                     </div>
                     <div className="modal-body">

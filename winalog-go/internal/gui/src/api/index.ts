@@ -249,6 +249,10 @@ export const systemAPI = {
     api.get(`/system/registry?enabled=${enabled}`),
   getTasks: (enabled = true) =>
     api.get(`/system/tasks?enabled=${enabled}`),
+  getPatches: () =>
+    api.get('/system/patches'),
+  getSoftware: () =>
+    api.get('/system/software'),
 }
 
 export const rulesAPI = {
@@ -448,7 +452,8 @@ export interface Settings {
   api_port: number
   api_host: string
   cors_enabled: boolean
-  max_import_file_size: number
+  cors_allowed_origins: string
+  max_import_file_size_mb: number
   export_directory: string
   parser_workers: number
   memory_limit: number
@@ -699,6 +704,7 @@ export interface MonitorStats {
   is_running: boolean
   process_enabled: boolean
   network_enabled: boolean
+  total_count: number
   process_count: number
   network_count: number
   alert_count: number

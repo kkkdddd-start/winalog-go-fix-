@@ -14,33 +14,59 @@ interface Metrics {
   memory_limit_mb?: number
 }
 
+const TIME_RANGE_POINTS: Record<string, number> = {
+  '1m': 12,
+  '5m': 60,
+  '1h': 360,
+}
+
 function Metrics() {
   const { t } = useI18n()
   const [metrics, setMetrics] = useState<Metrics | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [timeRange, setTimeRange] = useState<'1h' | '5m' | '1m'>('5m')
-  const [history, setHistory] = useState<{events: number[], alerts: number[], memory: number[], timestamps: string[]}>({
-    events: [],
-    alerts: [],
+  const [history, setHistory] = useState<{
+    eventDeltas: number[]
+    alertDeltas: number[]
+    memory: number[]
+    timestamps: string[]
+  }>({
+    eventDeltas: [],
+    alertDeltas: [],
     memory: [],
-    timestamps: []
+    timestamps: [],
   })
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const prevTotals = useRef<{ events: number; alerts: number } | null>(null)
+
+  const maxPoints = TIME_RANGE_POINTS[timeRange]
 
   const fetchMetrics = () => {
     systemAPI.getMetrics()
       .then(res => {
         setMetrics(res.data)
         setLoading(false)
-        
+
+        const data = res.data
+        let eventDelta = 0
+        let alertDelta = 0
+
+        if (prevTotals.current !== null) {
+          eventDelta = Math.max(0, data.total_events - prevTotals.current.events)
+          alertDelta = Math.max(0, data.total_alerts - prevTotals.current.alerts)
+        }
+
+        prevTotals.current = { events: data.total_events, alerts: data.total_alerts }
+
         setHistory(prev => {
           const now = new Date().toLocaleTimeString()
-          const newEvents = [...prev.events, res.data.total_events].slice(-20)
-          const newAlerts = [...prev.alerts, res.data.total_alerts].slice(-20)
-          const newMemory = [...prev.memory, res.data.memory_usage_mb].slice(-20)
-          const newTimestamps = [...prev.timestamps, now].slice(-20)
-          return { events: newEvents, alerts: newAlerts, memory: newMemory, timestamps: newTimestamps }
+          return {
+            eventDeltas: [...prev.eventDeltas, eventDelta].slice(-maxPoints),
+            alertDeltas: [...prev.alertDeltas, alertDelta].slice(-maxPoints),
+            memory: [...prev.memory, data.memory_usage_mb].slice(-maxPoints),
+            timestamps: [...prev.timestamps, now].slice(-maxPoints),
+          }
         })
       })
       .catch(err => {
@@ -50,21 +76,28 @@ function Metrics() {
   }
 
   useEffect(() => {
+    prevTotals.current = null
+    setHistory({ eventDeltas: [], alertDeltas: [], memory: [], timestamps: [] })
     fetchMetrics()
     const interval = setInterval(fetchMetrics, 5000)
     return () => clearInterval(interval)
   }, [])
 
   useEffect(() => {
-    if (canvasRef.current && history.events.length > 1) {
+    if (canvasRef.current && history.eventDeltas.length > 1) {
       drawChart()
     }
   }, [history])
 
+  useEffect(() => {
+    if (canvasRef.current && history.eventDeltas.length > 1) {
+      drawChart()
+    }
+  }, [timeRange])
+
   const drawChart = () => {
     const canvas = canvasRef.current
     if (!canvas) return
-
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
@@ -74,9 +107,9 @@ function Metrics() {
 
     ctx.clearRect(0, 0, width, height)
 
-    const maxEvents = Math.max(...history.events, 1)
-    const minEvents = Math.min(...history.events, 0)
-    const range = maxEvents - minEvents || 1
+    const data = history.eventDeltas
+    const maxVal = Math.max(...data, 1)
+    const yRange = maxVal
 
     ctx.strokeStyle = '#333'
     ctx.lineWidth = 1
@@ -86,29 +119,44 @@ function Metrics() {
       ctx.moveTo(padding, y)
       ctx.lineTo(width - padding, y)
       ctx.stroke()
+
+      ctx.fillStyle = '#666'
+      ctx.font = '10px sans-serif'
+      ctx.textAlign = 'right'
+      const labelVal = Math.round(yRange * (1 - i / 4))
+      ctx.fillText(labelVal.toString(), padding - 5, y + 4)
     }
 
-    const xStep = (width - 2 * padding) / (history.events.length - 1)
+    if (data.length < 2) return
+    const xStep = (width - 2 * padding) / (data.length - 1)
 
     ctx.strokeStyle = '#00d9ff'
     ctx.lineWidth = 2
     ctx.beginPath()
-    history.events.forEach((val, i) => {
+    data.forEach((val, i) => {
       const x = padding + i * xStep
-      const y = padding + (height - 2 * padding) * (1 - (val - minEvents) / range)
+      const y = padding + (height - 2 * padding) * (1 - val / yRange)
       if (i === 0) ctx.moveTo(x, y)
       else ctx.lineTo(x, y)
     })
     ctx.stroke()
 
     ctx.fillStyle = '#00d9ff'
-    history.events.forEach((val, i) => {
+    data.forEach((val, i) => {
       const x = padding + i * xStep
-      const y = padding + (height - 2 * padding) * (1 - (val - minEvents) / range)
+      const y = padding + (height - 2 * padding) * (1 - val / yRange)
       ctx.beginPath()
       ctx.arc(x, y, 3, 0, Math.PI * 2)
       ctx.fill()
     })
+
+    if (history.timestamps.length > 0) {
+      ctx.fillStyle = '#666'
+      ctx.font = '10px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillText(history.timestamps[0], padding, height - 5)
+      ctx.fillText(history.timestamps[history.timestamps.length - 1], width - padding, height - 5)
+    }
   }
 
   const formatUptime = (seconds: number) => {
@@ -131,7 +179,7 @@ function Metrics() {
 
   if (error) return (
     <div className="metrics-page">
-      <div className="error-state">❌ {error}</div>
+      <div className="error-state">{error}</div>
     </div>
   )
 
@@ -156,7 +204,7 @@ function Metrics() {
           </div>
           <div className="metric-value">{(metrics?.total_events || 0).toLocaleString()}</div>
           <div className="metric-trend up">
-            📈 {(metrics?.events_per_minute || 0).toFixed(1)}/min
+            {(metrics?.events_per_minute || 0).toFixed(1)}/min
           </div>
         </div>
 
@@ -174,11 +222,11 @@ function Metrics() {
             <span className="metric-icon">💾</span>
             <span className="metric-title">{t('metrics.memory')}</span>
           </div>
-          <div className="metric-value memory">{(metrics?.memory_usage_mb || 0).toFixed(1)}</div>
+          <div className="metric-value memory">{(metrics?.memory_usage_mb || 0).toFixed(1)} MB</div>
           <div className="metric-bar">
             <div className="metric-bar-fill" style={{width: `${memPercent}%`}}></div>
           </div>
-          <div className="metric-sub">{memPercent}% of limit</div>
+          <div className="metric-sub">{memPercent}% of {(metrics?.memory_limit_mb || 512).toFixed(0)} MB</div>
         </div>
 
         <div className="metric-card">
@@ -194,9 +242,9 @@ function Metrics() {
       <div className="chart-section">
         <div className="chart-card">
           <div className="chart-header">
-            <h3>Event Throughput</h3>
+            <h3>事件吞吐量（每 5 秒增量）</h3>
             <div className="chart-legend">
-              <span className="legend-item"><span className="dot cyan"></span>Total Events</span>
+              <span className="legend-item"><span className="dot cyan"></span>事件增量</span>
             </div>
           </div>
           <div className="chart-container">
@@ -209,7 +257,7 @@ function Metrics() {
         <div className="section-header">
           <h3>{t('metrics.prometheusFormat')}</h3>
           <button className="btn-copy" onClick={() => navigator.clipboard.writeText(getPrometheusText())}>
-            📋 Copy
+            Copy
           </button>
         </div>
         <pre className="prometheus-code">{getPrometheusText()}</pre>

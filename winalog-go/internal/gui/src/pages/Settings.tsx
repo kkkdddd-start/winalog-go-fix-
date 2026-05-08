@@ -20,7 +20,8 @@ function Settings() {
     apiPort: 8080,
     apiHost: '0.0.0.0',
     corsEnabled: true,
-    maxImportFileSize: 1024,
+    corsAllowedOrigins: '*',
+    maxImportFileSizeMB: 1024,
     exportDirectory: './exports',
     parserWorkers: 4,
     memoryLimit: 2048,
@@ -43,7 +44,8 @@ function Settings() {
         apiPort: data.api_port || 8080,
         apiHost: data.api_host || '0.0.0.0',
         corsEnabled: data.cors_enabled ?? true,
-        maxImportFileSize: data.max_import_file_size || 1024,
+        corsAllowedOrigins: data.cors_allowed_origins || '*',
+        maxImportFileSizeMB: data.max_import_file_size_mb || 1024,
         exportDirectory: data.export_directory || './exports',
         parserWorkers: data.parser_workers || 4,
         memoryLimit: data.memory_limit || 2048,
@@ -67,7 +69,8 @@ function Settings() {
         api_port: settings.apiPort,
         api_host: settings.apiHost,
         cors_enabled: settings.corsEnabled,
-        max_import_file_size: settings.maxImportFileSize,
+        cors_allowed_origins: settings.corsAllowedOrigins,
+        max_import_file_size_mb: settings.maxImportFileSizeMB,
         export_directory: settings.exportDirectory,
         parser_workers: settings.parserWorkers,
         memory_limit: settings.memoryLimit,
@@ -209,6 +212,7 @@ function Settings() {
                 <div className="setting-info">
                   <label>{t('settings.databasePath')}</label>
                   <p>{t('settings.databasePathDesc')}</p>
+                  <span className="restart-hint">⚠ {t('settings.requiresRestart')}</span>
                 </div>
                 <input
                   type="text"
@@ -261,6 +265,7 @@ function Settings() {
                 <div className="setting-info">
                   <label>{t('settings.apiHost')}</label>
                   <p>{t('settings.apiHostDesc')}</p>
+                  <span className="restart-hint">⚠ {t('settings.requiresRestart')}</span>
                 </div>
                 <input
                   type="text"
@@ -274,6 +279,7 @@ function Settings() {
                 <div className="setting-info">
                   <label>{t('settings.apiPort')}</label>
                   <p>{t('settings.apiPortDesc')}</p>
+                  <span className="restart-hint">⚠ {t('settings.requiresRestart')}</span>
                 </div>
                 <input
                   type="number"
@@ -299,6 +305,22 @@ function Settings() {
                   <span className="toggle-slider"></span>
                 </label>
               </div>
+
+              {settings.corsEnabled && (
+                <div className="setting-card">
+                  <div className="setting-info">
+                    <label>CORS 允许的来源</label>
+                    <p>Comma-separated list of allowed origins (e.g. http://localhost:3000,http://example.com)</p>
+                  </div>
+                  <input
+                    type="text"
+                    value={settings.corsAllowedOrigins}
+                    onChange={e => handleChange('corsAllowedOrigins', e.target.value)}
+                    className="text-input"
+                    style={{ width: '350px' }}
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -346,8 +368,8 @@ function Settings() {
                 </div>
                 <input
                   type="number"
-                  value={settings.maxImportFileSize}
-                  onChange={e => handleChange('maxImportFileSize', Number(e.target.value))}
+                  value={settings.maxImportFileSizeMB}
+                  onChange={e => handleChange('maxImportFileSizeMB', Number(e.target.value))}
                   className="number-input"
                   min="1"
                   max="10240"
@@ -402,6 +424,7 @@ function Settings() {
                 <div className="setting-info">
                   <label>{t('settings.requestTimeout') || 'Request Timeout'}</label>
                   <p>{t('settings.requestTimeoutDesc') || 'HTTP request timeout in seconds'}</p>
+                  <span className="restart-hint">⚠ {t('settings.requiresRestart')}</span>
                 </div>
                 <input
                   type="number"
@@ -681,6 +704,13 @@ function Settings() {
           color: #ef4444;
           font-size: 13px;
           margin-right: auto;
+        }
+
+        .restart-hint {
+          color: #f59e0b;
+          font-size: 11px;
+          font-style: italic;
+          margin-top: 4px;
         }
         
         .btn-primary {

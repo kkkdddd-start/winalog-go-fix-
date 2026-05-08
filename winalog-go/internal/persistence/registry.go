@@ -5,12 +5,12 @@ package persistence
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
 	"github.com/kkkdddd-start/winalog-go/internal/utils"
 )
 
@@ -156,20 +156,20 @@ func (d *RunKeyDetector) enumerateRunKey(keyPath string) ([]RunKeyEntry, error) 
 
 	values, err := utils.ListRegistryValues(keyPath)
 	if err != nil {
-		log.Printf("[DEBUG] [RunKeyDetector] ListRegistryValues(%s) failed: %v", keyPath, err)
+		observability.DebugPrintf("[DEBUG] [RunKeyDetector] ListRegistryValues(%s) failed: %v", keyPath, err)
 		return entries, nil
 	}
 
-	log.Printf("[DEBUG] [RunKeyDetector] Found %d values under %s", len(values), keyPath)
+	observability.DebugPrintf("[DEBUG] [RunKeyDetector] Found %d values under %s", len(values), keyPath)
 
 	for _, valueName := range values {
 		value, err := utils.GetRegistryValue(keyPath, valueName)
 		if err != nil {
-			log.Printf("[DEBUG] [RunKeyDetector] GetRegistryValue(%s, %s) failed: %v", keyPath, valueName, err)
+			observability.DebugPrintf("[DEBUG] [RunKeyDetector] GetRegistryValue(%s, %s) failed: %v", keyPath, valueName, err)
 			continue
 		}
 		if value != "" {
-			log.Printf("[DEBUG] [RunKeyDetector] Found entry: %s = %s", valueName, value)
+			observability.DebugPrintf("[DEBUG] [RunKeyDetector] Found entry: %s = %s", valueName, value)
 			entries = append(entries, RunKeyEntry{
 				Name:  valueName,
 				Value: value,

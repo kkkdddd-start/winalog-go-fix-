@@ -368,7 +368,7 @@ function Rules() {
     <div className="rules-page">
       <div className="loading-state">
         <div className="spinner"></div>
-        <div>Loading rules...</div>
+        <div>加载规则中...</div>
       </div>
     </div>
   )
@@ -382,18 +382,18 @@ function Rules() {
   return (
     <div className="rules-page">
       <div className="page-header">
-        <h2>Detection Rules</h2>
+        <h2>检测规则</h2>
         <div className="header-actions">
           <button className="btn-secondary" onClick={handleValidate}>Validate</button>
           <button className="btn-secondary" onClick={handleImportClick}>Import</button>
           <div className="export-dropdown">
-            <button className="btn-secondary">Export</button>
+            <button className="btn-secondary">导出</button>
             <div className="export-menu">
               <button onClick={() => handleExport('json')}>JSON</button>
               <button onClick={() => handleExport('yaml')}>YAML</button>
             </div>
           </div>
-          <button className="btn-primary" onClick={handleAddRule}>Add Rule</button>
+          <button className="btn-primary" onClick={handleAddRule}>添加规则</button>
         </div>
       </div>
 
@@ -402,21 +402,21 @@ function Rules() {
           <div className="stat-icon">📋</div>
           <div className="stat-content">
             <div className="stat-value">{totalCount}</div>
-            <div className="stat-label">Total Rules</div>
+            <div className="stat-label">规则总数</div>
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-icon enabled">✓</div>
           <div className="stat-content">
             <div className="stat-value enabled">{enabledCount}</div>
-            <div className="stat-label">Enabled</div>
+            <div className="stat-label">已启用</div>
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-icon disabled">✗</div>
           <div className="stat-content">
             <div className="stat-value disabled">{totalCount - enabledCount}</div>
-            <div className="stat-label">Disabled</div>
+            <div className="stat-label">已禁用</div>
           </div>
         </div>
       </div>
@@ -424,7 +424,7 @@ function Rules() {
       <div className="filter-bar">
         <input
           type="text"
-          placeholder="Search rules..."
+          placeholder="搜索规则..."
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
           className="search-input"
@@ -434,7 +434,7 @@ function Rules() {
           onChange={e => setFilterSeverity(e.target.value)}
           className="filter-select"
         >
-          <option value="all">All Severities</option>
+          <option value="all">全部严重级别</option>
           <option value="critical">Critical</option>
           <option value="high">High</option>
           <option value="medium">Medium</option>
@@ -445,7 +445,7 @@ function Rules() {
           onChange={e => setFilterStatus(e.target.value)}
           className="filter-select"
         >
-          <option value="all">All Status</option>
+          <option value="all">全部状态</option>
           <option value="enabled">Enabled</option>
           <option value="disabled">Disabled</option>
         </select>
@@ -503,7 +503,7 @@ function Rules() {
       {filteredRules.length === 0 && (
         <div className="empty-state">
           <div className="empty-icon">🛡️</div>
-          <div>No rules match your filters</div>
+          <div>没有匹配筛选条件的规则</div>
         </div>
       )}
 
@@ -511,7 +511,7 @@ function Rules() {
         <div className="modal-overlay" onClick={() => setSelectedRule(null)}>
           <div className="modal-content rule-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Rule Details</h3>
+              <h3>规则详情</h3>
               <button className="close-btn" onClick={() => setSelectedRule(null)}>×</button>
             </div>
             <div className="modal-body">
@@ -537,13 +537,13 @@ function Rules() {
                 <div className="detail-row">
                   <span className="detail-label">Status:</span>
                   <span className={`status-badge ${selectedRule.enabled ? 'enabled' : 'disabled'}`}>
-                    {selectedRule.enabled ? 'Enabled' : 'Disabled'}
-                  </span>
-                </div>
-              </div>
+                     {selectedRule.enabled ? '已启用' : '已禁用'}
+                   </span>
+                 </div>
+               </div>
 
-              <div className="detail-section">
-                <h4>Description</h4>
+               <div className="detail-section">
+                 <h4>描述</h4>
                 <p className="detail-description">{selectedRule.description}</p>
               </div>
 
@@ -560,7 +560,7 @@ function Rules() {
 
               {selectedRule.tags && selectedRule.tags.length > 0 && (
                 <div className="detail-section">
-                  <h4>Tags</h4>
+                  <h4>标签</h4>
                   <div className="tags-list">
                     {selectedRule.tags.map(tag => (
                       <span key={tag} className="tag-item">{tag}</span>
@@ -577,7 +577,7 @@ function Rules() {
         <div className="modal-overlay" onClick={() => setShowValidateModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Validate Rule</h3>
+              <h3>验证规则</h3>
               <button className="close-btn" onClick={() => setShowValidateModal(false)}>×</button>
             </div>
             <div className="modal-body">
@@ -646,7 +646,7 @@ function Rules() {
         <div className="modal-overlay" onClick={() => setShowAddModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Add New Rule</h3>
+              <h3>添加新规则</h3>
               <button className="close-btn" onClick={() => setShowAddModal(false)}>×</button>
             </div>
             <div className="modal-body">
@@ -656,12 +656,12 @@ function Rules() {
                   <div className="choice-cards">
                     <div className="choice-card" onClick={handleOpenTemplateModalFromAdd}>
                       <div className="choice-icon">📋</div>
-                      <div className="choice-title">From Template</div>
+                      <div className="choice-title">从模板创建</div>
                       <div className="choice-desc">Create a rule from a pre-defined template with customizable parameters</div>
                     </div>
                     <div className="choice-card" onClick={handleOpenCustomRuleFromAdd}>
                       <div className="choice-icon">✏️</div>
-                      <div className="choice-title">Custom Rule</div>
+                      <div className="choice-title">自定义规则</div>
                       <div className="choice-desc">Create a custom rule by filling in the rule details manually</div>
                     </div>
                   </div>
@@ -669,26 +669,26 @@ function Rules() {
               ) : (
                 <div className="add-rule-form">
                   <div className="form-group">
-                    <label>Rule Name <span className="required">*</span></label>
+                    <label>规则名称 <span className="required">*</span></label>
                     <input
                       type="text"
                       value={newRule.name}
                       onChange={e => setNewRule({...newRule, name: e.target.value})}
-                      placeholder="e.g. suspicious-login-detected"
+                      placeholder="例如: suspicious-login-detected"
                     />
                   </div>
                   <div className="form-group">
-                    <label>Description</label>
+                    <label>描述</label>
                     <textarea
                       value={newRule.description}
                       onChange={e => setNewRule({...newRule, description: e.target.value})}
                       rows={3}
-                      placeholder="Describe what this rule detects..."
+                      placeholder="描述此规则检测的内容..."
                     />
                   </div>
                   <div className="form-row">
                     <div className="form-group">
-                      <label>Severity</label>
+                      <label>严重级别</label>
                       <select
                         value={newRule.severity}
                         onChange={e => setNewRule({...newRule, severity: e.target.value})}
@@ -701,7 +701,7 @@ function Rules() {
                       </select>
                     </div>
                     <div className="form-group">
-                      <label>Score (0-100)</label>
+                      <label>分值 (0-100)</label>
                       <input
                         type="number"
                         min="0"
@@ -712,7 +712,7 @@ function Rules() {
                     </div>
                   </div>
                   <div className="form-group">
-                    <label>MITRE ATT&CK (comma-separated)</label>
+                    <label>MITRE ATT&CK（逗号分隔）</label>
                     <input
                       type="text"
                       value={newRule.mitre_attack?.join(', ') || ''}
@@ -724,7 +724,7 @@ function Rules() {
                     />
                   </div>
                   <div className="form-group">
-                    <label>Event IDs (comma-separated)</label>
+                    <label>事件 ID（逗号分隔）</label>
                     <input
                       type="text"
                       value={newRule.event_ids?.join(', ') || ''}
@@ -736,12 +736,12 @@ function Rules() {
                     />
                   </div>
                   <div className="form-group">
-                    <label>Alert Message</label>
+                    <label>告警消息</label>
                     <input
                       type="text"
                       value={newRule.message}
                       onChange={e => setNewRule({...newRule, message: e.target.value})}
-                      placeholder="Alert message when rule triggers"
+                      placeholder="规则触发时的告警消息"
                     />
                   </div>
                   <div className="modal-actions">
@@ -763,13 +763,13 @@ function Rules() {
         <div className="modal-overlay" onClick={() => setShowImportModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Import Rules</h3>
+              <h3>导入规则</h3>
               <button className="close-btn" onClick={() => setShowImportModal(false)}>×</button>
             </div>
             <div className="modal-body">
               <p className="modal-desc">Select a YAML or JSON file containing rules:</p>
               <details className="format-example">
-                <summary>View Format Examples</summary>
+                <summary>查看格式示例</summary>
                 <div className="format-content">
                   <h5>JSON Format:</h5>
                   <pre>{`[
@@ -843,7 +843,7 @@ function Rules() {
         <div className="modal-overlay" onClick={() => setShowTemplateModal(false)}>
           <div className="modal-content template-modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Create Rule from Template</h3>
+              <h3>从模板创建规则</h3>
               <button className="close-btn" onClick={() => setShowTemplateModal(false)}>×</button>
             </div>
             <div className="modal-body">
@@ -852,7 +852,7 @@ function Rules() {
                   <p className="modal-desc">Select a template:</p>
                   <div className="template-list">
                     {templates.length === 0 ? (
-                      <div className="empty-state">No templates available</div>
+                      <div className="empty-state">暂无可用模板</div>
                     ) : (
                       templates.map(template => (
                         <div 
@@ -889,7 +889,7 @@ function Rules() {
                             value={templateParams[param.name] || ''}
                             onChange={e => setTemplateParams({...templateParams, [param.name]: e.target.value})}
                           >
-                            <option value="">Select...</option>
+                            <option value="">请选择...</option>
                             {param.options.map(opt => (
                               <option key={opt} value={opt}>{opt}</option>
                             ))}
@@ -928,12 +928,12 @@ function Rules() {
         <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Edit Rule</h3>
+              <h3>编辑规则</h3>
               <button className="close-btn" onClick={() => setShowEditModal(false)}>×</button>
             </div>
             <div className="modal-body">
               <div className="form-group">
-                <label>Name</label>
+                <label>名称</label>
                 <input
                   type="text"
                   value={editingRule.name}
@@ -942,7 +942,7 @@ function Rules() {
                 />
               </div>
               <div className="form-group">
-                <label>Description</label>
+                <label>描述</label>
                 <textarea
                   value={editingRule.description}
                   onChange={e => setEditingRule({...editingRule, description: e.target.value})}
@@ -951,20 +951,20 @@ function Rules() {
               </div>
               <div className="form-row">
                 <div className="form-group">
-                  <label>Severity</label>
+                  <label>严重级别</label>
                   <select
                     value={editingRule.severity}
                     onChange={e => setEditingRule({...editingRule, severity: e.target.value})}
                   >
-                    <option value="critical">Critical</option>
-                    <option value="high">High</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Low</option>
-                    <option value="info">Info</option>
+                    <option value="critical">严重</option>
+                    <option value="high">高</option>
+                    <option value="medium">中</option>
+                    <option value="low">低</option>
+                    <option value="info">信息</option>
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>Score (0-100)</label>
+                  <label>分值 (0-100)</label>
                   <input
                     type="number"
                     min="0"
@@ -999,7 +999,7 @@ function Rules() {
                 />
               </div>
               <div className="form-group">
-                <label>Message</label>
+                <label>消息</label>
                 <input
                   type="text"
                   value={editingRule.message || ''}

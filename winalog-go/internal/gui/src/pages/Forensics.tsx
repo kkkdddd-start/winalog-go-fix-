@@ -214,7 +214,7 @@ function Forensics() {
               <div className="type-icon">🔧</div>
               <div className="type-info">
                 <div className="type-name">{t('forensics.registry')}</div>
-                <div className="type-desc">Persistence points, Run keys</div>
+                <div className="type-desc">持久化入口点、Run 键</div>
               </div>
             </div>
             
@@ -225,7 +225,7 @@ function Forensics() {
               <div className="type-icon">💾</div>
               <div className="type-info">
                 <div className="type-name">{t('forensics.memoryDump')}</div>
-                <div className="type-desc">Live memory acquisition</div>
+                <div className="type-desc">内存数据采集</div>
               </div>
             </div>
             
@@ -236,7 +236,7 @@ function Forensics() {
               <div className="type-icon">⚡</div>
               <div className="type-info">
                 <div className="type-name">{t('forensics.prefetch')}</div>
-                <div className="type-desc">Program execution history</div>
+                <div className="type-desc">程序执行历史</div>
               </div>
             </div>
           </div>
@@ -272,7 +272,7 @@ function Forensics() {
           
           <div className="hash-form">
             <div className="form-group">
-              <label>File Path</label>
+              <label>文件路径</label>
               <input
                 type="text"
                 placeholder="C:\Windows\System32\cmd.exe"
@@ -282,7 +282,7 @@ function Forensics() {
             </div>
             
             <div className="form-group">
-              <label>Expected SHA256 Hash</label>
+              <label>预期 SHA256 哈希值</label>
               <input
                 type="text"
                 placeholder="e3b0c44298fc1c149afbf4c8996fb924..."
@@ -332,7 +332,7 @@ function Forensics() {
             <p className="card-desc">{t('forensics.chainOfCustodyDesc')}</p>
           </div>
           <button className="btn-secondary" onClick={() => setShowChainModal(true)}>
-            View Full Chain
+            查看完整链条
           </button>
         </div>
         
@@ -341,12 +341,12 @@ function Forensics() {
             <table>
               <thead>
                 <tr>
-                  <th>Type</th>
-                  <th>Collected At</th>
-                  <th>Path</th>
-                  <th>Size</th>
-                  <th>Hash</th>
-                  <th>Actions</th>
+                  <th>类型</th>
+                  <th>采集时间</th>
+                  <th>路径</th>
+                  <th>大小</th>
+                  <th>哈希</th>
+                  <th>操作</th>
                 </tr>
               </thead>
               <tbody>
@@ -358,8 +358,8 @@ function Forensics() {
                     <td>{item.file_count || 0} files</td>
                     <td><code className="evidence-hash">{item.operator || 'N/A'}</code></td>
                     <td>
-                      <button className="btn-small" onClick={() => handleViewEvidence(item)}>View</button>
-                      <button className="btn-small" onClick={() => handleExportEvidence(item)}>Export</button>
+                      <button className="btn-small" onClick={() => handleViewEvidence(item)}>查看</button>
+                      <button className="btn-small" onClick={() => handleExportEvidence(item)}>导出</button>
                     </td>
                   </tr>
                 ))}
@@ -370,7 +370,7 @@ function Forensics() {
           <div className="empty-state">
             <div className="empty-icon">📦</div>
             <div className="empty-text">{t('forensics.noEvidence')}</div>
-            <div className="empty-hint">Collect evidence using the form above</div>
+            <div className="empty-hint">使用上方表单采集证据</div>
           </div>
         )}
       </div>
@@ -406,7 +406,7 @@ function Forensics() {
               ) : (
                 <div className="empty-state">
                   <div className="empty-icon">📋</div>
-                  <div className="empty-text">No chain of custody records</div>
+                  <div className="empty-text">暂无监管链记录</div>
                 </div>
               )}
             </div>

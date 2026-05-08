@@ -4,12 +4,13 @@ package api
 
 import (
 	"context"
-	"log"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kkkdddd-start/winalog-go/internal/monitor"
 	"github.com/kkkdddd-start/winalog-go/internal/monitor/types"
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
+	"go.uber.org/zap"
 )
 
 type MonitorHandler struct {
@@ -60,7 +61,7 @@ func (h *MonitorHandler) StartStop(c *gin.Context) {
 }
 
 func (h *MonitorHandler) StreamEvents(c *gin.Context) {
-	log.Printf("[INFO] [SSE] Monitor stream requested but not available on Linux")
+	observability.Info("Monitor stream requested but not available on Linux", zap.String("module", "handlers_monitor_linux"))
 	c.JSON(http.StatusOK, gin.H{
 		"events": []*types.MonitorEvent{},
 	})

@@ -6,12 +6,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
 	"github.com/kkkdddd-start/winalog-go/internal/types"
 	"github.com/kkkdddd-start/winalog-go/internal/utils"
+	"go.uber.org/zap"
 )
 
 type TaskInfoCollector struct {
@@ -64,13 +65,16 @@ func (c *TaskInfoCollector) collectTaskInfo() ([]*types.ScheduledTask, error) {
 
 	result := utils.RunPowerShell(cmd)
 	if !result.Success() || result.Output == "" {
-		log.Printf("[WARN] Get-ScheduledTask failed or returned empty: %v, trying alternative method", result.Error)
+		observability.Warn("Get-ScheduledTask failed or returned empty, trying alternative method",
+			zap.String("module", "task_info"),
+			zap.Error(result.Error))
 		return c.collectTaskInfoAlternative()
 	}
 
 	output := strings.TrimSpace(result.Output)
 	if output == "" || output == "null" || output == "[]" {
-		log.Printf("[WARN] Get-ScheduledTask returned empty result, trying alternative method")
+		observability.Warn("Get-ScheduledTask returned empty result, trying alternative method",
+			zap.String("module", "task_info"))
 		return c.collectTaskInfoAlternative()
 	}
 
@@ -99,7 +103,9 @@ func (c *TaskInfoCollector) collectTaskInfo() ([]*types.ScheduledTask, error) {
 				Author      string      `json:"Author"`
 			}{single}
 		} else {
-			log.Printf("[WARN] Failed to parse task JSON: %v", err)
+			observability.Warn("Failed to parse task JSON",
+				zap.String("module", "task_info"),
+				zap.Error(err))
 			return c.collectTaskInfoAlternative()
 		}
 	}
@@ -123,7 +129,9 @@ func (c *TaskInfoCollector) collectTaskInfo() ([]*types.ScheduledTask, error) {
 		parseCount++
 	}
 
-	log.Printf("[INFO] Get-ScheduledTask parsed %d tasks", parseCount)
+	observability.Info("Get-ScheduledTask parsed tasks",
+		zap.String("module", "task_info"),
+		zap.Int("count", parseCount))
 
 	if parseCount == 0 {
 		return c.collectTaskInfoAlternative()
@@ -137,11 +145,13 @@ func (c *TaskInfoCollector) collectTaskInfoAlternative() ([]*types.ScheduledTask
 
 	cmd := `Get-ScheduledTask | Select-Object TaskName,TaskPath,State | ConvertTo-Json -Compress`
 
-	log.Printf("[INFO] Collecting tasks with alternative command")
+	observability.Info("Collecting tasks with alternative command",
+		zap.String("module", "task_info"))
 
 	result := utils.RunPowerShell(cmd)
 	if !result.Success() || result.Output == "" {
-		log.Printf("[INFO] Alternative scheduled task method also failed, trying schtasks")
+		observability.Info("Alternative scheduled task method failed, trying schtasks",
+			zap.String("module", "task_info"))
 		return c.collectTaskInfoSchtasks()
 	}
 
@@ -191,11 +201,14 @@ func (c *TaskInfoCollector) collectTaskInfoSchtasks() ([]*types.ScheduledTask, e
 
 	cmd := `schtasks /query /fo CSV /nh | ForEach-Object { $_ -replace '"', '' } | ForEach-Object { $parts = $_ -split ','; if ($parts.Length -ge 3) { [PSCustomObject]@{ TaskName = $parts[1]; TaskPath = $parts[0]; State = $parts[2] } | ConvertTo-Json -Compress } }`
 
-	log.Printf("[INFO] Collecting tasks with schtasks command")
+	observability.Info("Collecting tasks with schtasks command",
+		zap.String("module", "task_info"))
 
 	result := utils.RunPowerShell(cmd)
 	if !result.Success() || result.Output == "" {
-		log.Printf("[WARN] schtasks method also failed: %v", result.Error)
+		observability.Warn("schtasks method failed",
+			zap.String("module", "task_info"),
+			zap.Error(result.Error))
 		return tasks, nil
 	}
 
@@ -233,7 +246,9 @@ func (c *TaskInfoCollector) collectTaskInfoSchtasks() ([]*types.ScheduledTask, e
 		})
 	}
 
-	log.Printf("[INFO] schtasks method parsed %d tasks", len(tasks))
+	observability.Info("schtasks method parsed tasks",
+		zap.String("module", "task_info"),
+		zap.Int("count", len(tasks)))
 	return tasks, nil
 }
 
@@ -335,21 +350,25 @@ func ListScheduledTasks() ([]ScheduledTaskInfo, error) {
 	}
 	$tasks | ConvertTo-Json -Depth 3 -Compress`
 
-	log.Printf("[INFO] Collecting scheduled tasks with optimized pipeline")
+	observability.Info("Collecting scheduled tasks with optimized pipeline",
+		zap.String("module", "task_info"))
 
 	result := utils.RunPowerShellWithTimeout(cmd, 180*time.Second)
 	if !result.Success() {
-		log.Printf("[ERROR] Get-ScheduledTask failed: %v", result.Error)
+		observability.Error("Get-ScheduledTask failed",
+			zap.String("module", "task_info"),
+			zap.Error(result.Error))
 		return tasks, result.Error
 	}
 
 	output := strings.TrimSpace(result.Output)
 	if output == "" {
-		log.Printf("[WARN] Get-ScheduledTask returned empty result")
+		observability.Warn("Get-ScheduledTask returned empty result",
+			zap.String("module", "task_info"))
 		return tasks, nil
 	}
 
-	log.Printf("[DEBUG] Get-ScheduledTask raw output length: %d", len(output))
+	observability.DebugPrintf("[DEBUG] Get-ScheduledTask raw output length: %d", len(output))
 
 	if strings.HasPrefix(output, "[") {
 		var taskRawList []struct {
@@ -366,7 +385,9 @@ func ListScheduledTasks() ([]ScheduledTaskInfo, error) {
 			TriggerType string      `json:"TriggerType"`
 		}
 		if err := json.Unmarshal([]byte(output), &taskRawList); err != nil {
-			log.Printf("[WARN] Failed to parse task JSON array: %v", err)
+			observability.Warn("Failed to parse task JSON array",
+				zap.String("module", "task_info"),
+				zap.Error(err))
 		} else {
 			for _, taskRaw := range taskRawList {
 				stateStr := fmt.Sprintf("%v", taskRaw.State)
@@ -384,7 +405,9 @@ func ListScheduledTasks() ([]ScheduledTaskInfo, error) {
 					TriggerType: taskRaw.TriggerType,
 				})
 			}
-			log.Printf("[INFO] Get-ScheduledTask parsed %d tasks from JSON array", len(taskRawList))
+			observability.Info("Get-ScheduledTask parsed tasks from JSON array",
+				zap.String("module", "task_info"),
+				zap.Int("count", len(taskRawList)))
 			return tasks, nil
 		}
 	}
@@ -413,7 +436,10 @@ func ListScheduledTasks() ([]ScheduledTaskInfo, error) {
 		}
 
 		if err := json.Unmarshal([]byte(line), &taskRaw); err != nil {
-			log.Printf("[WARN] Failed to parse task JSON: %v, line: %s", err, line)
+			observability.Warn("Failed to parse task JSON",
+				zap.String("module", "task_info"),
+				zap.Error(err),
+				zap.String("line", line))
 			errorCount++
 			continue
 		}
@@ -435,7 +461,10 @@ func ListScheduledTasks() ([]ScheduledTaskInfo, error) {
 		parseCount++
 	}
 
-	log.Printf("[INFO] Get-ScheduledTask parsed %d tasks, %d errors", parseCount, errorCount)
+	observability.Info("Get-ScheduledTask parsed tasks",
+		zap.String("module", "task_info"),
+		zap.Int("count", parseCount),
+		zap.Int("errors", errorCount))
 
 	return tasks, nil
 }

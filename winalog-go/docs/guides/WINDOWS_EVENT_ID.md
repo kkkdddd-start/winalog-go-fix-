@@ -102,7 +102,7 @@
 
 安全日志是应急响应中最重要的日志源，记录账户登录、权限变更、策略修改等关键安全事件。
 
-### 2.1 账户登录类 (4624-4634, 4648, 4672)
+### 2.1 账户登录类 (4624-4634, 4648, 4672, 4626)
 
 #### 4624 - 登录成功
 
@@ -172,10 +172,24 @@
 
 ---
 
-#### 4626 - 登录成功/失败 (仅域控制器)
+#### 4626 - 用户/设备声明信息
 
-**级别**: 审核成功/失败
-**描述**: 域控制器上的登录尝试
+**级别**: 审核成功
+**描述**: 为新账户登录生成，包含与新登录会话关联的用户/设备声明信息。该事件在登录目标计算机上生成（非仅域控制器）。如果用户/设备没有声明则不会生成此事件。通常会与 4624 事件配对出现，具有相同的 Subject、Logon Type 和 New Logon 信息。
+
+**重要字段**:
+
+| 字段 | 说明 | 应急场景 |
+|------|------|----------|
+| TargetUserSid | 登录账户 SID | 关联登录事件 |
+| TargetUserName | 登录账户名 | 确认登录账户 |
+| LogonType | 登录类型 | 判断登录方式 |
+| UserClaims | 用户声明列表 | 基于角色的访问控制审计 |
+| DeviceClaims | 设备声明列表 | 设备合规性检查 |
+
+**应急场景**:
+- **异常声明登录**: 具有特定声明的账户访问非授权计算机
+- **设备合规**: 检查登录设备的声明是否符合安全策略
 
 ---
 
@@ -193,43 +207,68 @@
 #### 4648 - 显式凭据登录
 
 **级别**: 审核成功
-**描述**: 使用显式凭据登录（不同于当前登录用户的凭据）
+**描述**: 进程通过使用显式凭据尝试账户登录。常见于计划任务、RUNAS 命令或网络认证场景。该事件记录了谁（Subject）使用谁的凭据（Target）在哪个进程上执行了登录。
 
 **重要字段**:
 
-| 字段 | 说明 |
-|------|------|
-| SubjectUserName | 发起账户 |
-| TargetUserName | 目标账户 |
-| TargetServerName | 目标服务器 |
-| IpAddress | 来源 IP |
+| 字段 | 说明 | 应急场景 |
+|------|------|----------|
+| SubjectUserName | 发起操作的账户 | 确认操作者 |
+| SubjectLogonId | 发起者的登录会话 ID | 关联 4624 登录事件 |
+| TargetUserName | 被使用的凭据账户名 | 确认被冒用的账户 |
+| TargetDomainName | 凭据所属域 | 域内/域外认证 |
+| TargetServerName | 目标服务器 (localhost 表示本地) | 判断远程还是本地 |
+| ProcessId | 使用显式凭据的进程 PID | 关联 4688 进程创建 |
+| ProcessName | 使用显式凭据的进程完整路径 | 识别可疑进程 |
+| IpAddress | 登录来源 IP | 定位远程攻击源 |
+| LogonGuid | 登录 GUID | 关联 4624/4769 事件 |
 
 **应急场景**:
-- **横向移动**: 使用本地管理员账户通过网络登录其他主机
-- **RunAs 执行**: 管理员使用其他账户身份运行程序
-- **Pass-the-Hash**: 攻击者使用窃取的哈希进行横向移动
+- **横向移动**: Subject 与 Target 不同，且 TargetServerName 为远程主机 → 使用窃取的凭据登录其他主机
+- **RunAs 执行**: ProcessName 为 cmd.exe 或 powershell.exe + 非当前用户凭据 → 提权运行
+- **Pass-the-Hash**: 异常进程使用管理员凭据进行网络登录
+- **计划任务**: svchost.exe 定期使用服务账户凭据登录
+- **可疑进程**: 非系统进程 (如 malware.exe) 使用管理员凭据登录
 
 ---
 
 #### 4672 - 特权分配
 
 **级别**: 审核成功
-**描述**: 被授予特殊权限的账户
+**描述**: 当新账户登录会话被授予以下敏感权限之一时生成。SYSTEM (Local System) 账户的每次登录都会触发此事件，因此会产生大量日志。
 
-**常见分配权限**:
-- SeSecurityPrivilege (管理安全日志)
-- SeBackupPrivilege (备份文件和目录)
-- SeRestorePrivilege (恢复文件和目录)
-- SeTakeOwnershipPrivilege (取得文件或其他对象的所有权)
-- SeDebugPrivilege (调试程序)
-- SeSystemEnvironmentPrivilege (修改固件环境值)
-- SeLoadDriverPrivilege (加载或卸载驱动程序)
-- SeRemoteShutdownPrivilege (从远程系统强制关机)
+**触发此事件的完整权限列表**:
+
+| 权限 | 说明 | 风险 |
+|------|------|------|
+| SeTcbPrivilege | 作为操作系统的一部分 | 极高 |
+| SeBackupPrivilege | 备份文件和目录 | 高 |
+| SeCreateTokenPrivilege | 创建令牌对象 | 极高 |
+| SeDebugPrivilege | 调试程序 | 高 |
+| SeEnableDelegationPrivilege | 启用计算机和账户委派 | 高 |
+| SeAuditPrivilege | 生成安全审核 | 中 |
+| SeImpersonatePrivilege | 认证后模拟客户端 | 高 |
+| SeLoadDriverPrivilege | 加载和卸载设备驱动 | 高 |
+| SeSecurityPrivilege | 管理审核和安全日志 | 高 |
+| SeSystemEnvironmentPrivilege | 修改固件环境值 | 极高 |
+| SeAssignPrimaryTokenPrivilege | 替换进程级令牌 | 高 |
+| SeRestorePrivilege | 恢复文件和目录 | 高 |
+| SeTakeOwnershipPrivilege | 取得文件或其他对象的所有权 | 高 |
+
+**重要字段**:
+
+| 字段 | 说明 | 应急场景 |
+|------|------|----------|
+| SubjectUserSid | 被授予特权的账户 SID | 确认特权账户 |
+| SubjectUserName | 账户名 | 非预期账户需告警 |
+| SubjectLogonId | 登录会话 ID | 关联 4624 登录事件 |
+| PrivilegeList | 被授予的特权列表 | 分析具体权限 |
 
 **应急场景**:
-- **权限提升**: 普通用户获得管理员权限
-- **黄金票据**: 攻击者获得 KRBTGT 账户的特殊权限
-- **检测**: 监视非管理员账户获得 SeDebugPrivilege 或 SeLoadDriverPrivilege
+- **异常特权**: Subject 不是 SYSTEM、NETWORK SERVICE、LOCAL SERVICE 且不是预期管理员账户 → 告警
+- **权限提升**: 普通用户账户获得 SeDebugPrivilege 或 SeLoadDriverPrivilege → 可疑
+- **黄金票据**: KRBTGT 账户相关的异常特权分配 → 深度调查
+- **敏感权限监控**: 跟踪 SeCreateTokenPrivilege (可创建任意令牌) 和 SeTcbPrivilege (可模拟任意用户)
 
 ---
 
@@ -243,7 +282,27 @@
 #### 4674 - 对特权对象操作
 
 **级别**: 审核成功
-**描述**: 对令牌对象执行了操作
+**描述**: 对特权对象执行了操作
+
+---
+
+#### 4964 - 特殊组已分配给新登录
+
+**级别**: 审核成功
+**描述**: 当具有敏感组成员身份的账户登录时生成。记录了哪些特权组 (如 Domain Admins、Enterprise Admins) 被分配给了新的登录会话。此事件仅在成员服务器和工作站上生成，不在域控制器上生成。
+
+**重要字段**:
+
+| 字段 | 说明 |
+|------|------|
+| SubjectUserName | 登录账户 |
+| SubjectLogonId | 登录会话 ID |
+| PrivilegeList | 分配的特权组列表 |
+
+**应急场景**:
+- **敏感组登录**: Domain Admins 组成员登录到普通工作站 → 违反最小权限原则
+- **异常工作站**: 高权限账户登录到非预期计算机
+- **关联分析**: 与 4624 + 4672 关联，完整追踪高权限账户登录过程
 
 ---
 
@@ -776,15 +835,18 @@
 #### 4771 - 预认证失败
 
 **级别**: 审核失败
-**描述**: Kerberos 预认证失败
+**描述**: KDC 无法颁发 Kerberos TGT，因为预认证信息无效。此事件仅在域控制器上生成。常见原因包括密码错误、智能卡证书问题或 DC 缺少智能卡认证证书。
 
-**Status 值**:
+**常见 Status 值**:
 
 | 值 | 说明 |
 |----|------|
-| 0x6 | KDC_ERR_PREAUTH_FAILED - 密码错误 |
-| 0x17 | KDC_ERR_CLIENT_REVOKED - 账户已禁用/锁定 |
-| 0x18 | KDC_ERR_KEY_EXPIRED - 密码已过期 |
+| 0x6 | KDC_ERR_C_PRINCIPAL_UNKNOWN - 用户名不存在 |
+| 0x10 | KDC_ERR_PADATA_TYPE_NOSUPP - 不支持预认证数据类型 (智能卡证书问题) |
+| 0x12 | KDC_ERR_CLIENT_REVOKED - 账户凭据已吊销 (账户被禁用/锁定) |
+| 0x17 | KDC_ERR_KEY_EXPIRED - 密码已过期 |
+| 0x18 | KDC_ERR_PREAUTH_FAILED - 预认证信息无效 (密码错误) |
+| 0x19 | KDC_ERR_PREAUTH_REQUIRED - 需要额外预认证 |
 
 **应急场景**:
 - **密码猜测**: 攻击者尝试破解密码
@@ -813,14 +875,34 @@
 
 ---
 
-#### 4776 - 域控制器尝试验证账户凭据
+#### 4776 - 计算机尝试验证账户凭据
 
 **级别**: 审核成功/失败
-**描述**: DC 尝试验证账户凭据
+**描述**: 使用 NTLM 认证进行凭据验证时生成。此事件在凭据权威的计算机上生成：对于域账户在域控制器上，对于本地账户在本地计算机上。仅显示认证来源的计算机名（Source Workstation 字段），不显示目标计算机信息。
+
+**重要字段**:
+
+| 字段 | 说明 | 应急场景 |
+|------|------|----------|
+| AuthenticationPackage | 认证包名 (始终为 MICROSOFT_AUTHENTICATION_PACKAGE_V1_0) | 确认 NTLM 认证 |
+| LogonAccount | 被验证的账户名 | 目标账户 |
+| Workstation | 来源工作站名 | 认证来源 |
+| Status/Error Code | 状态码 (0x0 为成功) | 分析失败原因 |
+
+**常见 Error Code**:
+
+| 错误码 | 说明 |
+|--------|------|
+| 0xC0000064 | 用户名不存在 |
+| 0xC000006A | 密码错误 |
+| 0xC0000234 | 账户已锁定 |
+| 0xC0000072 | 账户被禁用 |
 
 **应急场景**:
-- **凭据验证**: Pass-the-Hash 验证
-- **密码喷洒**: 多个账户凭据验证失败
+- **NTLM 凭据验证**: 监控域上所有 NTLM 认证尝试
+- **密码喷洒**: 同一来源工作站对多个账户尝试验证
+- **暴力破解**: 短时间内同一账户多次失败 (Error Code 0xC000006A)
+- **异常账户使用**: 本地账户被用于网络登录 (Source Workstation ≠ Computer)
 
 ---
 
@@ -1755,6 +1837,88 @@ EventID 5140/5145 (SMB 访问) + EventID 4688 (进程创建) → 横向移动
 #### EventID 4002 - 防火墙配置更改
 
 **描述**: 防火墙配置被修改
+
+---
+
+### 9.5 Windows Filtering Platform (WFP) 事件
+
+**日志通道**: `Security`
+
+WFP 事件是 Windows 内核级网络过滤层产生的安全事件，对检测防火墙绕过、恶意连接和未授权网络行为至关重要。
+
+#### 5140 - 网络文件夹 (共享) 访问
+
+**级别**: 审核成功
+**描述**: 访问了网络共享对象
+
+**重要字段**:
+
+| 字段 | 说明 |
+|------|------|
+| SubjectUserName | 访问账户 |
+| ShareName | 共享名称 (如 \\*\C$) |
+| ShareLocalPath | 本地路径 |
+| IpAddress | 来源 IP |
+
+**应急场景**:
+- **横向移动**: 访问 admin$、c$、ipc$ 等管理共享
+- **数据窃取**: 访问数据共享后大量文件读取
+
+---
+
+#### 5156 - WFP 允许连接
+
+**级别**: 审核成功
+**描述**: Windows Filtering Platform 允许了一个网络连接。此事件记录了所有被允许的网络连接的详细信息，是检测防火墙绕过和恶意外连的关键事件。
+
+**重要字段**:
+
+| 字段 | 说明 | 应急场景 |
+|------|------|----------|
+| Application | 应用程序路径 | 识别哪个进程建立了连接 |
+| Direction | 方向 (%%14592=出站, %%14593=入站) | 判断连接方向 |
+| SourceAddress | 源 IP | 连接源 |
+| DestAddress | 目标 IP | 连接目标 |
+| SourcePort | 源端口 | 源端口 |
+| DestPort | 目标端口 | 异常端口需关注 |
+| Protocol | 协议 (6=TCP, 17=UDP) | 协议类型 |
+
+**应急场景**:
+- **C2 通信**: 未知进程出站连接到外部 IP
+- **反向 Shell**: 异常进程建立出站连接到非标准端口
+- **数据外泄**: 大量出站数据传输到外部地址
+- **内部横向移动**: 出站连接到内网其他主机的管理端口
+
+---
+
+#### 5157 - WFP 阻止连接
+
+**级别**: 审核成功
+**描述**: Windows Filtering Platform 阻止了一个网络连接。
+
+**应急场景**:
+- **恶意软件被拦截**: 恶意程序尝试连接 C2 被防火墙阻止
+- **端口扫描**: 大量被阻止的入站连接
+
+---
+
+#### 5158 - WFP 允许绑定端口
+
+**级别**: 审核成功
+**描述**: Windows Filtering Platform 允许了一个进程绑定到本地端口。
+
+**重要字段**:
+
+| 字段 | 说明 |
+|------|------|
+| ProcessID | 进程 ID |
+| Application | 进程路径 |
+| SourcePort | 绑定的端口 |
+
+**应急场景**:
+- **后门监听**: 未知进程绑定到非标准端口
+- **WebShell**: w3wp.exe 以外的进程绑定到 HTTP 端口
+- **隐蔽隧道**: 异常进程绑定到端口等待连接
 
 ---
 
@@ -3884,16 +4048,14 @@ EventID 10 (进程访问) + TargetImage=lsass.exe
 | 值 | 名称 | 说明 | 常见场景 |
 |----|------|------|----------|
 | 0 | System | 系统账户 | 安全账户管理器启动 |
-| 1 | Interactive | 本地交互登录 | 键盘登录 |
-| 2 | Interactive | 远程交互登录 | Terminal Services/RDP |
+| 2 | Interactive | 本地交互登录 | 键盘登录到控制台 |
 | 3 | Network | 网络登录 | 文件共享、RPC |
 | 4 | Batch | 批处理登录 | 计划任务 |
 | 5 | Service | 服务账户登录 | Windows 服务 |
-| 6 | Proxy | 代理登录 | 代理认证 |
 | 7 | Unlock | 解锁工作站 | 按 Ctrl+Alt+Del |
 | 8 | NetworkCleartext | 网络明文登录 | IIS Basic Auth |
 | 9 | NewCredentials | 带凭据的网络登录 | RunAs / 网络驱动器映射 |
-| 10 | RemoteInteractive | 远程桌面登录 | RDP |
+| 10 | RemoteInteractive | 远程桌面登录 | Terminal Services/RDP |
 | 11 | CachedInteractive | 缓存交互登录 | 离线登录 |
 
 ### 附录 B: 事件级别说明
@@ -3910,18 +4072,18 @@ EventID 10 (进程访问) + TargetImage=lsass.exe
 
 | 战术 | 相关事件 ID |
 |------|-------------|
-| TA0001 初始访问 | 4624, 4625, 1149, 6 |
-| TA0002 执行 | 4688, 4104, 82-91 (WinRM), 4688 |
-| TA0003 持久化 | 4698, 7045, 4657, 100, 5860 (WMI), 5861 |
-| TA0004 权限提升 | 4672, 4688, 4670 |
-| TA0005 防御规避 | 1102, 4657, 4670, 4001 (Firewall) |
-| TA0006 凭据访问 | 4624, 4625, 4672, 4768, 4769, 4776 |
-| TA0007 发现 | 4688, 5140, 5145 |
-| TA0008 横向移动 | 4624, 4648, 5140, 5145, 1-11 (SMB) |
+| TA0001 初始访问 | 4624, 4625, 1149, 6, 4771 |
+| TA0002 执行 | 4688, 4104, 82-91 (WinRM), 4697 |
+| TA0003 持久化 | 4698, 7045, 4657, 4697, 5860 (WMI), 5861 |
+| TA0004 权限提升 | 4672, 4688, 4670, 4964 |
+| TA0005 防御规避 | 1102, 4657, 4670, 4001 (Firewall), 5157 (WFP) |
+| TA0006 凭据访问 | 4624, 4625, 4648, 4672, 4768, 4769, 4771, 4776, 4964 |
+| TA0007 发现 | 4688, 5140, 5145, 5156 |
+| TA0008 横向移动 | 4624, 4648, 5140, 5145, 1-11 (SMB), 5156 |
 | TA0009 收集 | 4688, 5145, 1000 (DNS) |
-| TA0010 外泄 | 5145, 1000 (DNS Tunneling) |
-| TA0011 命令与控制 | 3 (Sysmon), 1000 (DNS), 6 (WinRM) |
-| TA0040 影响 | 1102, 4657, 802 (Print Spooler) |
+| TA0010 外泄 | 5145, 5156, 1000 (DNS Tunneling) |
+| TA0011 命令与控制 | 3 (Sysmon), 1000 (DNS), 6 (WinRM), 5156, 5158 |
+| TA0040 影响 | 1102, 4657, 802 (Print Spooler), 4001 |
 
 ### 附录 D: 推荐的安全事件审核策略
 

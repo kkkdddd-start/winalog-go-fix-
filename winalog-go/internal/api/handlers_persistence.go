@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"runtime"
 	"sync"
@@ -13,6 +12,7 @@ import (
 	"github.com/kkkdddd-start/winalog-go/internal/observability"
 	"github.com/kkkdddd-start/winalog-go/internal/persistence"
 	"github.com/kkkdddd-start/winalog-go/internal/storage"
+	"go.uber.org/zap"
 )
 
 const (
@@ -165,9 +165,9 @@ func NewPersistenceHandler(db *storage.DB) *PersistenceHandler {
 				BuiltinDllWhitelist:  builtinDllWhitelist,
 				BuiltinClsidsWhitelist: builtinClsidsWhitelist,
 			}); err != nil {
-				log.Printf("[WARN] [PERSISTENCE] Failed to set config for %s: %v", detectorName, err)
+				observability.Warn("Failed to set detector config", zap.String("module", "handlers_persistence"), zap.String("detector", detectorName), zap.Error(err))
 			}
-			log.Printf("[INFO] [PERSISTENCE] Enabled detector: %s (enabled=%v)", detectorName, baseConfig.Enabled)
+			observability.Info("Enabled detector", zap.String("module", "handlers_persistence"), zap.String("detector", detectorName), zap.Bool("enabled", baseConfig.Enabled))
 		}
 	}
 
@@ -270,10 +270,10 @@ func enrichDetections(detections []*persistence.Detection) []*EnrichedDetection 
 // @Failure 500 {object} ErrorResponse
 // @Router /api/persistence/detect [get]
 func (h *PersistenceHandler) Detect(c *gin.Context) {
-	log.Printf("[DEBUG] Detect API called with category=%s, technique=%s, force=%s", c.Query("category"), c.Query("technique"), c.Query("force"))
+	observability.DebugPrintf("[DEBUG] Detect API called with category=%s, technique=%s, force=%s", c.Query("category"), c.Query("technique"), c.Query("force"))
 
 	if runtime.GOOS != "windows" {
-		log.Printf("[DEBUG] Detect API returning empty - not Windows")
+		observability.DebugPrintf("[DEBUG] Detect API returning empty - not Windows")
 		c.JSON(http.StatusOK, DetectResponse{
 			Detections: []*EnrichedDetection{},
 			Summary:    map[string]interface{}{},
@@ -285,7 +285,7 @@ func (h *PersistenceHandler) Detect(c *gin.Context) {
 
 	var req DetectRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		log.Printf("[WARN] Detect API bad request: %v", err)
+		observability.Warn("Detect API bad request", zap.String("module", "handlers_persistence"), zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -313,7 +313,7 @@ func (h *PersistenceHandler) Detect(c *gin.Context) {
 		if h.cache.result != nil &&
 			time.Since(h.cache.timestamp) < h.cache.ttl &&
 			h.cache.params == cacheParams {
-			log.Printf("[DEBUG] Detect API returning cached result")
+			observability.DebugPrintf("[DEBUG] Detect API returning cached result")
 			response := DetectResponse{
 				Detections: enrichDetections(h.cache.result.Detections),
 				Summary:    h.cache.result.Summary(),
@@ -329,7 +329,7 @@ func (h *PersistenceHandler) Detect(c *gin.Context) {
 	}
 
 	if forceRefresh {
-		log.Printf("[DEBUG] Detect API force refresh - clearing cache")
+		observability.DebugPrintf("[DEBUG] Detect API force refresh - clearing cache")
 		h.cacheMutex.Lock()
 		h.cache = &DetectionCache{ttl: defaultCacheTTL}
 		h.cacheMutex.Unlock()
@@ -341,7 +341,7 @@ func (h *PersistenceHandler) Detect(c *gin.Context) {
 	engine := h.detectionEngine
 	h.engineMutex.RUnlock()
 
-	log.Printf("[DEBUG] Detect API starting detection with timeout=%v", timeout)
+	observability.DebugPrintf("[DEBUG] Detect API starting detection with timeout=%v", timeout)
 
 	if req.Technique != "" {
 		result = engine.DetectTechnique(ctx, persistence.Technique(req.Technique))
@@ -361,7 +361,8 @@ func (h *PersistenceHandler) Detect(c *gin.Context) {
 		result.Detections = []*persistence.Detection{}
 	}
 
-	log.Printf("[INFO] Detect API completed: totalCount=%d, errorCount=%d", result.TotalCount, result.ErrorCount)
+	observability.Info("Detect API completed", zap.String("module", "handlers_persistence"),
+		zap.Int("totalCount", result.TotalCount), zap.Int("errorCount", result.ErrorCount))
 
 	if result.ErrorCount > 0 {
 		for _, errMsg := range result.Errors {
@@ -380,9 +381,9 @@ func (h *PersistenceHandler) Detect(c *gin.Context) {
 	if h.db != nil && len(result.Detections) > 0 {
 		repo := storage.NewPersistenceDetectionRepo(h.db)
 		if err := repo.SaveResult(result); err != nil {
-			log.Printf("[ERROR] Failed to save persistence detections: %v", err)
+			observability.Error("Failed to save persistence detections", zap.String("module", "handlers_persistence"), zap.Error(err))
 		} else {
-			log.Printf("[INFO] Saved %d persistence detections to database", len(result.Detections))
+			observability.Info("Saved persistence detections to database", zap.String("module", "handlers_persistence"), zap.Int("count", len(result.Detections)))
 		}
 	}
 

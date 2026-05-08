@@ -230,7 +230,7 @@ function Suppress() {
     return (
       <div className="conditions-section">
         <div className="conditions-header">
-          <label>Conditions</label>
+          <label>条件</label>
           <button
             type="button"
             className="btn-add-condition"
@@ -265,7 +265,7 @@ function Suppress() {
                   type="text"
                   value={cond.value}
                   onChange={e => updateCondition(setter, conditions, index, 'value', e.target.value)}
-                  placeholder="Value"
+                  placeholder="值"
                 />
                 <button
                   type="button"
@@ -362,7 +362,7 @@ function Suppress() {
               </div>
 
               <div className="rule-conditions">
-                <label>Conditions:</label>
+                <label>条件:</label>
                 <p className="conditions-text">{formatConditions(rule.conditions)}</p>
               </div>
 
@@ -386,7 +386,7 @@ function Suppress() {
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Add Suppress Rule</h3>
+              <h3>添加抑制规则</h3>
               <button className="close-btn" onClick={() => setShowModal(false)}>×</button>
             </div>
             <div className="modal-body">
@@ -396,24 +396,24 @@ function Suppress() {
                   type="text"
                   value={formData.name}
                   onChange={e => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="e.g. suppress-admin-alerts"
+                  placeholder="例如: suppress-admin-alerts"
                 />
               </div>
 
               <div className="form-row">
                 <div className="form-group">
-                  <label>Scope</label>
+                  <label>作用范围</label>
                   <select
                     value={formData.scope}
                     onChange={e => setFormData({ ...formData, scope: e.target.value })}
                   >
-                    <option value="global">🌐 Global</option>
-                    <option value="user">👤 User</option>
-                    <option value="computer">💻 Computer</option>
+                    <option value="global">🌐 全局</option>
+                    <option value="user">👤 用户</option>
+                    <option value="computer">💻 计算机</option>
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>Duration</label>
+                  <label>持续时间</label>
                   <select
                     value={formData.duration}
                     onChange={e => setFormData({ ...formData, duration: parseInt(e.target.value) })}
@@ -426,7 +426,7 @@ function Suppress() {
               </div>
 
               <div className="form-group">
-                <label>Expires At (Optional)</label>
+                <label>过期时间（可选）</label>
                 <input
                   type="datetime-local"
                   value={formData.expires_at}
@@ -456,12 +456,12 @@ function Suppress() {
         <div className="modal-overlay" onClick={() => setShowEditModal(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Edit Suppress Rule</h3>
+              <h3>编辑抑制规则</h3>
               <button className="close-btn" onClick={() => setShowEditModal(false)}>×</button>
             </div>
             <div className="modal-body">
               <div className="form-group">
-                <label>Rule Name <span className="required">*</span></label>
+                <label>规则名称 <span className="required">*</span></label>
                 <input
                   type="text"
                   value={editFormData.name}
@@ -471,18 +471,18 @@ function Suppress() {
 
               <div className="form-row">
                 <div className="form-group">
-                  <label>Scope</label>
+                  <label>作用范围</label>
                   <select
                     value={editFormData.scope}
                     onChange={e => setEditFormData({ ...editFormData, scope: e.target.value })}
                   >
-                    <option value="global">🌐 Global</option>
-                    <option value="user">👤 User</option>
-                    <option value="computer">💻 Computer</option>
+                    <option value="global">🌐 全局</option>
+                    <option value="user">👤 用户</option>
+                    <option value="computer">💻 计算机</option>
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>Duration</label>
+                  <label>持续时间</label>
                   <select
                     value={editFormData.duration}
                     onChange={e => setEditFormData({ ...editFormData, duration: parseInt(e.target.value) })}
@@ -495,7 +495,7 @@ function Suppress() {
               </div>
 
               <div className="form-group">
-                <label>Expires At (Optional)</label>
+                <label>过期时间（可选）</label>
                 <input
                   type="datetime-local"
                   value={editFormData.expires_at}
@@ -510,7 +510,7 @@ function Suppress() {
                     checked={editFormData.enabled}
                     onChange={e => setEditFormData({ ...editFormData, enabled: e.target.checked })}
                   />
-                  <span>Enabled</span>
+                  <span>已启用</span>
                 </label>
               </div>
 
@@ -525,7 +525,7 @@ function Suppress() {
                 onClick={handleUpdate}
                 disabled={!editFormData.name || loading}
               >
-                Save Changes
+                保存更改
               </button>
             </div>
           </div>
@@ -536,30 +536,30 @@ function Suppress() {
         <div className="modal-overlay" onClick={() => setSelectedRule(null)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h3>Rule Details</h3>
+              <h3>规则详情</h3>
               <button className="close-btn" onClick={() => setSelectedRule(null)}>×</button>
             </div>
             <div className="modal-body">
               <div className="detail-row">
-                <span className="detail-label">Name:</span>
+                <span className="detail-label">名称:</span>
                 <span className="detail-value">{selectedRule.name}</span>
               </div>
               <div className="detail-row">
-                <span className="detail-label">Scope:</span>
+                <span className="detail-label">作用范围:</span>
                 <span className="detail-value">{selectedRule.scope}</span>
               </div>
               <div className="detail-row">
-                <span className="detail-label">Duration:</span>
+                <span className="detail-label">持续时间:</span>
                 <span className="detail-value">{getDurationLabel(selectedRule.duration)}</span>
               </div>
               <div className="detail-row">
-                <span className="detail-label">Status:</span>
+                <span className="detail-label">状态:</span>
                 <span className={`status-badge ${selectedRule.enabled ? 'enabled' : 'disabled'}`}>
-                  {selectedRule.enabled ? 'Enabled' : 'Disabled'}
+                  {selectedRule.enabled ? '已启用' : '已禁用'}
                 </span>
               </div>
               <div className="detail-section">
-                <h4>Conditions</h4>
+                <h4>条件</h4>
                 <p className="detail-description">{formatConditions(selectedRule.conditions)}</p>
               </div>
             </div>

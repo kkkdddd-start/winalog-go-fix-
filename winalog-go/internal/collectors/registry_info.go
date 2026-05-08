@@ -6,12 +6,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
 	"github.com/kkkdddd-start/winalog-go/internal/types"
 	"github.com/kkkdddd-start/winalog-go/internal/utils"
+	"go.uber.org/zap"
 )
 
 type RegistryInfoCollector struct {
@@ -86,7 +87,9 @@ func (c *RegistryInfoCollector) Collect(ctx context.Context) ([]interface{}, err
 func (c *RegistryInfoCollector) collectRegistryInfo() ([]*types.RegistryPersistence, error) {
 	psResult, err := c.collectAllViaPowerShell()
 	if err != nil {
-		log.Printf("[WARN] [REGISTRY] PowerShell collection failed, falling back to Go API: %v", err)
+		observability.Warn("PowerShell collection failed, falling back to Go API",
+			zap.String("module", "registry_info"),
+			zap.Error(err))
 		return c.collectRegistryInfoFallback()
 	}
 
@@ -115,11 +118,22 @@ func (c *RegistryInfoCollector) collectRegistryInfo() ([]*types.RegistryPersiste
 		len(entry.AppCertDlls) + len(entry.LSASSettings) + len(entry.ShellExtensions) + len(entry.BrowserHelpers) +
 		len(entry.StartupFolders)
 
-	log.Printf("[INFO] [REGISTRY] collectRegistryInfo (PowerShell): total=%d, runkeys=%d, userinit=%d, tasks=%d, services=%d, ifeo=%d, appinit=%d, known=%d, boot=%d, appcert=%d, lsa=%d, shellext=%d, browser=%d, startup=%d",
-		total, len(entry.RunKeys), len(entry.UserInit), len(entry.TaskScheduler), len(entry.Services),
-		len(entry.IFEO), len(entry.AppInitDLLs), len(entry.KnownDLLs), len(entry.BootExecute),
-		len(entry.AppCertDlls), len(entry.LSASSettings), len(entry.ShellExtensions), len(entry.BrowserHelpers),
-		len(entry.StartupFolders))
+	observability.Info("collectRegistryInfo (PowerShell) completed",
+		zap.String("module", "registry_info"),
+		zap.Int("total", total),
+		zap.Int("runkeys", len(entry.RunKeys)),
+		zap.Int("userinit", len(entry.UserInit)),
+		zap.Int("tasks", len(entry.TaskScheduler)),
+		zap.Int("services", len(entry.Services)),
+		zap.Int("ifeo", len(entry.IFEO)),
+		zap.Int("appinit", len(entry.AppInitDLLs)),
+		zap.Int("known", len(entry.KnownDLLs)),
+		zap.Int("boot", len(entry.BootExecute)),
+		zap.Int("appcert", len(entry.AppCertDlls)),
+		zap.Int("lsa", len(entry.LSASSettings)),
+		zap.Int("shellext", len(entry.ShellExtensions)),
+		zap.Int("browser", len(entry.BrowserHelpers)),
+		zap.Int("startup", len(entry.StartupFolders)))
 
 	return []*types.RegistryPersistence{entry}, nil
 }
@@ -388,7 +402,8 @@ if (Test-Path "HKLM:\SYSTEM\CurrentControlSet\Services") {
 $result | ConvertTo-Json -Depth 5 -Compress
 `
 
-	log.Printf("[INFO] [REGISTRY] Running single PowerShell script to collect all registry persistence data")
+	observability.Info("Running single PowerShell script to collect all registry persistence data",
+		zap.String("module", "registry_info"))
 
 	result := utils.RunPowerShellWithTimeout(script, 120)
 	if !result.Success() || result.Output == "" {
@@ -400,18 +415,30 @@ $result | ConvertTo-Json -Depth 5 -Compress
 		return nil, fmt.Errorf("empty PowerShell output")
 	}
 
-	log.Printf("[DEBUG] [REGISTRY] PowerShell output length: %d", len(output))
+	observability.DebugPrintf("[DEBUG] [REGISTRY] PowerShell output length: %d", len(output))
 
 	var psResult PSRegistryResult
 	if err := json.Unmarshal([]byte(output), &psResult); err != nil {
-		log.Printf("[WARN] [REGISTRY] Failed to parse PowerShell output: %v", err)
+		observability.Warn("Failed to parse PowerShell output",
+			zap.String("module", "registry_info"),
+			zap.Error(err))
 		return nil, err
 	}
 
-	log.Printf("[INFO] [REGISTRY] Parsed results: runkeys=%d, userinit=%d, tasks=%d, services=%d, ifeo=%d, appinit=%d, known=%d, boot=%d, appcert=%d, lsa=%d, shellext=%d, browser=%d",
-		len(psResult.RunKeys), len(psResult.UserInit), len(psResult.TaskScheduler), len(psResult.Services),
-		len(psResult.IFEO), len(psResult.AppInitDLLs), len(psResult.KnownDLLs), len(psResult.BootExecute),
-		len(psResult.AppCertDlls), len(psResult.LSASSettings), len(psResult.ShellExtensions), len(psResult.BrowserHelpers))
+	observability.Info("Parsed registry results",
+		zap.String("module", "registry_info"),
+		zap.Int("runkeys", len(psResult.RunKeys)),
+		zap.Int("userinit", len(psResult.UserInit)),
+		zap.Int("tasks", len(psResult.TaskScheduler)),
+		zap.Int("services", len(psResult.Services)),
+		zap.Int("ifeo", len(psResult.IFEO)),
+		zap.Int("appinit", len(psResult.AppInitDLLs)),
+		zap.Int("known", len(psResult.KnownDLLs)),
+		zap.Int("boot", len(psResult.BootExecute)),
+		zap.Int("appcert", len(psResult.AppCertDlls)),
+		zap.Int("lsa", len(psResult.LSASSettings)),
+		zap.Int("shellext", len(psResult.ShellExtensions)),
+		zap.Int("browser", len(psResult.BrowserHelpers)))
 
 	return &psResult, nil
 }
@@ -606,7 +633,9 @@ func (c *RegistryInfoCollector) collectServices() []*types.RegistryInfo {
 
 	subkeys, err := utils.ListRegistrySubkeys(serviceBasePath)
 	if err != nil {
-		log.Printf("[WARN] [REGISTRY] ListRegistrySubkeys failed for Services: %v", err)
+		observability.Warn("ListRegistrySubkeys failed for Services",
+			zap.String("module", "registry_info"),
+			zap.Error(err))
 		return services
 	}
 

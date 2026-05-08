@@ -218,3 +218,22 @@ type USNJournalEntry struct {
 	Timestamp   time.Time `json:"timestamp"`
 	CollectedAt time.Time `json:"collected_at"`
 }
+
+type PatchInfo struct {
+	KBID        string `json:"kb_id"`
+	Description string `json:"description"`
+	InstalledOn string `json:"installed_on"`
+	InstalledBy string `json:"installed_by"`
+}
+
+type InstalledSoftware struct {
+	Name            string  `json:"name"`
+	Version         string  `json:"version"`
+	Publisher       string  `json:"publisher"`
+	InstallDate     string  `json:"install_date"`
+	InstallLocation string  `json:"install_location"`
+	UninstallString string  `json:"uninstall_string"`
+	EstimatedSizeMB float64 `json:"estimated_size_mb"`
+	Architecture    string  `json:"architecture"`
+	Source          string  `json:"source"`
+}

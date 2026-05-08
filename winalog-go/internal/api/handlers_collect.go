@@ -13,6 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/kkkdddd-start/winalog-go/internal/alerts"
 	"github.com/kkkdddd-start/winalog-go/internal/collectors"
+	"github.com/kkkdddd-start/winalog-go/internal/config"
 	"github.com/kkkdddd-start/winalog-go/internal/engine"
 	"github.com/kkkdddd-start/winalog-go/internal/exporters"
 	"github.com/kkkdddd-start/winalog-go/internal/parsers/evtx"
@@ -23,6 +24,7 @@ import (
 
 type CollectHandler struct {
 	db          *storage.DB
+	cfg         *config.Config
 	alertEngine *alerts.Engine
 }
 
@@ -140,8 +142,8 @@ type CollectStatus struct {
 // @Param db query string true "数据库实例"
 // @Param alertEngine query string true "告警引擎实例"
 // @Router /api/collect [post]
-func NewCollectHandler(db *storage.DB, alertEngine *alerts.Engine) *CollectHandler {
-	return &CollectHandler{db: db, alertEngine: alertEngine}
+func NewCollectHandler(db *storage.DB, cfg *config.Config, alertEngine *alerts.Engine) *CollectHandler {
+	return &CollectHandler{db: db, cfg: cfg, alertEngine: alertEngine}
 }
 
 // StartCollect godoc
@@ -298,7 +300,7 @@ func (h *CollectHandler) ImportLogs(c *gin.Context) {
 		return
 	}
 
-	eng := engine.NewEngine(h.db)
+	eng := engine.NewEngine(h.db, h.cfg)
 
 	importReq := &engine.ImportRequest{
 		Paths:     req.Files,

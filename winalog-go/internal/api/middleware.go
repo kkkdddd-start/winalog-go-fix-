@@ -1,18 +1,13 @@
 package api
 
 import (
-	"encoding/json"
-	"fmt"
-	"io"
-	"log"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kkkdddd-start/winalog-go/internal/config"
 	"github.com/kkkdddd-start/winalog-go/internal/observability"
+	"go.uber.org/zap"
 )
 
 func requestLogger() gin.HandlerFunc {
@@ -32,75 +27,23 @@ func requestLogger() gin.HandlerFunc {
 			path = path + "?" + raw
 		}
 
-		logEntry := observability.APILogEntry{
-			Timestamp: start.Format(time.RFC3339),
-			Level:     getLogLevel(statusCode),
-			Message:   "[API]",
-			Category:  "api",
-			Status:    statusCode,
-			Latency:   latency.String(),
-			ClientIP:  clientIP,
-			Method:    method,
-			Path:      path,
+		level := "info"
+		if statusCode >= 500 {
+			level = "error"
+		} else if statusCode >= 400 {
+			level = "warn"
 		}
 
-		jsonBytes, _ := json.Marshal(logEntry)
-		jsonBytes = append(jsonBytes, '\n')
-
-		os.Stdout.Write(jsonBytes)
-
-		if lf := getLogFile(); lf != nil {
-			_, _ = lf.Write(jsonBytes)
-		}
-
-		observability.LogAPIRequest(logEntry)
+		observability.Info("api_request",
+			zap.String("category", "api"),
+			zap.String("method", method),
+			zap.String("path", path),
+			zap.Int("status", statusCode),
+			zap.Duration("latency", latency),
+			zap.String("client_ip", clientIP),
+			zap.String("level", level),
+		)
 	}
-}
-
-func getLogLevel(statusCode int) string {
-	switch {
-	case statusCode >= 500:
-		return "error"
-	case statusCode >= 400:
-		return "warn"
-	default:
-		return "info"
-	}
-}
-
-var logFileInstance *os.File
-
-func getLogFile() *os.File {
-	return logFileInstance
-}
-
-func initLogFile() error {
-	exePath, err := os.Executable()
-	if err != nil {
-		exePath, _ = os.Getwd()
-	}
-	exeDir := filepath.Dir(exePath)
-	logDir := filepath.Join(exeDir, "logs")
-
-	if err := os.MkdirAll(logDir, 0755); err != nil {
-		logDir = os.TempDir()
-	}
-
-	logPath := filepath.Join(logDir, "winalog_metrics.log")
-	file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to open log file: %w", err)
-	}
-
-	logFileInstance = file
-
-	multiWriter := io.MultiWriter(os.Stdout, file)
-	log.SetOutput(multiWriter)
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
-
-	log.Printf("[INFO] log file initialized: %s", logPath)
-
-	return nil
 }
 
 var defaultAllowedOrigins = []string{
@@ -152,33 +95,14 @@ func stringsJoin(elems []string, sep string) string {
 
 func recoveryMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-defer func() {
-		if err := recover(); err != nil {
-			log.Printf("[PANIC] %v", err)
-
-			panicEntry := struct {
-				Timestamp string `json:"timestamp"`
-				Level     string `json:"level"`
-				Message   string `json:"message"`
-				Category  string `json:"category"`
-				Error     string `json:"error"`
-				Path      string `json:"path"`
-			}{
-				Timestamp: time.Now().Format(time.RFC3339),
-				Level:     "fatal",
-				Message:   "[PANIC]",
-				Category:  "panic",
-				Error:     fmt.Sprintf("%v", err),
-				Path:      c.Request.URL.Path,
-			}
-
-				jsonBytes, _ := json.Marshal(panicEntry)
-				jsonBytes = append(jsonBytes, '\n')
-				os.Stdout.Write(jsonBytes)
-
-				if lf := getLogFile(); lf != nil {
-					_, _ = lf.Write(jsonBytes)
-				}
+		defer func() {
+			if err := recover(); err != nil {
+				observability.Error("panic_recovered",
+					zap.String("category", "panic"),
+					zap.String("module", "middleware"),
+					zap.Any("error", err),
+					zap.String("path", c.Request.URL.Path),
+				)
 
 				c.AbortWithStatusJSON(500, gin.H{
 					"error": "Internal server error",

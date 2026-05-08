@@ -3,7 +3,6 @@ package api
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -14,8 +13,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/kkkdddd-start/winalog-go/internal/forensics"
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
 	"github.com/kkkdddd-start/winalog-go/internal/storage"
 	"github.com/kkkdddd-start/winalog-go/internal/types"
+	"go.uber.org/zap"
 )
 
 type ForensicsHandler struct {
@@ -306,7 +307,7 @@ func (h *ForensicsHandler) CollectEvidence(c *gin.Context) {
 	}
 
 	if err := h.saveEvidenceManifest(manifest); err != nil {
-		log.Printf("[ERROR] failed to save manifest: %v", err)
+		observability.Error("failed to save manifest", zap.String("module", "handlers_forensics"), zap.Error(err))
 	}
 
 	c.JSON(http.StatusOK, CollectResponse{

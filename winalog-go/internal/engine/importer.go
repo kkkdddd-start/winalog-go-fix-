@@ -7,15 +7,16 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
 	"github.com/kkkdddd-start/winalog-go/internal/parsers"
 	"github.com/kkkdddd-start/winalog-go/internal/storage"
 	"github.com/kkkdddd-start/winalog-go/internal/types"
+	"go.uber.org/zap"
 )
 
 type Importer struct {
@@ -297,17 +298,25 @@ func (im *Importer) shouldSkip(path string) bool {
 func (im *Importer) ImportFile(ctx context.Context, path string, batchSize int) (*types.ImportResult, error) {
 	parser := im.parserRegistry.Get(path)
 	if parser == nil {
-		log.Printf("[IMPORTER] ERROR: No parser found for file: %s", path)
+		observability.Error("No parser found for file",
+			zap.String("module", "importer"),
+			zap.String("path", path))
 		return nil, fmt.Errorf("no parser found for %s", path)
 	}
 
-	log.Printf("[IMPORTER] Starting import: Path=%s, BatchSize=%d", path, batchSize)
+	observability.Info("Starting import",
+		zap.String("module", "importer"),
+		zap.String("path", path),
+		zap.Int("batch_size", batchSize))
 	startTime := time.Now()
 
 	// 同步解析文件
 	events, parseErr := parser.ParseBatch(path)
 	if parseErr != nil {
-		log.Printf("[IMPORTER] ERROR: Parse failed for %s: %v", path, parseErr)
+		observability.Error("Parse failed",
+			zap.String("module", "importer"),
+			zap.String("path", path),
+			zap.Error(parseErr))
 		return &types.ImportResult{
 			EventsImported: 0,
 			Duration:       time.Since(startTime),
@@ -316,14 +325,20 @@ func (im *Importer) ImportFile(ctx context.Context, path string, batchSize int) 
 	}
 
 	if len(events) == 0 {
-		log.Printf("[IMPORTER] Import completed (no events): Path=%s, Duration=%v", path, time.Since(startTime))
+		observability.Info("Import completed (no events)",
+			zap.String("module", "importer"),
+			zap.String("path", path),
+			zap.Duration("duration", time.Since(startTime)))
 		return &types.ImportResult{
 			EventsImported: 0,
 			Duration:       time.Since(startTime),
 		}, nil
 	}
 
-	log.Printf("[IMPORTER] Parsed %d events from %s, starting batch insert...", len(events), path)
+	observability.Info("Parsed events, starting batch insert",
+		zap.String("module", "importer"),
+		zap.Int("event_count", len(events)),
+		zap.String("path", path))
 
 	var batch []*types.Event
 	var totalEvents int64
@@ -336,8 +351,12 @@ func (im *Importer) ImportFile(ctx context.Context, path string, batchSize int) 
 		case <-ctx.Done():
 			duration := time.Since(startTime)
 			fileHash, _ := im.CalculateFileHash(path)
-			log.Printf("[IMPORTER] WARNING: Import cancelled: Path=%s, EventsImported=%d, Duration=%v, Reason=%v",
-				path, totalEvents, duration, ctx.Err())
+			observability.Warn("Import cancelled",
+				zap.String("module", "importer"),
+				zap.String("path", path),
+				zap.Int64("events_imported", totalEvents),
+				zap.Duration("duration", duration),
+				zap.Error(ctx.Err()))
 			im.db.InsertImportLog(path, fileHash, int(totalEvents), int(duration.Milliseconds()), "cancelled", ctx.Err().Error())
 			return im.makeImportResult(totalEvents, startTime, lastErr), ctx.Err()
 		default:
@@ -348,13 +367,21 @@ func (im *Importer) ImportFile(ctx context.Context, path string, batchSize int) 
 			batchNum++
 			if err := im.eventRepo.InsertBatch(batch); err != nil {
 				lastErr = err
-				log.Printf("[IMPORTER] ERROR: Batch %d insert failed: Path=%s, BatchSize=%d, Error=%v",
-					batchNum, path, len(batch), err)
+				observability.Error("Batch insert failed",
+					zap.String("module", "importer"),
+					zap.Int("batch_num", batchNum),
+					zap.String("path", path),
+					zap.Int("batch_size", len(batch)),
+					zap.Error(err))
 				break
 			}
 			totalEvents += int64(len(batch))
 			batch = batch[:0]
-			log.Printf("[IMPORTER] Batch %d inserted: Path=%s, TotalEvents=%d", batchNum, path, totalEvents)
+			observability.Info("Batch inserted",
+				zap.String("module", "importer"),
+				zap.Int("batch_num", batchNum),
+				zap.String("path", path),
+				zap.Int64("total_events", totalEvents))
 		}
 	}
 
@@ -363,12 +390,20 @@ func (im *Importer) ImportFile(ctx context.Context, path string, batchSize int) 
 		batchNum++
 		if err := im.eventRepo.InsertBatch(batch); err != nil {
 			lastErr = err
-			log.Printf("[IMPORTER] ERROR: Final batch %d insert failed: Path=%s, BatchSize=%d, Error=%v",
-				batchNum, path, len(batch), err)
+			observability.Error("Final batch insert failed",
+				zap.String("module", "importer"),
+				zap.Int("batch_num", batchNum),
+				zap.String("path", path),
+				zap.Int("batch_size", len(batch)),
+				zap.Error(err))
 		} else {
 			totalEvents += int64(len(batch))
-			log.Printf("[IMPORTER] Final batch %d inserted: Path=%s, BatchSize=%d, TotalEvents=%d",
-				batchNum, path, len(batch), totalEvents)
+			observability.Info("Final batch inserted",
+				zap.String("module", "importer"),
+				zap.Int("batch_num", batchNum),
+				zap.String("path", path),
+				zap.Int("batch_size", len(batch)),
+				zap.Int64("total_events", totalEvents))
 		}
 	}
 
@@ -380,11 +415,19 @@ func (im *Importer) ImportFile(ctx context.Context, path string, batchSize int) 
 	if lastErr != nil {
 		status = "failed"
 		errorMsg = lastErr.Error()
-		log.Printf("[IMPORTER] Import failed: Path=%s, TotalEvents=%d, Duration=%v, Error=%s",
-			path, totalEvents, duration, errorMsg)
+		observability.Error("Import failed",
+			zap.String("module", "importer"),
+			zap.String("path", path),
+			zap.Int64("total_events", totalEvents),
+			zap.Duration("duration", duration),
+			zap.String("error", errorMsg))
 	} else {
-		log.Printf("[IMPORTER] Import completed successfully: Path=%s, TotalEvents=%d, Duration=%v, FileHash=%s",
-			path, totalEvents, duration, fileHash)
+		observability.Info("Import completed successfully",
+			zap.String("module", "importer"),
+			zap.String("path", path),
+			zap.Int64("total_events", totalEvents),
+			zap.Duration("duration", duration),
+			zap.String("file_hash", fileHash))
 	}
 	im.db.InsertImportLog(path, fileHash, int(totalEvents), int(duration.Milliseconds()), status, errorMsg)
 

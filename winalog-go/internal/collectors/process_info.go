@@ -7,13 +7,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 	"unsafe"
 
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
 	"github.com/kkkdddd-start/winalog-go/internal/types"
 	"github.com/kkkdddd-start/winalog-go/internal/utils"
+	"go.uber.org/zap"
 	"golang.org/x/sys/windows"
 )
 
@@ -443,7 +444,7 @@ func batchGetProcessSignatures(paths map[uint32]string) map[uint32]*ProcessSigna
 	result := make(map[uint32]*ProcessSignature)
 
 	if len(paths) == 0 {
-		log.Printf("[DEBUG] batchGetProcessSignatures: paths map is empty")
+		observability.DebugPrintf("[DEBUG] batchGetProcessSignatures: paths map is empty")
 		return result
 	}
 
@@ -457,11 +458,11 @@ func batchGetProcessSignatures(paths map[uint32]string) map[uint32]*ProcessSigna
 	}
 
 	if len(pathList) == 0 {
-		log.Printf("[DEBUG] batchGetProcessSignatures: pathList is empty after filtering")
+		observability.DebugPrintf("[DEBUG] batchGetProcessSignatures: pathList is empty after filtering")
 		return result
 	}
 
-	log.Printf("[DEBUG] batchGetProcessSignatures: processing %d paths in batches of 100", len(pathList))
+	observability.DebugPrintf("[DEBUG] batchGetProcessSignatures: processing %d paths in batches of 100", len(pathList))
 
 	batchSize := 100
 	for i := 0; i < len(pathList); i += batchSize {
@@ -508,15 +509,20 @@ foreach ($p in $paths) {
 		cmdResult := utils.RunPowerShellWithContext(ctx, script)
 		cancel()
 		if cmdResult.Error != nil {
-			log.Printf("[WARN] batchGetProcessSignatures: PowerShell error at batch starting at %d: %v", i, cmdResult.Error)
+			observability.Warn("batchGetProcessSignatures: PowerShell error at batch",
+				zap.String("module", "process_info"),
+				zap.Int("batch_start", i),
+				zap.Error(cmdResult.Error))
 			if i == 0 && len(batch) > 0 {
-				log.Printf("[DEBUG] batchGetProcessSignatures: sample paths from first batch: %v", batch[:min(3, len(batch))])
-				log.Printf("[DEBUG] batchGetProcessSignatures: generated script (first 500 chars): %s", script[:min(500, len(script))])
+				observability.DebugPrintf("[DEBUG] batchGetProcessSignatures: sample paths from first batch: %v", batch[:min(3, len(batch))])
+				observability.DebugPrintf("[DEBUG] batchGetProcessSignatures: generated script (first 500 chars): %s", script[:min(500, len(script))])
 			}
 			continue
 		}
 		if cmdResult.Output == "" {
-			log.Printf("[WARN] batchGetProcessSignatures: empty output for batch starting at %d", i)
+			observability.Warn("batchGetProcessSignatures: empty output for batch",
+				zap.String("module", "process_info"),
+				zap.Int("batch_start", i))
 			continue
 		}
 
@@ -538,13 +544,19 @@ foreach ($p in $paths) {
 				Vt string `json:"vt"`
 			}
 			if err := json.Unmarshal([]byte(line), &sr); err != nil {
-				log.Printf("[WARN] batchGetProcessSignatures: JSON line parse error: %v, line: %s", err, truncateString(line, 200))
+				observability.Warn("batchGetProcessSignatures: JSON line parse error",
+					zap.String("module", "process_info"),
+					zap.Error(err),
+					zap.String("line", truncateString(line, 200)))
 				continue
 			}
 
 			pathBytes, err := base64.StdEncoding.DecodeString(sr.P)
 			if err != nil {
-				log.Printf("[WARN] batchGetProcessSignatures: base64 decode error: %v, path: %s", err, sr.P)
+				observability.Warn("batchGetProcessSignatures: base64 decode error",
+					zap.String("module", "process_info"),
+					zap.Error(err),
+					zap.String("path", sr.P))
 				continue
 			}
 			decodedPath := string(pathBytes)
@@ -566,7 +578,7 @@ foreach ($p in $paths) {
 					ValidTo:    sr.Vt,
 				}
 			} else {
-				log.Printf("[DEBUG] batchGetProcessSignatures: path not found in pidByPath: %s", decodedPath)
+				observability.DebugPrintf("[DEBUG] batchGetProcessSignatures: path not found in pidByPath: %s", decodedPath)
 			}
 		}
 	}

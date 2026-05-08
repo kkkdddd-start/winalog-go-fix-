@@ -3,12 +3,13 @@
 package monitor
 
 import (
-	"log"
 	"time"
 
 	"github.com/kkkdddd-start/winalog-go/internal/monitor/poll"
 	"github.com/kkkdddd-start/winalog-go/internal/monitor/types"
 	"github.com/kkkdddd-start/winalog-go/internal/monitor/wmi"
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
+	"go.uber.org/zap"
 )
 
 func (e *MonitorEngine) createProcessWatcher() (interface {
@@ -16,13 +17,15 @@ func (e *MonitorEngine) createProcessWatcher() (interface {
 	Stop() error
 	Subscribe(ch chan *types.MonitorEvent) func()
 }, error) {
-	log.Printf("[MONITOR] Creating process watcher...")
+	observability.Info("Creating process watcher...", zap.String("module", "monitor"))
 	watcher, err := wmi.NewProcessWatcher()
 	if err != nil {
-		log.Printf("[MONITOR] createProcessWatcher: failed to create watcher: %v", err)
+		observability.Error("createProcessWatcher: failed to create watcher",
+			zap.String("module", "monitor"),
+			zap.Error(err))
 		return nil, err
 	}
-	log.Printf("[MONITOR] createProcessWatcher: created successfully")
+	observability.Info("createProcessWatcher: created successfully", zap.String("module", "monitor"))
 	return watcher, nil
 }
 
@@ -33,7 +36,9 @@ func (e *MonitorEngine) createNetworkPoller(interval time.Duration) interface {
 } {
 	poller, err := poll.NewNetworkPoller(interval)
 	if err != nil {
-		log.Printf("[ERROR] failed to create network poller: %v", err)
+		observability.Error("Failed to create network poller",
+			zap.String("module", "monitor"),
+			zap.Error(err))
 		return nil
 	}
 	return poller

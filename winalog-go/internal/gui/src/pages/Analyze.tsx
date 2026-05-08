@@ -884,7 +884,7 @@ function Analyze() {
                             type="text"
                             value={pattern}
                             onChange={(e) => handlePatternChange(idx, e.target.value)}
-                            placeholder="Enter pattern..."
+                            placeholder="输入模式..."
                           />
                           <button
                             className="remove-btn"

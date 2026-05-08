@@ -1,40 +1,25 @@
 package api
 
 import (
+	"encoding/json"
 	"io"
-	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kkkdddd-start/winalog-go/internal/observability"
+	"go.uber.org/zap"
 )
 
 type LogsHandler struct{}
 
-// NewLogsHandler godoc
-// @Summary 创建日志处理器
-// @Description 初始化LogsHandler
-// @Tags logs
-// @Router /api/logs [get]
 func NewLogsHandler() *LogsHandler {
 	return &LogsHandler{}
 }
 
-// GetLogs godoc
-// @Summary 获取应用日志
-// @Description 返回系统运行日志记录
-// @Tags logs
-// @Produce json
-// @Param offset query int false "偏移量" default(0)
-// @Param limit query int false "返回数量限制" default(100)
-// @Param keyword query string false "关键词过滤"
-// @Param level query string false "日志级别过滤"
-// @Param category query string false "日志分类过滤"
-// @Success 200 {object} map[string]interface{}
-// @Failure 500 {object} ErrorResponse
-// @Router /api/logs [get]
 func (h *LogsHandler) GetLogs(c *gin.Context) {
 	offsetStr := c.DefaultQuery("offset", "0")
 	limitStr := c.DefaultQuery("limit", "100")
@@ -52,12 +37,28 @@ func (h *LogsHandler) GetLogs(c *gin.Context) {
 		offset = 0
 	}
 
-	metricsLogger := observability.GetMetricsLogger()
-	entries, total, err := metricsLogger.ReadLines(offset, limit, keyword, level, category)
+	logFile := observability.GetLogFile()
+	if logFile == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "log file not available"})
+		return
+	}
+
+	entries, total, err := logFile.ReadJSONEntries(offset, limit)
 	if err != nil {
-		log.Printf("[ERROR] GetLogs failed: %v", err)
+		observability.Error("GetLogs failed", zap.String("module", "handlers_logs"), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
+	}
+
+	if keyword != "" {
+		kw := keyword
+		var filtered []observability.LogFileEntry
+		for _, e := range entries {
+			if matchEntry(e, kw, level, category) {
+				filtered = append(filtered, e)
+			}
+		}
+		entries = filtered
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -71,16 +72,34 @@ func (h *LogsHandler) GetLogs(c *gin.Context) {
 	})
 }
 
-// GetLogFiles godoc
-// @Summary 获取日志文件列表
-// @Description 返回所有可用的日志文件
-// @Tags logs
-// @Produce json
-// @Success 200 {object} map[string]interface{} "files": []object, "count": int
-// @Router /api/logs/files [get]
+func matchEntry(e observability.LogFileEntry, keyword, level, category string) bool {
+	if keyword != "" {
+		kw := strings.ToLower(keyword)
+		if !strings.Contains(strings.ToLower(e.Message), kw) &&
+			!strings.Contains(strings.ToLower(e.Level), kw) &&
+			!strings.Contains(strings.ToLower(e.Category), kw) &&
+			!strings.Contains(strings.ToLower(e.Error), kw) &&
+			!strings.Contains(strings.ToLower(e.Path), kw) &&
+			!strings.Contains(strings.ToLower(e.Method), kw) {
+			return false
+		}
+	}
+	if level != "" && level != "all" && e.Level != level {
+		return false
+	}
+	if category != "" && category != "all" && e.Category != category {
+		return false
+	}
+	return true
+}
+
 func (h *LogsHandler) GetLogFiles(c *gin.Context) {
-	metricsLogger := observability.GetMetricsLogger()
-	files := metricsLogger.GetLogFiles()
+	var files []observability.LogFileInfo
+
+	appLogFile := observability.GetLogFile()
+	if appLogFile != nil {
+		files = append(files, appLogFile.GetLogFiles()...)
+	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"files": files,
@@ -88,17 +107,6 @@ func (h *LogsHandler) GetLogFiles(c *gin.Context) {
 	})
 }
 
-// GetLogFileContent godoc
-// @Summary 获取日志文件内容
-// @Description 返回指定日志文件的完整内容
-// @Tags logs
-// @Produce json
-// @Param filename path string true "日志文件名"
-// @Success 200 {object} map[string]interface{} "path": string, "content": string
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /api/logs/files/{filename} [get]
 func (h *LogsHandler) GetLogFileContent(c *gin.Context) {
 	filename := c.Param("filename")
 	if filename == "" {
@@ -106,14 +114,15 @@ func (h *LogsHandler) GetLogFileContent(c *gin.Context) {
 		return
 	}
 
-	metricsLogger := observability.GetMetricsLogger()
-	files := metricsLogger.GetLogFiles()
-
 	var targetPath string
-	for _, f := range files {
-		if f.Name == filename {
-			targetPath = f.Path
-			break
+
+	appLogFile := observability.GetLogFile()
+	if appLogFile != nil {
+		for _, f := range appLogFile.GetLogFiles() {
+			if f.Name == filename {
+				targetPath = f.Path
+				break
+			}
 		}
 	}
 
@@ -141,18 +150,97 @@ func (h *LogsHandler) GetLogFileContent(c *gin.Context) {
 	})
 }
 
-// SetupLogsRoutes godoc
-// @Summary 设置日志路由
-// @Description 配置日志相关的API路由
-// @Tags logs
-// @Router /api/logs [get]
-// @Router /api/logs/files [get]
-// @Router /api/logs/files/{filename} [get]
+func (h *LogsHandler) GetLogEntry(c *gin.Context) {
+	filename := c.Param("filename")
+	lineNumStr := c.Param("line")
+	if filename == "" || lineNumStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "filename and line number are required"})
+		return
+	}
+
+	lineNum, err := strconv.Atoi(lineNumStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid line number"})
+		return
+	}
+
+	var targetPath string
+	appLogFile := observability.GetLogFile()
+	if appLogFile != nil {
+		for _, f := range appLogFile.GetLogFiles() {
+			if f.Name == filename {
+				targetPath = f.Path
+				break
+			}
+		}
+	}
+
+	if targetPath == "" {
+		c.JSON(http.StatusNotFound, gin.H{"error": "log file not found"})
+		return
+	}
+
+	file, err := os.Open(targetPath)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to open log file"})
+		return
+	}
+	defer file.Close()
+
+	var line string
+	buf := make([]byte, 1)
+	lineBytes := make([]byte, 0, 4096)
+	currentLine := 1
+
+	for {
+		n, err := file.Read(buf)
+		if n > 0 {
+			if buf[0] == '\n' {
+				if currentLine == lineNum {
+					line = string(lineBytes)
+					break
+				}
+				lineBytes = lineBytes[:0]
+				currentLine++
+			} else {
+				lineBytes = append(lineBytes, buf[0])
+			}
+		}
+		if err != nil {
+			break
+		}
+	}
+
+	if line == "" {
+		c.JSON(http.StatusNotFound, gin.H{"error": "line not found"})
+		return
+	}
+
+	var entry map[string]interface{}
+	if err := json.Unmarshal([]byte(line), &entry); err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"filename": filename,
+			"line":     lineNum,
+			"raw":      line,
+		})
+		return
+	}
+
+	dir := filepath.Dir(targetPath)
+	c.JSON(http.StatusOK, gin.H{
+		"filename": filename,
+		"line":     lineNum,
+		"entry":    entry,
+		"file":     dir,
+	})
+}
+
 func SetupLogsRoutes(r *gin.Engine, logsHandler *LogsHandler) {
 	logs := r.Group("/api/logs")
 	{
 		logs.GET("", logsHandler.GetLogs)
 		logs.GET("/files", logsHandler.GetLogFiles)
 		logs.GET("/files/:filename", logsHandler.GetLogFileContent)
+		logs.GET("/files/:filename/line/:line", logsHandler.GetLogEntry)
 	}
 }

@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"runtime/debug"
@@ -17,7 +16,9 @@ import (
 	"time"
 
 	"github.com/kkkdddd-start/winalog-go/internal/forensics"
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
 	"github.com/kkkdddd-start/winalog-go/internal/types"
+	"go.uber.org/zap"
 )
 
 type OneClickCollector struct {
@@ -180,7 +181,8 @@ func (c *OneClickCollector) FullCollect(ctx context.Context) (*OneClickResult, e
 		},
 	}
 
-	log.Printf("[INFO] One-click collection started")
+	observability.Info("One-click collection started",
+		zap.String("module", "one_click"))
 
 	hostname, _ := os.Hostname()
 	result.Summary.ComputerName = hostname
@@ -193,14 +195,18 @@ func (c *OneClickCollector) FullCollect(ctx context.Context) (*OneClickResult, e
 		}
 		timestamp := time.Now().Format("20060102_150405")
 		c.cfg.OutputPath = filepath.Join(workDir, fmt.Sprintf("winalog_collect_%s", timestamp))
-		log.Printf("[INFO] Output path not specified, using: %s", c.cfg.OutputPath)
+		observability.Info("Output path not specified, using default",
+			zap.String("module", "one_click"),
+			zap.String("path", c.cfg.OutputPath))
 	}
 
 	tempDir := c.cfg.OutputPath + "_temp"
 	if err := os.MkdirAll(tempDir, 0755); err != nil {
 		result.Success = false
 		result.Errors = append(result.Errors, fmt.Sprintf("failed to create temp dir: %v", err))
-		log.Printf("[ERROR] Failed to create temp dir: %v", err)
+		observability.Error("Failed to create temp dir",
+			zap.String("module", "one_click"),
+			zap.Error(err))
 		return result, err
 	}
 	defer os.RemoveAll(tempDir)
@@ -209,8 +215,8 @@ func (c *OneClickCollector) FullCollect(ctx context.Context) (*OneClickResult, e
 	if c.cfg.Timeout > 0 {
 		ctx, cancel = context.WithTimeout(ctx, c.cfg.Timeout)
 		defer cancel()
-		log.Printf("[DEBUG] [CTX] Collection ctx created with timeout=%v", c.cfg.Timeout)
-		log.Printf("[DEBUG] [CTX] Original ctx info: err=%v, deadline=%v", ctx.Err(), func() interface{} {
+		observability.DebugPrintf("[DEBUG] [CTX] Collection ctx created with timeout=%v", c.cfg.Timeout)
+		observability.DebugPrintf("[DEBUG] [CTX] Original ctx info: err=%v, deadline=%v", ctx.Err(), func() interface{} {
 			if d, ok := ctx.Deadline(); ok {
 				return d
 			}
@@ -253,7 +259,9 @@ func (c *OneClickCollector) FullCollect(ctx context.Context) (*OneClickResult, e
 		workers = 8
 	}
 
-	log.Printf("[INFO] Running parallel collection with %d workers", workers)
+	observability.Info("Running parallel collection with workers",
+		zap.String("module", "one_click"),
+		zap.Int("workers", workers))
 
 	sem := make(chan struct{}, workers)
 	var wg sync.WaitGroup
@@ -283,12 +291,17 @@ func (c *OneClickCollector) FullCollect(ctx context.Context) (*OneClickResult, e
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			log.Printf("[INFO] Collecting %s...", itm.displayName)
+			observability.Info("Collecting item",
+				zap.String("module", "one_click"),
+				zap.String("display_name", itm.displayName))
 			subErrors, err := itm.collectFn()
 
 			mu.Lock()
 			if err != nil {
-				log.Printf("[ERROR] %s collection failed: %v", itm.displayName, err)
+				observability.Error("Collection failed",
+					zap.String("module", "one_click"),
+					zap.String("display_name", itm.displayName),
+					zap.Error(err))
 				allErrors = append(allErrors, fmt.Sprintf("%s: %v", itm.name, err))
 				result.Summary.FailedItems = append(result.Summary.FailedItems, CollectionItem{
 					Name:        itm.name,
@@ -300,10 +313,15 @@ func (c *OneClickCollector) FullCollect(ctx context.Context) (*OneClickResult, e
 			} else {
 				result.Summary.FailedItems = append(result.Summary.FailedItems, subErrors...)
 				if len(subErrors) > 0 {
-					log.Printf("[WARN] %s had %d individual item failures", itm.displayName, len(subErrors))
+					observability.Warn("Had individual item failures",
+						zap.String("module", "one_click"),
+						zap.String("display_name", itm.displayName),
+						zap.Int("failures", len(subErrors)))
 				}
 
-				log.Printf("[INFO] %s collected successfully", itm.displayName)
+				observability.Info("Collected successfully",
+					zap.String("module", "one_click"),
+					zap.String("display_name", itm.displayName))
 				collectedItems[itm.name] = 1
 				result.Summary.CollectedItems = append(result.Summary.CollectedItems, CollectionItem{
 					Name:        itm.name,
@@ -334,14 +352,27 @@ func (c *OneClickCollector) FullCollect(ctx context.Context) (*OneClickResult, e
 		deadline, hasDeadline := ctx.Deadline()
 		now := time.Now()
 
-		log.Printf("[WARN] [CTX] Collection context cancelled: reason=%s, ctx_err=%v", cancelReason, ctxErr)
-		log.Printf("[WARN] [CTX] Context timing: now=%v, deadline=%v, has_deadline=%v", now, deadline, hasDeadline)
+		observability.Warn("Collection context cancelled",
+			zap.String("module", "one_click"),
+			zap.String("reason", cancelReason),
+			zap.Error(ctxErr))
+		observability.Warn("Context timing info",
+			zap.String("module", "one_click"),
+			zap.Time("now", now),
+			zap.Time("deadline", deadline),
+			zap.Bool("has_deadline", hasDeadline))
 		if hasDeadline {
-			log.Printf("[WARN] [CTX] Time until deadline: %v, time since deadline: %v", time.Until(deadline), now.Sub(deadline))
+			observability.Warn("Time until/since deadline",
+				zap.String("module", "one_click"),
+				zap.Duration("time_until", time.Until(deadline)),
+				zap.Duration("time_since", now.Sub(deadline)))
 		}
-		log.Printf("[WARN] [CTX] Cancel function exists: %v", cancel != nil)
-		log.Printf("[WARN] [CTX] Stack trace at ctx cancellation:")
-		log.Printf("[WARN] %s", debug.Stack())
+		observability.Warn("Cancel function exists",
+			zap.String("module", "one_click"),
+			zap.Bool("cancel_exists", cancel != nil))
+		observability.Warn("Stack trace at ctx cancellation",
+			zap.String("module", "one_click"),
+			zap.String("stack", string(debug.Stack())))
 
 		if cancel != nil {
 			cancel()
@@ -352,19 +383,26 @@ func (c *OneClickCollector) FullCollect(ctx context.Context) (*OneClickResult, e
 	close(collectionDone)
 
 	if ctx.Err() == context.DeadlineExceeded || ctx.Err() == context.Canceled {
-		log.Printf("[WARN] Collection ended due to ctx error: %v", ctx.Err())
+		observability.Warn("Collection ended due to ctx error",
+			zap.String("module", "one_click"),
+			zap.Error(ctx.Err()))
 		result.Success = false
 		result.Errors = append(result.Errors, fmt.Sprintf("collection ended early: %v", ctx.Err()))
 	}
 
 	if c.cfg.CalculateHash {
-		log.Printf("[INFO] Calculating file hashes...")
+		observability.Info("Calculating file hashes",
+			zap.String("module", "one_click"))
 		hashes, err := c.CalculateFileHashes(tempDir)
 		if err == nil {
 			result.Hashes = hashes
-			log.Printf("[INFO] File hashes calculated: %d files", len(hashes))
+			observability.Info("File hashes calculated",
+				zap.String("module", "one_click"),
+				zap.Int("count", len(hashes)))
 		} else {
-			log.Printf("[WARN] Failed to calculate file hashes: %v", err)
+			observability.Warn("Failed to calculate file hashes",
+				zap.String("module", "one_click"),
+				zap.Error(err))
 		}
 	}
 
@@ -376,9 +414,13 @@ func (c *OneClickCollector) FullCollect(ctx context.Context) (*OneClickResult, e
 	summaryPath := filepath.Join(tempDir, "collection_summary.json")
 	summaryData, err := json.MarshalIndent(result.Summary, "", "  ")
 	if err != nil {
-		log.Printf("[WARN] Failed to marshal collection summary: %v", err)
+		observability.Warn("Failed to marshal collection summary",
+			zap.String("module", "one_click"),
+			zap.Error(err))
 	} else if err := os.WriteFile(summaryPath, summaryData, 0644); err != nil {
-		log.Printf("[WARN] Failed to write collection summary: %v", err)
+		observability.Warn("Failed to write collection summary",
+			zap.String("module", "one_click"),
+			zap.Error(err))
 	}
 
 	if c.cfg.Compress {
@@ -397,23 +439,38 @@ func (c *OneClickCollector) FullCollect(ctx context.Context) (*OneClickResult, e
 			}
 			return nil
 		})
-		log.Printf("[INFO] [ZIP] Pre-compression: %d files (%d .evtx), %d bytes in temp directory", tempFileCount, evtxFileCount, tempFileSize)
-		log.Printf("[INFO] Creating ZIP archive...")
+		observability.Info("Pre-compression info",
+			zap.String("module", "one_click"),
+			zap.Int("file_count", tempFileCount),
+			zap.Int("evtx_count", evtxFileCount),
+			zap.Int64("total_bytes", tempFileSize))
+		observability.Info("Creating ZIP archive",
+			zap.String("module", "one_click"))
 		zipPath := c.cfg.OutputPath + ".zip"
 		if err := c.CreateZipFromDir(tempDir, zipPath); err != nil {
-			log.Printf("[ERROR] Failed to create ZIP: %v", err)
+			observability.Error("Failed to create ZIP",
+				zap.String("module", "one_click"),
+				zap.Error(err))
 			allErrors = append(allErrors, err.Error())
 		} else {
-			log.Printf("[INFO] ZIP archive created: %s", zipPath)
+			observability.Info("ZIP archive created",
+				zap.String("module", "one_click"),
+				zap.String("path", zipPath))
 			if zipInfo, err := os.Stat(zipPath); err == nil {
-				log.Printf("[INFO] [ZIP] ZIP file size: %d bytes (%.2f MB)", zipInfo.Size(), float64(zipInfo.Size())/1024/1024)
+				observability.Info("ZIP file size",
+					zap.String("module", "one_click"),
+					zap.Int64("bytes", zipInfo.Size()),
+					zap.Float64("mb", float64(zipInfo.Size())/1024/1024))
 			}
 			c.cfg.OutputPath = zipPath
 		}
 	} else {
-		log.Printf("[INFO] Moving temp directory to output path...")
+		observability.Info("Moving temp directory to output path",
+			zap.String("module", "one_click"))
 		if err := os.Rename(tempDir, c.cfg.OutputPath); err != nil {
-			log.Printf("[ERROR] Failed to move directory: %v", err)
+			observability.Error("Failed to move directory",
+				zap.String("module", "one_click"),
+				zap.Error(err))
 			allErrors = append(allErrors, err.Error())
 		}
 	}
@@ -426,11 +483,18 @@ func (c *OneClickCollector) FullCollect(ctx context.Context) (*OneClickResult, e
 		result.Success = false
 	}
 
-	log.Printf("[INFO] One-click collection completed: success=%v, collected=%d items, errors=%d, duration=%v",
-		result.Success, len(collectedItems), len(allErrors), result.Duration)
+	observability.Info("One-click collection completed",
+		zap.String("module", "one_click"),
+		zap.Bool("success", result.Success),
+		zap.Int("collected", len(collectedItems)),
+		zap.Int("errors", len(allErrors)),
+		zap.Duration("duration", result.Duration))
 	if len(allErrors) > 0 {
 		for i, err := range allErrors {
-			log.Printf("[ERROR] Collection error[%d]: %s", i+1, err)
+			observability.Error("Collection error",
+				zap.String("module", "one_click"),
+				zap.Int("index", i+1),
+				zap.String("error", err))
 		}
 	}
 
@@ -547,20 +611,32 @@ func (c *OneClickCollector) CollectEventLogs(ctx context.Context, outputDir stri
 
 	logChannels, err := GetChannelFilePaths()
 	if err != nil {
-		log.Printf("[WARN] [OneClick] Failed to get channel file paths, using fallback: %v", err)
+		observability.Warn("Failed to get channel file paths, using fallback",
+			zap.String("module", "one_click"),
+			zap.Error(err))
 		logChannels = c.getEventLogFilesFallback()
 	}
-	log.Printf("[INFO] [OneClick] Found %d log channels to collect", len(logChannels))
+	observability.Info("Found log channels to collect",
+		zap.String("module", "one_click"),
+		zap.Int("count", len(logChannels)))
 	if len(logChannels) > 0 {
-		log.Printf("[INFO] [OneClick] First 5 channels:")
+		observability.Info("First 5 channels",
+			zap.String("module", "one_click"))
 		for i, ch := range logChannels {
 			if i >= 5 {
 				break
 			}
-			log.Printf("[INFO]   Channel[%d]: Name=%s, Path=%s, IsEVTX=%v", i, ch.Name, ch.LogPath, ch.IsEVTX)
+			observability.Info("Channel info",
+				zap.String("module", "one_click"),
+				zap.Int("index", i),
+				zap.String("name", ch.Name),
+				zap.String("path", ch.LogPath),
+				zap.Bool("is_evtx", ch.IsEVTX))
 		}
 		if len(logChannels) > 5 {
-			log.Printf("[INFO]   ... and %d more channels", len(logChannels)-5)
+			observability.Info("More channels",
+				zap.String("module", "one_click"),
+				zap.Int("remaining", len(logChannels)-5))
 		}
 	}
 
@@ -619,13 +695,13 @@ func (c *OneClickCollector) CollectEventLogs(ctx context.Context, outputDir stri
 
 		select {
 		case <-ctx.Done():
-			log.Printf("[DEBUG] [OneClick] copyLog cancelled before start: channel=%s, path=%s", ch.Name, ch.LogPath)
+			observability.DebugPrintf("[DEBUG] [OneClick] copyLog cancelled before start: channel=%s, path=%s", ch.Name, ch.LogPath)
 			return
 		default:
 		}
 
 		if !strings.HasSuffix(strings.ToLower(ch.LogPath), ".evtx") {
-			log.Printf("[DEBUG] [OneClick] Skipped (not .evtx): channel=%s, path=%s", ch.Name, ch.LogPath)
+			observability.DebugPrintf("[DEBUG] [OneClick] Skipped (not .evtx): channel=%s, path=%s", ch.Name, ch.LogPath)
 			countMu.Lock()
 			skippedCount++
 			countMu.Unlock()
@@ -633,7 +709,7 @@ func (c *OneClickCollector) CollectEventLogs(ctx context.Context, outputDir stri
 		}
 
 		if _, err := os.Stat(ch.LogPath); os.IsNotExist(err) {
-			log.Printf("[DEBUG] [OneClick] Skipped (file not exist): channel=%s, path=%s", ch.Name, ch.LogPath)
+			observability.DebugPrintf("[DEBUG] [OneClick] Skipped (file not exist): channel=%s, path=%s", ch.Name, ch.LogPath)
 			countMu.Lock()
 			skippedCount++
 			countMu.Unlock()
@@ -653,8 +729,14 @@ func (c *OneClickCollector) CollectEventLogs(ctx context.Context, outputDir stri
 		dirMu.Unlock()
 
 		if dstSize, err := c.CopyFileWithRetry(ch.LogPath, dstPath, 3); err != nil {
-			log.Printf("[WARN] [OneClick] Failed to copy log %s from %s: %v (is_locked=%v, file_exists=%v, file_size=%d)",
-				ch.Name, ch.LogPath, err, c.IsFileLocked(ch.LogPath), func() bool { _, e := os.Stat(ch.LogPath); return e == nil }(), func() int64 { fi, _ := os.Stat(ch.LogPath); if fi != nil { return fi.Size() }; return 0 }())
+			observability.Warn("Failed to copy log",
+				zap.String("module", "one_click"),
+				zap.String("name", ch.Name),
+				zap.String("path", ch.LogPath),
+				zap.Error(err),
+				zap.Bool("is_locked", c.IsFileLocked(ch.LogPath)),
+				zap.Bool("file_exists", func() bool { _, e := os.Stat(ch.LogPath); return e == nil }()),
+				zap.Int64("file_size", func() int64 { fi, _ := os.Stat(ch.LogPath); if fi != nil { return fi.Size() }; return 0 }()))
 			failedMu.Lock()
 			failedItems = append(failedItems, CollectionItem{
 				Name:        ch.Name,
@@ -671,11 +753,18 @@ func (c *OneClickCollector) CollectEventLogs(ctx context.Context, outputDir stri
 			if dstSize == 0 && !c.isLikelyEmptyLog(ch.LogPath) {
 				zeroSizeCount++
 				zeroSizeFiles = append(zeroSizeFiles, ch.Name)
-				log.Printf("[WARN] [OneClick] Zero-size log file: channel=%s, path=%s", ch.Name, ch.LogPath)
+				observability.Warn("Zero-size log file",
+					zap.String("module", "one_click"),
+					zap.String("name", ch.Name),
+					zap.String("path", ch.LogPath))
 			}
 			countMu.Unlock()
-			log.Printf("[INFO] [OneClick] EventLog copied: channel=%s, original_path=%s, saved_as=%s, size=%d",
-				ch.Name, ch.LogPath, uniqueName, dstSize)
+			observability.Info("EventLog copied",
+				zap.String("module", "one_click"),
+				zap.String("name", ch.Name),
+				zap.String("original_path", ch.LogPath),
+				zap.String("saved_as", uniqueName),
+				zap.Int64("size", dstSize))
 		}
 	}
 
@@ -691,21 +780,31 @@ func (c *OneClickCollector) CollectEventLogs(ctx context.Context, outputDir stri
 
 	wg.Wait()
 
-	log.Printf("[INFO] [OneClick] Event log collection summary:")
-	log.Printf("[INFO]   Total log sources found: %d", len(logChannels))
-	log.Printf("[INFO]   Successfully copied: %d", copiedCount)
-	log.Printf("[INFO]   Skipped (not .evtx or not exist): %d", skippedCount)
-	log.Printf("[INFO]   Failed to copy: %d", len(failedItems))
+	observability.Info("Event log collection summary",
+		zap.String("module", "one_click"),
+		zap.Int("total_found", len(logChannels)),
+		zap.Int("copied", copiedCount),
+		zap.Int("skipped", skippedCount),
+		zap.Int("failed", len(failedItems)))
 	if len(failedItems) > 0 {
-		log.Printf("[WARN] [OneClick] All failed copies (%d total):", len(failedItems))
 		for i, item := range failedItems {
-			log.Printf("[WARN]   Failed[%d]: Name=%s, Path=%s, Error=%s", i+1, item.Name, item.Path, item.Error)
+			observability.Warn("Failed copy",
+				zap.String("module", "one_click"),
+				zap.Int("index", i+1),
+				zap.String("name", item.Name),
+				zap.String("path", item.Path),
+				zap.String("error", item.Error))
 		}
 	}
 	if zeroSizeCount > 0 {
-		log.Printf("[WARN] [OneClick] Zero-size log files: %d files", zeroSizeCount)
+		observability.Warn("Zero-size log files",
+			zap.String("module", "one_click"),
+			zap.Int("count", zeroSizeCount))
 		for i, name := range zeroSizeFiles {
-			log.Printf("[WARN]   ZeroSize[%d]: %s", i+1, name)
+			observability.Warn("ZeroSize file",
+				zap.String("module", "one_click"),
+				zap.Int("index", i+1),
+				zap.String("name", name))
 		}
 	}
 	return failedItems, nil
@@ -778,7 +877,10 @@ func (c *OneClickCollector) CollectPrefetch(ctx context.Context, outputDir strin
 			dst := filepath.Join(prefetchDir, entry.Name())
 			dirMu.Unlock()
 			if _, err := c.CopyFileWithRetry(src, dst, 3); err != nil {
-				log.Printf("[WARN] [OneClick] Failed to copy prefetch %s: %v", entry.Name(), err)
+				observability.Warn("Failed to copy prefetch",
+					zap.String("module", "one_click"),
+					zap.String("name", entry.Name()),
+					zap.Error(err))
 			}
 		}
 	}
@@ -805,7 +907,9 @@ func (c *OneClickCollector) CollectRegistry(ctx context.Context, outputDir strin
 
 	persistence, err := CollectRegistryPersistence(ctx)
 	if err != nil {
-		log.Printf("[WARN] [OneClick] CollectRegistryPersistence failed: %v", err)
+		observability.Warn("CollectRegistryPersistence failed",
+			zap.String("module", "one_click"),
+			zap.Error(err))
 		return err
 	}
 
@@ -832,17 +936,26 @@ func (c *OneClickCollector) CollectRegistry(ctx context.Context, outputDir strin
 				continue
 			}
 			categoryDir := filepath.Join(regDir, category)
-			if err := os.MkdirAll(categoryDir, 0755); err != nil {
-				log.Printf("[WARN] [OneClick] Failed to create directory %s: %v", categoryDir, err)
-				continue
-			}
-			data, err := json.MarshalIndent(entries, "", "  ")
-			if err != nil {
-				log.Printf("[WARN] [OneClick] Failed to marshal %s: %v", category, err)
-				continue
-			}
-			if err := os.WriteFile(filepath.Join(categoryDir, category+".json"), data, 0600); err != nil {
-				log.Printf("[WARN] [OneClick] Failed to write %s: %v", category, err)
+		if err := os.MkdirAll(categoryDir, 0755); err != nil {
+			observability.Warn("Failed to create directory",
+				zap.String("module", "one_click"),
+				zap.String("dir", categoryDir),
+				zap.Error(err))
+			continue
+		}
+		data, err := json.MarshalIndent(entries, "", "  ")
+		if err != nil {
+			observability.Warn("Failed to marshal category",
+				zap.String("module", "one_click"),
+				zap.String("category", category),
+				zap.Error(err))
+			continue
+		}
+		if err := os.WriteFile(filepath.Join(categoryDir, category+".json"), data, 0600); err != nil {
+			observability.Warn("Failed to write category file",
+				zap.String("module", "one_click"),
+				zap.String("category", category),
+				zap.Error(err))
 			}
 		}
 	}
@@ -858,18 +971,24 @@ func (c *OneClickCollector) CollectStartupFolders(ctx context.Context, outputDir
 
 	persistence, err := CollectRegistryPersistence(ctx)
 	if err != nil {
-		log.Printf("[WARN] [OneClick] CollectStartupFolders failed: %v", err)
+		observability.Warn("CollectStartupFolders failed",
+			zap.String("module", "one_click"),
+			zap.Error(err))
 		return err
 	}
 
 	if len(persistence) > 0 && len(persistence[0].StartupFolders) > 0 {
 		data, err := json.MarshalIndent(persistence[0].StartupFolders, "", "  ")
 		if err != nil {
-			log.Printf("[WARN] [OneClick] Failed to marshal startup folders: %v", err)
+			observability.Warn("Failed to marshal startup folders",
+				zap.String("module", "one_click"),
+				zap.Error(err))
 			return err
 		}
 		if err := os.WriteFile(filepath.Join(startupDir, "startup_folders.json"), data, 0600); err != nil {
-			log.Printf("[WARN] [OneClick] Failed to write startup_folders.json: %v", err)
+			observability.Warn("Failed to write startup_folders.json",
+				zap.String("module", "one_click"),
+				zap.Error(err))
 			return err
 		}
 	}
@@ -885,7 +1004,9 @@ func (c *OneClickCollector) CollectAmcache(ctx context.Context, outputDir string
 
 	entries, err := GetAmcacheEntries(ctx)
 	if err != nil {
-		log.Printf("[WARN] [OneClick] CollectAmcache failed: %v", err)
+		observability.Warn("CollectAmcache failed",
+			zap.String("module", "one_click"),
+			zap.Error(err))
 		return err
 	}
 
@@ -904,7 +1025,9 @@ func (c *OneClickCollector) CollectUserAssist(ctx context.Context, outputDir str
 
 	entries, err := GetUserAssistEntries(ctx)
 	if err != nil {
-		log.Printf("[WARN] [OneClick] CollectUserAssist failed: %v", err)
+		observability.Warn("CollectUserAssist failed",
+			zap.String("module", "one_click"),
+			zap.Error(err))
 		return err
 	}
 
@@ -924,17 +1047,26 @@ func (c *OneClickCollector) CollectUSNJournal(ctx context.Context, outputDir str
 	for _, drive := range []string{"C:", "D:", "E:"} {
 		entries, err := GetUSNJournalEntries(ctx, drive)
 		if err != nil {
-			log.Printf("[WARN] [OneClick] CollectUSNJournalEntries failed for %s: %v", drive, err)
+			observability.Warn("CollectUSNJournalEntries failed",
+				zap.String("module", "one_click"),
+				zap.String("drive", drive),
+				zap.Error(err))
 			continue
 		}
 		data, err := json.MarshalIndent(entries, "", "  ")
 		if err != nil {
-			log.Printf("[WARN] [OneClick] Failed to marshal USN journal for %s: %v", drive, err)
+			observability.Warn("Failed to marshal USN journal",
+				zap.String("module", "one_click"),
+				zap.String("drive", drive),
+				zap.Error(err))
 			continue
 		}
 		fileName := fmt.Sprintf("usnjournal_%s.json", strings.TrimSuffix(drive, ":"))
 		if err := os.WriteFile(filepath.Join(usnDir, fileName), data, 0600); err != nil {
-			log.Printf("[WARN] [OneClick] Failed to write USN journal for %s: %v", drive, err)
+			observability.Warn("Failed to write USN journal",
+				zap.String("module", "one_click"),
+				zap.String("drive", drive),
+				zap.Error(err))
 		}
 	}
 
@@ -949,7 +1081,9 @@ func (c *OneClickCollector) CollectShimCache(ctx context.Context, outputDir stri
 
 	entries, err := GetShimCacheEntries(ctx)
 	if err != nil {
-		log.Printf("[WARN] [OneClick] CollectShimCache failed: %v", err)
+		observability.Warn("CollectShimCache failed",
+			zap.String("module", "one_click"),
+			zap.Error(err))
 		return err
 	}
 
@@ -974,7 +1108,10 @@ func (c *OneClickCollector) CreateZipFromDir(sourceDir, zipPath string) error {
 	dirCount := 0
 	err = filepath.Walk(sourceDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			log.Printf("[WARN] [ZIP] Walk error on %s: %v", path, err)
+			observability.Warn("Walk error on path",
+				zap.String("module", "one_click"),
+				zap.String("path", path),
+				zap.Error(err))
 			return err
 		}
 
@@ -987,7 +1124,7 @@ func (c *OneClickCollector) CreateZipFromDir(sourceDir, zipPath string) error {
 		} else {
 			fileCount++
 			if strings.HasSuffix(strings.ToLower(header.Name), ".evtx") {
-				log.Printf("[DEBUG] [ZIP] Adding .evtx to archive: name=%s, size=%d", header.Name, info.Size())
+				observability.DebugPrintf("[DEBUG] [ZIP] Adding .evtx to archive: name=%s, size=%d", header.Name, info.Size())
 			}
 		}
 
@@ -998,18 +1135,28 @@ func (c *OneClickCollector) CreateZipFromDir(sourceDir, zipPath string) error {
 
 		file, err := os.Open(path)
 		if err != nil {
-			log.Printf("[WARN] [ZIP] Failed to open file %s for zipping: %v", path, err)
+			observability.Warn("Failed to open file for zipping",
+				zap.String("module", "one_click"),
+				zap.String("path", path),
+				zap.Error(err))
 			return nil
 		}
 		defer file.Close()
 		_, err = io.Copy(headerWriter, file)
 		if err != nil {
-			log.Printf("[WARN] [ZIP] Failed to copy file %s to zip: %v", path, err)
+			observability.Warn("Failed to copy file to zip",
+				zap.String("module", "one_click"),
+				zap.String("path", path),
+				zap.Error(err))
 		}
 		return err
 	})
 
-	log.Printf("[INFO] [ZIP] Compression completed: %d files, %d directories added to %s", fileCount, dirCount, zipPath)
+	observability.Info("Compression completed",
+		zap.String("module", "one_click"),
+		zap.Int("files", fileCount),
+		zap.Int("directories", dirCount),
+		zap.String("path", zipPath))
 	return err
 }
 
@@ -1027,7 +1174,9 @@ func (c *OneClickCollector) CalculateFileHashes(dir string) (map[string]string, 
 		return nil
 	})
 	if err != nil {
-		log.Printf("[WARN] CalculateFileHashes: walk failed: %v", err)
+		observability.Warn("CalculateFileHashes: walk failed",
+			zap.String("module", "one_click"),
+			zap.Error(err))
 	}
 
 	return hashes, nil
@@ -1054,21 +1203,23 @@ func (c *OneClickCollector) CopyFileWithRetry(src, dst string, maxRetries int) (
 	var lastErr error
 	for i := 0; i < maxRetries; i++ {
 		if !isFileAccessible(src) {
-			log.Printf("[DEBUG] [CopyFileWithRetry] File not accessible, retry %d/%d: %s", i+1, maxRetries, src)
+			observability.DebugPrintf("[DEBUG] [CopyFileWithRetry] File not accessible, retry %d/%d: %s", i+1, maxRetries, src)
 			time.Sleep(time.Second)
 			continue
 		}
 
 		dstSize, err := safeCopyFile(src, dst)
 		if err == nil {
-			if dstSize == 0 && !c.isLikelyEmptyLog(src) {
-				log.Printf("[WARN] [CopyFileWithRetry] Copied 0 bytes but file may not be empty: %s", src)
-			}
+		if dstSize == 0 && !c.isLikelyEmptyLog(src) {
+			observability.Warn("Copied 0 bytes but file may not be empty",
+				zap.String("module", "one_click"),
+				zap.String("src", src))
+		}
 			return dstSize, nil
 		}
 
 		lastErr = err
-		log.Printf("[DEBUG] [CopyFileWithRetry] Copy failed, retry %d/%d: %s, err=%v", i+1, maxRetries, src, err)
+		observability.DebugPrintf("[DEBUG] [CopyFileWithRetry] Copy failed, retry %d/%d: %s, err=%v", i+1, maxRetries, src, err)
 		time.Sleep(time.Millisecond * 500)
 	}
 	return 0, lastErr
@@ -1117,7 +1268,9 @@ func copyFile(src, dst string) error {
 		return err
 	}
 	if err := os.Chtimes(dst, sourceInfo.ModTime(), sourceInfo.ModTime()); err != nil {
-		log.Printf("[WARN] copyFile: failed to set file times: %v", err)
+		observability.Warn("copyFile: failed to set file times",
+			zap.String("module", "one_click"),
+			zap.Error(err))
 	}
 
 	return nil
@@ -1133,56 +1286,85 @@ func getDir(path string) string {
 }
 
 func safeCopyFile(src, dst string) (int64, error) {
-	log.Printf("[DEBUG] [safeCopyFile] Starting copy: src=%s", src)
+	observability.DebugPrintf("[DEBUG] [safeCopyFile] Starting copy: src=%s", src)
 
 	srcInfo, err := os.Stat(src)
 	if err != nil {
-		log.Printf("[ERROR] [safeCopyFile] os.Stat failed: src=%s, err=%v", src, err)
+		observability.Error("safeCopyFile: os.Stat failed",
+			zap.String("module", "one_click"),
+			zap.String("src", src),
+			zap.Error(err))
 		return 0, err
 	}
 	srcSize := srcInfo.Size()
-	log.Printf("[DEBUG] [safeCopyFile] Source file size: %d bytes", srcSize)
+	observability.Debug("safeCopyFile: source file size",
+		zap.String("module", "one_click"),
+		zap.Int64("size", srcSize))
 
 	destDir := getDir(dst)
 	if err := os.MkdirAll(destDir, 0755); err != nil {
-		log.Printf("[ERROR] [safeCopyFile] Create directory failed: dir=%s, err=%v", destDir, err)
+		observability.Error("safeCopyFile: create directory failed",
+			zap.String("module", "one_click"),
+			zap.String("dir", destDir),
+			zap.Error(err))
 		return 0, err
 	}
 
 	srcFile, err := os.Open(src)
 	if err != nil {
-		log.Printf("[ERROR] [safeCopyFile] os.Open failed: src=%s, err=%v", src, err)
+		observability.Error("safeCopyFile: os.Open failed",
+			zap.String("module", "one_click"),
+			zap.String("src", src),
+			zap.Error(err))
 		return 0, err
 	}
 	defer srcFile.Close()
 
 	dstFile, err := os.Create(dst)
 	if err != nil {
-		log.Printf("[ERROR] [safeCopyFile] os.Create failed: dst=%s, err=%v", dst, err)
+		observability.Error("safeCopyFile: os.Create failed",
+			zap.String("module", "one_click"),
+			zap.String("dst", dst),
+			zap.Error(err))
 		return 0, err
 	}
 	defer dstFile.Close()
 
 	written, err := io.Copy(dstFile, srcFile)
 	if err != nil {
-		log.Printf("[ERROR] [safeCopyFile] io.Copy failed: src=%s, dst=%s, err=%v", src, dst, err)
+		observability.Error("safeCopyFile: io.Copy failed",
+			zap.String("module", "one_click"),
+			zap.String("src", src),
+			zap.String("dst", dst),
+			zap.Error(err))
 		return 0, err
 	}
 
 	if err := dstFile.Close(); err != nil {
-		log.Printf("[WARN] [safeCopyFile] dstFile.Close failed: err=%v", err)
+		observability.Warn("safeCopyFile: dstFile.Close failed",
+			zap.String("module", "one_click"),
+			zap.Error(err))
 	}
 	if err := srcFile.Close(); err != nil {
-		log.Printf("[WARN] [safeCopyFile] srcFile.Close failed: err=%v", err)
+		observability.Warn("safeCopyFile: srcFile.Close failed",
+			zap.String("module", "one_click"),
+			zap.Error(err))
 	}
 
 	dstSize := written
-	log.Printf("[INFO] [safeCopyFile] Copy completed: src=%s, dst=%s, src_size=%d, dst_size=%d",
-		src, dst, srcSize, dstSize)
+	observability.Info("safeCopyFile: copy completed",
+		zap.String("module", "one_click"),
+		zap.String("src", src),
+		zap.String("dst", dst),
+		zap.Int64("src_size", srcSize),
+		zap.Int64("dst_size", dstSize))
 
 	if srcSize != dstSize {
-		log.Printf("[WARN] [safeCopyFile] Size mismatch: src=%d, dst=%d, diff=%d",
-			srcSize, dstSize, srcSize-dstSize)
+		observability.Warn("safeCopyFile: size mismatch",
+			zap.String("module", "one_click"),
+			zap.Int64("src_size", srcSize),
+			zap.Int64("dst_size", dstSize),
+			zap.Int64("diff", srcSize-dstSize))
 	}
 
 	return dstSize, nil
@@ -1191,7 +1373,7 @@ func safeCopyFile(src, dst string) (int64, error) {
 func isFileAccessible(path string) bool {
 	f, err := os.Open(path)
 	if err != nil {
-		log.Printf("[DEBUG] [isFileAccessible] Cannot open file: %s, err=%v", path, err)
+		observability.DebugPrintf("[DEBUG] [isFileAccessible] Cannot open file: %s, err=%v", path, err)
 		return false
 	}
 	defer f.Close()
@@ -1199,7 +1381,7 @@ func isFileAccessible(path string) bool {
 	buf := make([]byte, 1024)
 	_, err = f.Read(buf)
 	if err != nil && err != io.EOF {
-		log.Printf("[DEBUG] [isFileAccessible] Cannot read file: %s, err=%v", path, err)
+		observability.DebugPrintf("[DEBUG] [isFileAccessible] Cannot read file: %s, err=%v", path, err)
 		return false
 	}
 	return true

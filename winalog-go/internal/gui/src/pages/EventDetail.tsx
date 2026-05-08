@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { eventsAPI } from '../api'
+import EventIDTooltip from '../components/EventIDTooltip'
 
 interface Event {
   id: number
@@ -222,7 +223,11 @@ function EventDetail() {
             </div>
             <div className="detail-field">
               <span className="field-label">Event ID:</span>
-              <span className="field-value">{event.event_id}</span>
+              <span className="field-value">
+                <EventIDTooltip eventId={String(event.event_id)}>
+                  {event.event_id}
+                </EventIDTooltip>
+              </span>
             </div>
             <div className="detail-field">
               <span className="field-label">Source:</span>
@@ -274,7 +279,7 @@ function EventDetail() {
         </div>
 
         <div className="detail-section">
-          <label>Message:</label>
+          <label>消息:</label>
           <pre className="message-box">{event.message}</pre>
         </div>
 

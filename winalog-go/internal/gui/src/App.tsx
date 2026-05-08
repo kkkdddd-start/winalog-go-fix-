@@ -1,8 +1,9 @@
 import { Routes, Route, Link } from 'react-router-dom'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { I18nProvider, useI18n } from './locales/I18n'
 import { settingsAPI, setRequestTimeout } from './api'
 import LangSwitcher from './components/LangSwitcher'
+import GlobalSearch from './components/GlobalSearch'
 import Dashboard from './pages/Dashboard'
 import Events from './pages/Events'
 import EventDetail from './pages/EventDetail'
@@ -11,7 +12,7 @@ import AlertDetail from './pages/AlertDetail'
 import Timeline from './pages/Timeline'
 import Reports from './pages/Reports'
 import Forensics from './pages/Forensics'
-import SystemInfo from './pages/SystemInfo'
+import AssetInventory from './pages/AssetInventory'
 import Rules from './pages/Rules'
 import Settings from './pages/Settings'
 import Metrics from './pages/Metrics'
@@ -26,42 +27,127 @@ import Live from './pages/Live'
 import Monitor from './pages/Monitor'
 import Collect from './pages/Collect'
 import Logs from './pages/Logs'
+import KnowledgeBase from './pages/KnowledgeBase'
 import './App.css'
+
+interface NavGroupProps {
+  name: string
+  open: boolean
+  onToggle: () => void
+  children: React.ReactNode
+}
+
+function NavGroup({ name, open, onToggle, children }: NavGroupProps) {
+  return (
+    <div className={`nav-group ${open ? 'open' : ''}`}>
+      <div className="nav-group-header" onClick={onToggle}>
+        <span className="nav-group-arrow">▶</span>
+        <span>{name}</span>
+      </div>
+      <div className="nav-group-content">
+        {children}
+      </div>
+    </div>
+  )
+}
 
 function Navigation() {
   const { t } = useI18n()
-  
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set(['eventMonitor']))
+
+  const toggleGroup = (key: string) => {
+    setOpenGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
+      return next
+    })
+  }
+
   return (
     <nav className="sidebar">
       <h1>{t('app.title')}</h1>
-      <ul>
-        <li><Link to="/">{t('nav.dashboard')}</Link></li>
-        <li><Link to="/events">{t('nav.events')}</Link></li>
-        <li><Link to="/alerts">{t('nav.alerts')}</Link></li>
-        <li><Link to="/timeline">{t('nav.timeline')}</Link></li>
-        <li><Link to="/collect">{t('nav.collect')}</Link></li>
-        <li><Link to="/analyze">{t('nav.analyze')}</Link></li>
-        <li><Link to="/correlation">{t('nav.correlation')}</Link></li>
-        <li><Link to="/multi">{t('nav.multi')}</Link></li>
-        <li><Link to="/query">{t('nav.query')}</Link></li>
-        <li><Link to="/ueba">{t('nav.ueba')}</Link></li>
-        <li><Link to="/suppress">{t('nav.suppress')}</Link></li>
-        <li><Link to="/live">{t('nav.live')}</Link></li>
-        <li><Link to="/monitor">{t('nav.monitor')}</Link></li>
-        <li><Link to="/persistence">{t('nav.persistence')}</Link></li>
-        <li><Link to="/reports">{t('nav.reports')}</Link></li>
-        <li><Link to="/forensics">{t('nav.forensics')}</Link></li>
-        <li><Link to="/system-info">{t('nav.systemInfo')}</Link></li>
-        <li><Link to="/rules">{t('nav.rules')}</Link></li>
-        <li><Link to="/metrics">{t('nav.metrics')}</Link></li>
-        <li><Link to="/logs">{t('nav.logs')}</Link></li>
-        <li><Link to="/settings">{t('nav.settings')}</Link></li>
-      </ul>
+
+      <div className="nav-link-standalone">
+        <Link to="/">{t('nav.dashboard')}</Link>
+      </div>
+
+      <NavGroup
+        name={t('nav.groups.eventMonitor')}
+        open={openGroups.has('eventMonitor')}
+        onToggle={() => toggleGroup('eventMonitor')}
+      >
+        <Link to="/events">{t('nav.events')}</Link>
+        <Link to="/timeline">{t('nav.timeline')}</Link>
+        <Link to="/live">{t('nav.live')}</Link>
+        <Link to="/monitor">{t('nav.monitor')}</Link>
+      </NavGroup>
+
+      <NavGroup
+        name={t('nav.groups.alertRules')}
+        open={openGroups.has('alertRules')}
+        onToggle={() => toggleGroup('alertRules')}
+      >
+        <Link to="/alerts">{t('nav.alerts')}</Link>
+        <Link to="/suppress">{t('nav.suppress')}</Link>
+        <Link to="/rules">{t('nav.rules')}</Link>
+      </NavGroup>
+
+      <NavGroup
+        name={t('nav.groups.securityAnalysis')}
+        open={openGroups.has('securityAnalysis')}
+        onToggle={() => toggleGroup('securityAnalysis')}
+      >
+        <Link to="/analyze">{t('nav.analyze')}</Link>
+        <Link to="/persistence">{t('nav.persistence')}</Link>
+        <Link to="/correlation">{t('nav.correlation')}</Link>
+        <Link to="/multi">{t('nav.multi')}</Link>
+        <Link to="/ueba">{t('nav.ueba')}</Link>
+      </NavGroup>
+
+      <NavGroup
+        name={t('nav.groups.dataCollection')}
+        open={openGroups.has('dataCollection')}
+        onToggle={() => toggleGroup('dataCollection')}
+      >
+        <Link to="/collect">{t('nav.collect')}</Link>
+        <Link to="/asset-inventory">{t('nav.assetInventory')}</Link>
+        <Link to="/forensics">{t('nav.forensics')}</Link>
+      </NavGroup>
+
+      <NavGroup
+        name={t('nav.groups.systemInfo')}
+        open={openGroups.has('systemInfo')}
+        onToggle={() => toggleGroup('systemInfo')}
+      >
+        <Link to="/query">{t('nav.query')}</Link>
+        <Link to="/metrics">{t('nav.metrics')}</Link>
+        <Link to="/logs">{t('nav.logs')}</Link>
+      </NavGroup>
+
+      <div className="nav-link-standalone">
+        <Link to="/reports">{t('nav.reports')}</Link>
+      </div>
+
+      <div className="nav-divider" />
+
+      <div className="nav-link-standalone">
+        <Link to="/docs" className="nav-docs-link">{t('nav.kb') || '知识库'}</Link>
+      </div>
+
+      <div className="nav-link-standalone">
+        <Link to="/settings">{t('nav.settings')}</Link>
+      </div>
     </nav>
   )
 }
 
 function AppContent() {
+  const [searchOpen, setSearchOpen] = useState(false)
+
   useEffect(() => {
     settingsAPI.get().then(res => {
       const timeout = res.data.request_timeout || 600
@@ -69,6 +155,15 @@ function AppContent() {
     }).catch(() => {
       setRequestTimeout(600)
     })
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault()
+        setSearchOpen(prev => !prev)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
   return (
@@ -95,13 +190,15 @@ function AppContent() {
           <Route path="/persistence" element={<Persistence />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/forensics" element={<Forensics />} />
-          <Route path="/system-info" element={<SystemInfo />} />
+          <Route path="/asset-inventory" element={<AssetInventory />} />
           <Route path="/rules" element={<Rules />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/metrics" element={<Metrics />} />
           <Route path="/logs" element={<Logs />} />
+          <Route path="/docs" element={<KnowledgeBase />} />
         </Routes>
       </main>
+      <GlobalSearch isOpen={searchOpen} onClose={() => setSearchOpen(false)} />
     </>
   )
 }

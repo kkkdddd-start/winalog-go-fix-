@@ -409,7 +409,7 @@ func TestSystemHandler_GetSystemInfo_WithDB(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	handler := NewSystemHandler(db)
+	handler := NewSystemHandler(db, 2048)
 
 	router := gin.New()
 	router.GET("/api/system/info", handler.GetSystemInfo)
@@ -599,7 +599,7 @@ func TestCollectHandler_GetCollectStatus(t *testing.T) {
 	db, cleanup := setupTestDB(t)
 	defer cleanup()
 
-	handler := NewCollectHandler(db, nil)
+	handler := NewCollectHandler(db, nil, nil)
 
 	router := gin.New()
 	router.GET("/api/collect/status", handler.GetCollectStatus)

@@ -5,12 +5,13 @@ package collectors
 import (
 	"context"
 	"encoding/json"
-	"log"
 	"strings"
 
 	"github.com/kkkdddd-start/winalog-go/internal/forensics"
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
 	"github.com/kkkdddd-start/winalog-go/internal/types"
 	"github.com/kkkdddd-start/winalog-go/internal/utils"
+	"go.uber.org/zap"
 )
 
 type DriverInfoCollector struct {
@@ -94,21 +95,25 @@ func ListDrivers() ([]Driver, error) {
 
 	cmd := `Get-WmiObject -Class Win32_SystemDriver | Select-Object Name,DisplayName,Description,PathName,State,StartMode | ForEach-Object { $_ | ConvertTo-Json -Compress }`
 
-	log.Printf("[INFO] ListDrivers: executing WMI query for drivers")
+	observability.Info("ListDrivers: executing WMI query for drivers",
+		zap.String("module", "driver_info"))
 
 	result := utils.RunPowerShell(cmd)
 	if !result.Success() {
-		log.Printf("[ERROR] ListDrivers: PowerShell command failed: %v", result.Error)
+		observability.Error("ListDrivers: PowerShell command failed",
+			zap.String("module", "driver_info"),
+			zap.Error(result.Error))
 		return drivers, result.Error
 	}
 
 	output := strings.TrimSpace(result.Output)
 	if output == "" {
-		log.Printf("[WARN] ListDrivers: empty result from WMI query")
+		observability.Warn("ListDrivers: empty result from WMI query",
+			zap.String("module", "driver_info"))
 		return drivers, nil
 	}
 
-	log.Printf("[DEBUG] ListDrivers: raw output length: %d", len(output))
+	observability.DebugPrintf("[DEBUG] ListDrivers: raw output length: %d", len(output))
 
 	lines := strings.Split(output, "\n")
 	parseCount := 0
@@ -128,7 +133,9 @@ func ListDrivers() ([]Driver, error) {
 		}
 
 		if err := json.Unmarshal([]byte(line), &driverRaw); err != nil {
-			log.Printf("[WARN] ListDrivers: failed to parse driver JSON: %v", err)
+			observability.Warn("ListDrivers: failed to parse driver JSON",
+				zap.String("module", "driver_info"),
+				zap.Error(err))
 			continue
 		}
 
@@ -142,7 +149,9 @@ func ListDrivers() ([]Driver, error) {
 		parseCount++
 	}
 
-	log.Printf("[INFO] ListDrivers: parsed %d drivers", parseCount)
+	observability.Info("ListDrivers: parsed drivers",
+		zap.String("module", "driver_info"),
+		zap.Int("count", parseCount))
 
 	return drivers, nil
 }
@@ -180,35 +189,45 @@ func ListDriversWithSignature() ([]DriverWithSignature, error) {
 		}
 	} | ConvertTo-Json -Depth 3 -Compress`
 
-	log.Printf("[INFO] ListDriversWithSignature: executing combined WMI + signature query")
+	observability.Info("ListDriversWithSignature: executing combined WMI + signature query",
+		zap.String("module", "driver_info"))
 
 	result := utils.RunPowerShell(cmd)
 	if !result.Success() {
-		log.Printf("[ERROR] ListDriversWithSignature: PowerShell command failed: %v", result.Error)
+		observability.Error("ListDriversWithSignature: PowerShell command failed",
+			zap.String("module", "driver_info"),
+			zap.Error(result.Error))
 		return drivers, result.Error
 	}
 
 	output := strings.TrimSpace(result.Output)
 	if output == "" {
-		log.Printf("[WARN] ListDriversWithSignature: empty result")
+		observability.Warn("ListDriversWithSignature: empty result",
+			zap.String("module", "driver_info"))
 		return drivers, nil
 	}
 
 	if strings.HasPrefix(output, "[") {
 		if err := json.Unmarshal([]byte(output), &drivers); err != nil {
-			log.Printf("[WARN] ListDriversWithSignature: failed to parse JSON array: %v", err)
+			observability.Warn("ListDriversWithSignature: failed to parse JSON array",
+				zap.String("module", "driver_info"),
+				zap.Error(err))
 			return drivers, err
 		}
 	} else if strings.HasPrefix(output, "{") {
 		var singleDriver DriverWithSignature
 		if err := json.Unmarshal([]byte(output), &singleDriver); err != nil {
-			log.Printf("[WARN] ListDriversWithSignature: failed to parse single driver: %v", err)
+			observability.Warn("ListDriversWithSignature: failed to parse single driver",
+				zap.String("module", "driver_info"),
+				zap.Error(err))
 			return drivers, err
 		}
 		drivers = append(drivers, singleDriver)
 	}
 
-	log.Printf("[INFO] ListDriversWithSignature: got %d drivers with signature info", len(drivers))
+	observability.Info("ListDriversWithSignature: got drivers with signature info",
+		zap.String("module", "driver_info"),
+		zap.Int("count", len(drivers)))
 	return drivers, nil
 }
 

@@ -4,12 +4,13 @@ package monitor
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/kkkdddd-start/winalog-go/internal/monitor/types"
 	"github.com/kkkdddd-start/winalog-go/internal/observability"
+	"go.uber.org/zap"
 )
 
 type MonitorEngine struct {
@@ -61,48 +62,53 @@ func (e *MonitorEngine) Start(ctx context.Context) error {
 	defer e.mu.Unlock()
 
 	if e.isRunning {
-		log.Printf("[MONITOR] Start called but already running")
+		observability.Debug("Start called but already running", zap.String("module", "monitor"))
 		return nil
 	}
 
-	log.Printf("[MONITOR] Starting monitor engine...")
+	observability.Info("Starting monitor engine...", zap.String("module", "monitor"))
 
 	e.ctx, e.cancel = context.WithCancel(ctx)
 
 	config := e.config.Get()
 	e.startTime = time.Now()
 
-	log.Printf("[MONITOR] Config: ProcessEnabled=%v, NetworkEnabled=%v, PollInterval=%v",
-		config.ProcessEnabled, config.NetworkEnabled, config.PollInterval)
+	observability.Info("Config loaded",
+		zap.String("module", "monitor"),
+		zap.Bool("process_enabled", config.ProcessEnabled),
+		zap.Bool("network_enabled", config.NetworkEnabled),
+		zap.Duration("poll_interval", config.PollInterval))
 
 	var err error
 
 	if config.ProcessEnabled {
-		log.Printf("[MONITOR] Creating process watcher...")
+		observability.Info("Creating process watcher...", zap.String("module", "monitor"))
 		e.processWatch, err = e.createProcessWatcher()
 		if err == nil && e.processWatch != nil {
-			log.Printf("[MONITOR] DEBUG: About to subscribe processWatch to eventCh=%p", e.eventCh)
+			observability.Debug("About to subscribe processWatch to eventCh",
+				zap.String("module", "monitor"),
+				zap.String("eventCh", fmt.Sprintf("%p", e.eventCh)))
 			e.processWatch.Subscribe(e.eventCh)
-			log.Printf("[MONITOR] DEBUG: processWatch subscription completed")
+			observability.Debug("processWatch subscription completed", zap.String("module", "monitor"))
 			if err := e.processWatch.Start(); err != nil {
-				log.Printf("[MONITOR] Process watcher start failed: %v", err)
+				observability.Error("Process watcher start failed", zap.String("module", "monitor"), zap.Error(err))
 			} else {
-				log.Printf("[MONITOR] Process watcher started successfully")
+				observability.Info("Process watcher started successfully", zap.String("module", "monitor"))
 			}
 		} else if err != nil {
-			log.Printf("[MONITOR] Process watcher creation failed: %v", err)
+			observability.Error("Process watcher creation failed", zap.String("module", "monitor"), zap.Error(err))
 		}
 	}
 
 	if config.NetworkEnabled {
-		log.Printf("[MONITOR] Creating network poller...")
+		observability.Info("Creating network poller...", zap.String("module", "monitor"))
 		e.networkPoll = e.createNetworkPoller(config.PollInterval)
 		if e.networkPoll != nil {
 			e.networkPoll.Subscribe(e.eventCh)
 			if err := e.networkPoll.Start(); err != nil {
-				log.Printf("[MONITOR] Network poller start failed: %v", err)
+				observability.Error("Network poller start failed", zap.String("module", "monitor"), zap.Error(err))
 			} else {
-				log.Printf("[MONITOR] Network poller started successfully")
+				observability.Info("Network poller started successfully", zap.String("module", "monitor"))
 			}
 		}
 	}
@@ -134,62 +140,75 @@ func (e *MonitorEngine) Stop() error {
 	e.ctx = nil
 	e.mu.Unlock()
 
-	log.Printf("[MONITOR] Stop called, shutting down...")
+	observability.Info("Stop called, shutting down...", zap.String("module", "monitor"))
 
 	// 1. 通知 goroutine 退出
 	if cancel != nil {
 		cancel()
-		log.Printf("[MONITOR] Cancel function called")
+		observability.Info("Cancel function called", zap.String("module", "monitor"))
 	} else {
-		log.Printf("[MONITOR] WARNING: cancel function is nil")
+		observability.Warn("Cancel function is nil", zap.String("module", "monitor"))
 	}
 
 	// 2. 等待 processEvents 完全退出
-	log.Printf("[MONITOR] Waiting for processEvents goroutine to exit...")
+	observability.Info("Waiting for processEvents goroutine to exit...", zap.String("module", "monitor"))
 	e.wg.Wait()
-	log.Printf("[MONITOR] processEvents goroutine exited")
+	observability.Info("processEvents goroutine exited", zap.String("module", "monitor"))
 
 	// 3. 安全关闭 channel（此时不再有写入者）
 	close(e.eventCh)
-	log.Printf("[MONITOR] Event channel closed")
+	observability.Info("Event channel closed", zap.String("module", "monitor"))
 
 	// 4. 清理子组件
 	if e.processWatch != nil {
-		log.Printf("[MONITOR] Stopping process watcher...")
+		observability.Info("Stopping process watcher...", zap.String("module", "monitor"))
 		e.processWatch.Stop()
 		e.processWatch = nil
-		log.Printf("[MONITOR] Process watcher stopped")
+		observability.Info("Process watcher stopped", zap.String("module", "monitor"))
 	}
 
 	if e.networkPoll != nil {
-		log.Printf("[MONITOR] Stopping network poller...")
+		observability.Info("Stopping network poller...", zap.String("module", "monitor"))
 		e.networkPoll.Stop()
 		e.networkPoll = nil
-		log.Printf("[MONITOR] Network poller stopped")
+		observability.Info("Network poller stopped", zap.String("module", "monitor"))
 	}
 
-	log.Printf("[MONITOR] Stop completed successfully")
+	observability.Info("Stop completed successfully", zap.String("module", "monitor"))
 	return nil
 }
 
 func (e *MonitorEngine) processEvents() {
-	log.Printf("[MONITOR] processEvents goroutine started")
+	observability.Debug("processEvents goroutine started", zap.String("module", "monitor"))
 	eventCount := 0
-	log.Printf("[MONITOR] DEBUG: processEvents starting, eventCh=%p, eventCache=%p", e.eventCh, e.eventCache)
+	observability.Debug("processEvents starting",
+		zap.String("module", "monitor"),
+		zap.String("eventCh", fmt.Sprintf("%p", e.eventCh)),
+		zap.String("eventCache", fmt.Sprintf("%p", e.eventCache)))
 	for {
 		select {
 		case <-e.ctx.Done():
-			log.Printf("[MONITOR] processEvents goroutine stopping, processed %d events", eventCount)
+			observability.Debug("processEvents goroutine stopping",
+				zap.String("module", "monitor"),
+				zap.Int("processed_events", eventCount))
 			return
 		case event, ok := <-e.eventCh:
 			if !ok {
-				log.Printf("[MONITOR] eventCh closed, processed %d events", eventCount)
+				observability.Info("eventCh closed",
+					zap.String("module", "monitor"),
+					zap.Int("processed_events", eventCount))
 				return
 			}
 			eventCount++
-			log.Printf("[MONITOR] DEBUG: Received event #%d: type=%s, channel len=%d", eventCount, event.Type, len(e.eventCh))
+			observability.Debug("Received event",
+				zap.String("module", "monitor"),
+				zap.Int("event_number", eventCount),
+				zap.String("event_type", string(event.Type)),
+				zap.Int("channel_len", len(e.eventCh)))
 			e.eventCache.Add(event)
-			log.Printf("[MONITOR] DEBUG: After Add, cache size=%d", e.eventCache.Size())
+			observability.Debug("After Add",
+				zap.String("module", "monitor"),
+				zap.Int("cache_size", e.eventCache.Size()))
 			e.updateStats(event)
 
 			e.mu.Lock()
@@ -197,7 +216,7 @@ func (e *MonitorEngine) processEvents() {
 				select {
 				case sub <- event:
 				case <-time.After(1 * time.Second):
-					log.Printf("[MONITOR] WARNING: failed to send event to subscriber (timeout)")
+					observability.Warn("Failed to send event to subscriber (timeout)", zap.String("module", "monitor"))
 				}
 			}
 			e.mu.Unlock()
@@ -232,6 +251,8 @@ func (e *MonitorEngine) updateStats(event *types.MonitorEvent) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
+	e.stats.TotalCount++
+
 	switch event.Type {
 	case types.EventTypeProcess:
 		e.stats.ProcessCount++
@@ -252,7 +273,7 @@ func (e *MonitorEngine) updateConfigStats() {
 
 func (e *MonitorEngine) UpdateConfig(req *MonitorConfigRequest) error {
 	if err := e.config.UpdateFromRequest(req); err != nil {
-		log.Printf("[MONITOR] UpdateConfig failed: %v", err)
+		observability.Error("UpdateConfig failed", zap.String("module", "monitor"), zap.Error(err))
 		return err
 	}
 
@@ -267,7 +288,7 @@ func (e *MonitorEngine) UpdateConfig(req *MonitorConfigRequest) error {
 		if e.processWatch != nil {
 			e.processWatch.Subscribe(e.eventCh)
 			if err := e.processWatch.Start(); err != nil {
-				log.Printf("[MONITOR] Process watcher start failed: %v", err)
+				observability.Error("Process watcher start failed", zap.String("module", "monitor"), zap.Error(err))
 			}
 		}
 	} else if !config.ProcessEnabled && e.processWatch != nil {
@@ -280,7 +301,7 @@ func (e *MonitorEngine) UpdateConfig(req *MonitorConfigRequest) error {
 		if e.networkPoll != nil {
 			e.networkPoll.Subscribe(e.eventCh)
 			if err := e.networkPoll.Start(); err != nil {
-				log.Printf("[MONITOR] Network poller start failed: %v", err)
+				observability.Error("Network poller start failed", zap.String("module", "monitor"), zap.Error(err))
 			}
 		}
 	} else if !config.NetworkEnabled && e.networkPoll != nil {
@@ -303,14 +324,21 @@ func (e *MonitorEngine) GetStats() *types.MonitorStats {
 
 func (e *MonitorEngine) GetEvents(filter *EventFilter) ([]*types.MonitorEvent, int64) {
 	events, total := e.eventCache.Get(filter)
-	log.Printf("[MONITOR] GetEvents called: filter=%+v, returning %d events (total=%d), cache_size=%d", filter, len(events), total, e.eventCache.Size())
+	observability.Info("GetEvents called",
+		zap.String("module", "monitor"),
+		zap.Int("returning", len(events)),
+		zap.Int64("total", total),
+		zap.Int("cache_size", e.eventCache.Size()))
 	return events, total
 }
 
 func (e *MonitorEngine) Subscribe(ch chan *types.MonitorEvent) func() {
 	e.mu.Lock()
 	e.subscribers = append(e.subscribers, ch)
-	log.Printf("[MONITOR] DEBUG: Subscribe called, total subscribers=%d, ch=%p", len(e.subscribers), ch)
+	observability.Debug("Subscribe called",
+		zap.String("module", "monitor"),
+		zap.Int("total_subscribers", len(e.subscribers)),
+		zap.String("ch", fmt.Sprintf("%p", ch)))
 	e.mu.Unlock()
 
 	return func() {

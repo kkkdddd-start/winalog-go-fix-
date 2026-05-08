@@ -5,7 +5,6 @@ package api
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -13,6 +12,8 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/kkkdddd-start/winalog-go/internal/monitor"
 	"github.com/kkkdddd-start/winalog-go/internal/monitor/types"
+	"github.com/kkkdddd-start/winalog-go/internal/observability"
+	"go.uber.org/zap"
 )
 
 type MonitorHandler struct {
@@ -30,29 +31,37 @@ type MonitorHandler struct {
 }
 
 func NewMonitorHandler(engine *monitor.MonitorEngine) *MonitorHandler {
-	log.Println("[MONITOR] [INIT] Creating new MonitorHandler")
+	observability.Info("Creating new MonitorHandler", zap.String("module", "handlers_monitor"))
 	handler := &MonitorHandler{
 		engine: engine,
 	}
-	log.Println("[MONITOR] [INIT] MonitorHandler created successfully")
+	observability.Info("MonitorHandler created successfully", zap.String("module", "handlers_monitor"))
 	return handler
 }
 
 func (h *MonitorHandler) GetStats(c *gin.Context) {
 	clientIP := c.ClientIP()
-	log.Printf("[MONITOR] [HTTP] GET /api/monitor/stats - client=%s", clientIP)
+	observability.Info("GET /api/monitor/stats",
+		zap.String("module", "handlers_monitor"),
+		zap.String("client", clientIP))
 
 	if h.engine == nil {
-		log.Printf("[MONITOR] [ERROR] GetStats: engine is nil (not available on this platform)")
+		observability.Error("GetStats: engine is nil (not available on this platform)",
+			zap.String("module", "handlers_monitor"))
 		c.JSON(http.StatusServiceUnavailable, gin.H{"stats": &types.MonitorStats{IsCollecting: false}})
 		return
 	}
 
 	stats := h.engine.GetStats()
 
-	log.Printf("[MONITOR] [HTTP] GET /api/monitor/stats - is_collecting=%v, process_enabled=%v, network_enabled=%v, process_count=%d, network_count=%d, alert_count=%d",
-		stats.IsCollecting, stats.ProcessEnabled, stats.NetworkEnabled,
-		stats.ProcessCount, stats.NetworkCount, stats.AlertCount)
+	observability.Info("GET /api/monitor/stats response",
+		zap.String("module", "handlers_monitor"),
+		zap.Bool("is_collecting", stats.IsCollecting),
+		zap.Bool("process_enabled", stats.ProcessEnabled),
+		zap.Bool("network_enabled", stats.NetworkEnabled),
+		zap.Uint64("process_count", stats.ProcessCount),
+		zap.Uint64("network_count", stats.NetworkCount),
+		zap.Uint64("alert_count", stats.AlertCount))
 
 	c.JSON(http.StatusOK, gin.H{
 		"stats": stats,
@@ -66,11 +75,16 @@ func (h *MonitorHandler) ListEvents(c *gin.Context) {
 	limit := c.DefaultQuery("limit", "50")
 	offset := c.DefaultQuery("offset", "0")
 
-	log.Printf("[MONITOR] [HTTP] GET /api/monitor/events - client=%s, type=%s, severity=%s, limit=%s, offset=%s",
-		clientIP, eventType, severity, limit, offset)
+	observability.Info("GET /api/monitor/events",
+		zap.String("module", "handlers_monitor"),
+		zap.String("client", clientIP),
+		zap.String("type", eventType),
+		zap.String("severity", severity),
+		zap.String("limit", limit),
+		zap.String("offset", offset))
 
 	if h.engine == nil {
-		log.Printf("[MONITOR] [ERROR] ListEvents: engine is nil")
+		observability.Error("ListEvents: engine is nil", zap.String("module", "handlers_monitor"))
 		c.JSON(http.StatusServiceUnavailable, gin.H{
 			"events": []*types.MonitorEvent{},
 			"total":  0,
@@ -118,7 +132,10 @@ func (h *MonitorHandler) ListEvents(c *gin.Context) {
 
 	events, total := h.engine.GetEvents(filter)
 
-	log.Printf("[MONITOR] [HTTP] GET /api/monitor/events - returned %d events, total=%d", len(events), total)
+	observability.Info("GET /api/monitor/events response",
+		zap.String("module", "handlers_monitor"),
+		zap.Int("returned", len(events)),
+		zap.Int64("total", total))
 
 	c.JSON(http.StatusOK, gin.H{
 		"events": events,
@@ -130,32 +147,56 @@ func (h *MonitorHandler) ListEvents(c *gin.Context) {
 
 func (h *MonitorHandler) UpdateConfig(c *gin.Context) {
 	clientIP := c.ClientIP()
-	log.Printf("[MONITOR] [HTTP] POST /api/monitor/config - client=%s", clientIP)
+	observability.Info("POST /api/monitor/config",
+		zap.String("module", "handlers_monitor"),
+		zap.String("client", clientIP))
 
 	if h.engine == nil {
-		log.Printf("[MONITOR] [ERROR] UpdateConfig: engine is nil")
+		observability.Error("UpdateConfig: engine is nil", zap.String("module", "handlers_monitor"))
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Monitor engine not available"})
 		return
 	}
 
 	var req monitor.MonitorConfigRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Printf("[MONITOR] [ERROR] UpdateConfig: invalid request body: %v", err)
+		observability.Error("UpdateConfig: invalid request body",
+			zap.String("module", "handlers_monitor"),
+			zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	log.Printf("[MONITOR] [CONFIG] UpdateConfig: process_enabled=%v, network_enabled=%v, poll_interval=%d",
-		req.ProcessEnabled, req.NetworkEnabled, req.PollInterval)
+	pollInterval := 0
+	if req.PollInterval != nil {
+		pollInterval = *req.PollInterval
+	}
+	processEnabled := false
+	if req.ProcessEnabled != nil {
+		processEnabled = *req.ProcessEnabled
+	}
+	networkEnabled := false
+	if req.NetworkEnabled != nil {
+		networkEnabled = *req.NetworkEnabled
+	}
+
+	observability.Info("UpdateConfig request",
+		zap.String("module", "handlers_monitor"),
+		zap.Bool("process_enabled", processEnabled),
+		zap.Bool("network_enabled", networkEnabled),
+		zap.Int("poll_interval", pollInterval))
 
 	if err := h.engine.UpdateConfig(&req); err != nil {
-		log.Printf("[MONITOR] [ERROR] UpdateConfig failed: %v", err)
+		observability.Error("UpdateConfig failed",
+			zap.String("module", "handlers_monitor"),
+			zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	stats := h.engine.GetStats()
-	log.Printf("[MONITOR] [CONFIG] UpdateConfig succeeded, stats: is_collecting=%v", stats.IsCollecting)
+	observability.Info("UpdateConfig succeeded",
+		zap.String("module", "handlers_monitor"),
+		zap.Bool("is_collecting", stats.IsCollecting))
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Configuration updated successfully",
@@ -165,10 +206,12 @@ func (h *MonitorHandler) UpdateConfig(c *gin.Context) {
 
 func (h *MonitorHandler) StartStop(c *gin.Context) {
 	clientIP := c.ClientIP()
-	log.Printf("[MONITOR] [HTTP] POST /api/monitor/action - client=%s", clientIP)
+	observability.Info("POST /api/monitor/action",
+		zap.String("module", "handlers_monitor"),
+		zap.String("client", clientIP))
 
 	if h.engine == nil {
-		log.Printf("[MONITOR] [ERROR] StartStop: engine is nil")
+		observability.Error("StartStop: engine is nil", zap.String("module", "handlers_monitor"))
 		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Monitor engine not available"})
 		return
 	}
@@ -177,17 +220,21 @@ func (h *MonitorHandler) StartStop(c *gin.Context) {
 		Action string `json:"action"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Printf("[MONITOR] [ERROR] StartStop: invalid request body: %v", err)
+		observability.Error("StartStop: invalid request body",
+			zap.String("module", "handlers_monitor"),
+			zap.Error(err))
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	log.Printf("[MONITOR] [ACTION] StartStop: action=%s", req.Action)
+	observability.Info("StartStop action request",
+		zap.String("module", "handlers_monitor"),
+		zap.String("action", req.Action))
 
 	var err error
 	if req.Action == "start" {
 		if h.engine.IsRunning() {
-			log.Printf("[MONITOR] [ACTION] StartStop: monitor already running")
+			observability.Info("StartStop: monitor already running", zap.String("module", "handlers_monitor"))
 			c.JSON(http.StatusOK, gin.H{
 				"message": "Monitor already running",
 				"stats":   h.engine.GetStats(),
@@ -197,16 +244,18 @@ func (h *MonitorHandler) StartStop(c *gin.Context) {
 		if h.ctx == nil || h.ctx.Err() != nil {
 			h.ctx, h.cancel = context.WithCancel(context.Background())
 		}
-		log.Printf("[MONITOR] [ACTION] Starting monitor engine...")
+		observability.Info("Starting monitor engine...", zap.String("module", "handlers_monitor"))
 		err = h.engine.Start(h.ctx)
 		if err == nil {
-			log.Printf("[MONITOR] [ACTION] Monitor engine started successfully")
+			observability.Info("Monitor engine started successfully", zap.String("module", "handlers_monitor"))
 		} else {
-			log.Printf("[MONITOR] [ERROR] Failed to start monitor engine: %v", err)
+			observability.Error("Failed to start monitor engine",
+				zap.String("module", "handlers_monitor"),
+				zap.Error(err))
 		}
 	} else if req.Action == "stop" {
 		if !h.engine.IsRunning() {
-			log.Printf("[MONITOR] [ACTION] StartStop: monitor already stopped")
+			observability.Info("StartStop: monitor already stopped", zap.String("module", "handlers_monitor"))
 			c.JSON(http.StatusOK, gin.H{
 				"message": "Monitor already stopped",
 				"stats":   h.engine.GetStats(),
@@ -214,25 +263,32 @@ func (h *MonitorHandler) StartStop(c *gin.Context) {
 			return
 		}
 		if h.cancel != nil {
-			log.Printf("[MONITOR] [ACTION] Stopping monitor engine...")
+			observability.Info("Stopping monitor engine...", zap.String("module", "handlers_monitor"))
 			h.cancel()
 		}
 		err = h.engine.Stop()
 		h.ctx = nil
 		h.cancel = nil
 		if err == nil {
-			log.Printf("[MONITOR] [ACTION] Monitor engine stopped successfully")
+			observability.Info("Monitor engine stopped successfully", zap.String("module", "handlers_monitor"))
 		} else {
-			log.Printf("[MONITOR] [ERROR] Failed to stop monitor engine: %v", err)
+			observability.Error("Failed to stop monitor engine",
+				zap.String("module", "handlers_monitor"),
+				zap.Error(err))
 		}
 	} else {
-		log.Printf("[MONITOR] [ERROR] StartStop: invalid action '%s', expected 'start' or 'stop'", req.Action)
+		observability.Error("StartStop: invalid action",
+			zap.String("module", "handlers_monitor"),
+			zap.String("action", req.Action))
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid action. Use 'start' or 'stop'"})
 		return
 	}
 
 	if err != nil {
-		log.Printf("[MONITOR] [ERROR] StartStop action '%s' failed: %v", req.Action, err)
+		observability.Error("StartStop action failed",
+			zap.String("module", "handlers_monitor"),
+			zap.String("action", req.Action),
+			zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -245,7 +301,7 @@ func (h *MonitorHandler) StartStop(c *gin.Context) {
 }
 
 func SetupMonitorRoutes(r *gin.Engine, h *MonitorHandler) {
-	log.Println("[MONITOR] [SETUP] Registering monitor routes...")
+	observability.Info("Registering monitor routes...", zap.String("module", "handlers_monitor"))
 	monitorGroup := r.Group("/api/monitor")
 	{
 		monitorGroup.GET("/stats", h.GetStats)
@@ -253,5 +309,7 @@ func SetupMonitorRoutes(r *gin.Engine, h *MonitorHandler) {
 		monitorGroup.POST("/config", h.UpdateConfig)
 		monitorGroup.POST("/action", h.StartStop)
 	}
-	log.Println("[MONITOR] [SETUP] Monitor routes registered: GET /api/monitor/stats, GET /api/monitor/events, POST /api/monitor/config, POST /api/monitor/action")
+	observability.Info("Monitor routes registered",
+		zap.String("module", "handlers_monitor"),
+		zap.String("routes", "GET /api/monitor/stats, GET /api/monitor/events, POST /api/monitor/config, POST /api/monitor/action"))
 }
