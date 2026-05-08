@@ -547,6 +547,26 @@ function SystemInfo() {
     if (tab === 'software' && enabledModules.software) fetchSoftware()
   }
 
+  const handleRefresh = () => {
+    switch (activeTab) {
+      case 'system': fetchSystemInfo(); break;
+      case 'processes': fetchProcesses(); break;
+      case 'network': fetchNetwork(); break;
+      case 'env': fetchEnvVars(); break;
+      case 'dlls': fetchDlls(); break;
+      case 'drivers': fetchDrivers(); break;
+      case 'users': fetchUsers(); break;
+      case 'registry': fetchRegistry(); break;
+      case 'startup': fetchStartupFolders(); break;
+      case 'tasks': fetchTasks(); break;
+      case 'services': fetchServices(); break;
+      case 'runkeys': fetchRunKeys(); break;
+      case 'userinit': fetchUserInit(); break;
+      case 'patches': fetchPatches(); break;
+      case 'software': fetchSoftware(); break;
+    }
+  }
+
   const formatUptime = (seconds: number) => {
     const days = Math.floor(seconds / 86400)
     const hours = Math.floor((seconds % 86400) / 3600)
@@ -652,7 +672,7 @@ function SystemInfo() {
       <div className="page-header">
         <h2>{t('systemInfo.title')}</h2>
         <div className="header-actions">
-          <button className="btn-refresh" onClick={fetchSystemInfo}>
+          <button className="btn-refresh" onClick={handleRefresh}>
             {t('common.refresh') || '刷新'}
           </button>
           {['processes', 'network', 'dlls', 'drivers', 'users', 'registry', 'tasks', 'env', 'patches', 'software'].includes(activeTab) && (
@@ -1557,12 +1577,6 @@ function SystemInfo() {
 
       {activeTab === 'patches' && (
         <div className="tab-content">
-          <div className="tab-toolbar">
-            <button className="btn-refresh" onClick={fetchPatches}>
-              {t('common.refresh') || '刷新'}
-            </button>
-          </div>
-
           <table className="data-table">
             <thead>
               <tr>
@@ -1600,9 +1614,6 @@ function SystemInfo() {
               value={softwareSearch}
               onChange={(e) => setSoftwareSearch(e.target.value)}
             />
-            <button className="btn-refresh" onClick={fetchSoftware}>
-              {t('common.refresh') || '刷新'}
-            </button>
           </div>
 
           <table className="data-table">

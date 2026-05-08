@@ -1,8 +1,12 @@
 package api
 
 import (
+	"encoding/csv"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -183,8 +187,132 @@ func (h *MultiHandler) GetInfo(c *gin.Context) {
 		"endpoints": []string{
 			"POST /api/multi/analyze",
 			"GET /api/multi/lateral",
+			"GET /api/multi/export",
 		},
 	})
+}
+
+// Export godoc
+// @Summary 导出多机分析结果
+// @Description 将多机分析结果导出为 CSV 或 JSON 格式
+// @Tags multi
+// @Produce json
+// @Param format query string false "导出格式: csv 或 json" default(csv)
+// @Param hours query int false "分析时间范围（小时）" default(24)
+// @Success 200 {string} string "导出的文件"
+// @Failure 500 {object} ErrorResponse
+// @Router /api/multi/export [get]
+func (h *MultiHandler) Export(c *gin.Context) {
+	format := c.DefaultQuery("format", "csv")
+	hoursStr := c.DefaultQuery("hours", "24")
+	hours, _ := strconv.Atoi(hoursStr)
+	if hours <= 0 {
+		hours = 24
+	}
+
+	endTime := time.Now()
+	startTime := endTime.Add(-time.Duration(hours) * time.Hour)
+
+	machines, err := h.getMachineContexts()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	crossMachine, err := h.analyzeCrossMachineActivity(startTime, endTime, 5000)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	lateral, err := h.detectLateralMovement(startTime, endTime, 5000)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	if format == "json" {
+		h.exportJSON(c, machines, crossMachine, lateral)
+	} else {
+		h.exportCSV(c, machines, crossMachine, lateral)
+	}
+}
+
+func (h *MultiHandler) exportJSON(c *gin.Context, machines []MachineInfo, crossMachine []CrossMachineActivity, lateral []LateralMovement) {
+	response := gin.H{
+		"machines":          machines,
+		"cross_machine":     crossMachine,
+		"lateral_movement":  lateral,
+		"export_time":       time.Now().Format(time.RFC3339),
+	}
+
+	data, err := json.MarshalIndent(response, "", "  ")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	filename := fmt.Sprintf("multi_analysis_export_%s.json", time.Now().Format("20060102_150405"))
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	c.Header("Content-Type", "application/json")
+	c.Data(http.StatusOK, "application/json", data)
+}
+
+func (h *MultiHandler) exportCSV(c *gin.Context, machines []MachineInfo, crossMachine []CrossMachineActivity, lateral []LateralMovement) {
+	filename := fmt.Sprintf("multi_analysis_export_%s.csv", time.Now().Format("20060102_150405"))
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+
+	w := csv.NewWriter(c.Writer)
+	defer w.Flush()
+
+	// UTF-8 BOM for Chinese character support in Excel
+	c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
+
+	// Sheet 1: Machines
+	w.Write([]string{"=== Machine Inventory ==="})
+	w.Write([]string{"ID", "Name", "IP", "Domain", "Role", "OS Version", "Last Seen"})
+	for _, m := range machines {
+		w.Write([]string{m.ID, m.Name, m.IP, m.Domain, m.Role, m.OSVersion, m.LastSeen})
+	}
+
+	// Empty row separator
+	w.Write([]string{""})
+
+	// Sheet 2: Cross Machine Activity
+	w.Write([]string{"=== Cross-Machine Activity ==="})
+	w.Write([]string{"User", "Machine Count", "Machines", "Login Count", "Suspicious", "Severity", "Recommendation"})
+	for _, a := range crossMachine {
+		w.Write([]string{
+			a.User,
+			strconv.Itoa(a.MachineCount),
+			strings.Join(a.Machines, "; "),
+			strconv.Itoa(a.LoginCount),
+			strconv.FormatBool(a.Suspicious),
+			a.Severity,
+			a.Recommendation,
+		})
+	}
+
+	// Empty row separator
+	w.Write([]string{""})
+
+	// Sheet 3: Lateral Movement
+	w.Write([]string{"=== Lateral Movement ==="})
+	w.Write([]string{"Source Machine", "Target Machine", "User", "Event ID", "Timestamp", "IP Address", "Severity", "Description", "MITRE ATT&CK"})
+	for _, l := range lateral {
+		w.Write([]string{
+			l.SourceMachine,
+			l.TargetMachine,
+			l.User,
+			strconv.Itoa(l.EventID),
+			l.Timestamp,
+			l.IPAddress,
+			l.Severity,
+			l.Description,
+			strings.Join(l.MITREAttack, "; "),
+		})
+	}
 }
 
 func (h *MultiHandler) getMachineContexts() ([]MachineInfo, error) {
@@ -408,5 +536,6 @@ func SetupMultiRoutes(r *gin.Engine, h *MultiHandler) {
 		multi.GET("", h.GetInfo)
 		multi.POST("/analyze", h.Analyze)
 		multi.GET("/lateral", h.Lateral)
+		multi.GET("/export", h.Export)
 	}
 }

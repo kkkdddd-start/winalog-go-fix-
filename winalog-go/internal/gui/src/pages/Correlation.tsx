@@ -35,6 +35,8 @@ function Correlation() {
   const [error, setError] = useState('')
   const [hasRun, setHasRun] = useState(false)
   const [expandedCard, setExpandedCard] = useState<number | null>(null)
+  const [exporting, setExporting] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
 
   const timeWindows = [
     { value: '1h', label: '1h' },
@@ -63,6 +65,16 @@ function Correlation() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleExport = (format: 'csv' | 'json') => {
+    setExporting(true)
+    setShowExportMenu(false)
+    const tw = useCustomDate && startDate && endDate
+      ? `${new Date(startDate).toISOString()},${new Date(endDate).toISOString()}`
+      : timeWindow
+    window.open(`/api/correlation/export?format=${format}&time_window=${encodeURIComponent(tw)}`, '_blank')
+    setTimeout(() => setExporting(false), 1000)
   }
 
   const getSeverityColor = (severity: string) => {
@@ -209,6 +221,18 @@ function Correlation() {
             </>
           )}
         </button>
+
+        <div className="export-dropdown">
+          <button className="btn-export" onClick={() => setShowExportMenu(!showExportMenu)} disabled={exporting}>
+            {exporting ? '...' : 'Export'}
+          </button>
+          {showExportMenu && (
+            <div className="export-menu">
+              <button onClick={() => handleExport('csv')}>CSV</button>
+              <button onClick={() => handleExport('json')}>JSON</button>
+            </div>
+          )}
+        </div>
       </div>
 
       {error && (

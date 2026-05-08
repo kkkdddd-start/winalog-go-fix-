@@ -2,6 +2,9 @@ package api
 
 import (
 	"context"
+	"encoding/csv"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -153,8 +156,112 @@ func (h *CorrelationHandler) GetInfo(c *gin.Context) {
 		"status":  "operational",
 		"endpoints": []string{
 			"POST /api/correlation/analyze",
+			"GET /api/correlation/export",
 		},
 	})
+}
+
+// Export godoc
+// @Summary 导出关联分析结果
+// @Description 将关联分析结果导出为 CSV 或 JSON 格式
+// @Tags correlation
+// @Produce json
+// @Param format query string false "导出格式: csv 或 json" default(csv)
+// @Param time_window query string false "时间窗口" default(24h)
+// @Success 200 {string} string "导出的文件"
+// @Failure 500 {object} ErrorResponse
+// @Router /api/correlation/export [get]
+func (h *CorrelationHandler) Export(c *gin.Context) {
+	format := c.DefaultQuery("format", "csv")
+	timeWindow := c.DefaultQuery("time_window", "24h")
+
+	startTime := time.Now().Add(-24 * time.Hour)
+	endTime := time.Now()
+
+	if tf, err := types.ParseTimeFilter(timeWindow); err == nil && tf != nil {
+		startTime = tf.Start
+		endTime = tf.End
+	}
+
+	events, _, err := h.db.SearchEvents(&storage.EventFilter{
+		StartTime: &startTime,
+		EndTime:   &endTime,
+		Limit:     100000,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	if len(events) == 0 {
+		c.JSON(http.StatusOK, gin.H{"message": "no events to analyze"})
+		return
+	}
+
+	engine := correlation.NewEngine(0)
+	engine.LoadEvents(events)
+
+	correlationRules := builtin.GetCorrelationRules()
+	results, err := engine.Analyze(context.Background(), correlationRules)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	if format == "json" {
+		h.exportJSON(c, results)
+	} else {
+		h.exportCSV(c, results)
+	}
+}
+
+func (h *CorrelationHandler) exportJSON(c *gin.Context, results []*types.CorrelationResult) {
+	response := make([]CorrelationResponse, 0, len(results))
+	for _, r := range results {
+		response = append(response, CorrelationResponse{
+			RuleName:    r.RuleName,
+			Severity:    string(r.Severity),
+			Events:      len(r.Events),
+			StartTime:   r.StartTime,
+			EndTime:     r.EndTime,
+			Description: r.Description,
+		})
+	}
+
+	data, err := json.MarshalIndent(response, "", "  ")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	filename := fmt.Sprintf("correlation_export_%s.json", time.Now().Format("20060102_150405"))
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	c.Header("Content-Type", "application/json")
+	c.Data(http.StatusOK, "application/json", data)
+}
+
+func (h *CorrelationHandler) exportCSV(c *gin.Context, results []*types.CorrelationResult) {
+	filename := fmt.Sprintf("correlation_export_%s.csv", time.Now().Format("20060102_150405"))
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+
+	w := csv.NewWriter(c.Writer)
+	defer w.Flush()
+
+	// UTF-8 BOM for Chinese character support in Excel
+	c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
+
+	w.Write([]string{"Rule Name", "Severity", "Event Count", "Start Time", "End Time", "Description"})
+	for _, r := range results {
+		w.Write([]string{
+			r.RuleName,
+			string(r.Severity),
+			fmt.Sprintf("%d", len(r.Events)),
+			r.StartTime.Format(time.RFC3339),
+			r.EndTime.Format(time.RFC3339),
+			r.Description,
+		})
+	}
 }
 
 // SetupCorrelationRoutes godoc
@@ -168,5 +275,6 @@ func SetupCorrelationRoutes(r *gin.Engine, h *CorrelationHandler) {
 	{
 		correlationGroup.GET("", h.GetInfo)
 		correlationGroup.POST("/analyze", h.Analyze)
+		correlationGroup.GET("/export", h.Export)
 	}
 }

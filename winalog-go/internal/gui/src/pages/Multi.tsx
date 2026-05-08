@@ -63,6 +63,8 @@ function Multi() {
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [dataLimit, setDataLimit] = useState(5000)
+  const [exporting, setExporting] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
 
   const handleAnalyze = async () => {
     setLoading(true)
@@ -83,6 +85,16 @@ function Multi() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleExport = (format: 'csv' | 'json') => {
+    setExporting(true)
+    setShowExportMenu(false)
+    const h = useCustomDate && startDate && endDate
+      ? Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60))
+      : hours
+    window.open(`/api/multi/export?format=${format}&hours=${h}`, '_blank')
+    setTimeout(() => setExporting(false), 1000)
   }
 
   const getSeverityColor = (severity: string) => {
@@ -236,6 +248,18 @@ function Multi() {
             </>
           )}
         </button>
+
+        <div className="export-dropdown">
+          <button className="btn-export" onClick={() => setShowExportMenu(!showExportMenu)} disabled={exporting}>
+            {exporting ? '...' : 'Export'}
+          </button>
+          {showExportMenu && (
+            <div className="export-menu">
+              <button onClick={() => handleExport('csv')}>CSV</button>
+              <button onClick={() => handleExport('json')}>JSON</button>
+            </div>
+          )}
+        </div>
       </div>
 
       {error && (

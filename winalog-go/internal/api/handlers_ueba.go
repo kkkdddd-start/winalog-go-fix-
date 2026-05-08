@@ -1,6 +1,9 @@
 package api
 
 import (
+	"encoding/csv"
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -179,8 +182,149 @@ func (h *UEBAHandler) GetInfo(c *gin.Context) {
 			"GET /api/ueba/profiles",
 			"GET /api/ueba/baseline",
 			"GET /api/ueba/anomaly/:type",
+			"GET /api/ueba/export",
 		},
 	})
+}
+
+// Export godoc
+// @Summary 导出UEBA分析结果
+// @Description 将UEBA分析结果导出为 CSV 或 JSON 格式
+// @Tags ueba
+// @Produce json
+// @Param format query string false "导出格式: csv 或 json" default(csv)
+// @Param hours query int false "分析时间范围（小时）" default(24)
+// @Success 200 {string} string "导出的文件"
+// @Failure 500 {object} ErrorResponse
+// @Router /api/ueba/export [get]
+func (h *UEBAHandler) Export(c *gin.Context) {
+	format := c.DefaultQuery("format", "csv")
+
+	endTime := time.Now()
+	start := endTime.Add(-24 * time.Hour)
+
+	filter := &storage.EventFilter{
+		StartTime: &start,
+		EndTime:   &endTime,
+		Limit:     50000,
+	}
+
+	events, _, err := h.db.ListEvents(filter)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to fetch events"})
+		return
+	}
+
+	if len(events) < 10 {
+		c.JSON(http.StatusOK, gin.H{"message": "insufficient events for analysis (minimum 10)"})
+		return
+	}
+
+	anomalies := h.engine.DetectAnomalies(events)
+	profiles := h.engine.GetUserActivity()
+
+	if format == "json" {
+		h.exportJSON(c, anomalies, profiles)
+	} else {
+		h.exportCSV(c, anomalies, profiles)
+	}
+}
+
+type uebaExportAnomaly struct {
+	User        string  `json:"user"`
+	Entity      string  `json:"entity"`
+	AnomalyType string  `json:"anomaly_type"`
+	Severity    string  `json:"severity"`
+	Score       float64 `json:"score"`
+	Description string  `json:"description"`
+	StartTime   string  `json:"start_time"`
+	EndTime     string  `json:"end_time"`
+}
+
+func (h *UEBAHandler) exportJSON(c *gin.Context, anomalies []*ueba.AnomalyResult, profiles map[string]*ueba.UserBaseline) {
+	exportAnomalies := make([]uebaExportAnomaly, 0, len(anomalies))
+	for _, a := range anomalies {
+		exportAnomalies = append(exportAnomalies, uebaExportAnomaly{
+			User:        a.User,
+			Entity:      a.Entity,
+			AnomalyType: string(a.Type),
+			Severity:    a.Severity,
+			Score:       a.Score,
+			Description: a.Description,
+			StartTime:   a.StartTime.Format(time.RFC3339),
+			EndTime:     a.EndTime.Format(time.RFC3339),
+		})
+	}
+
+	profileList := make([]map[string]interface{}, 0)
+	for user, baseline := range profiles {
+		profileList = append(profileList, map[string]interface{}{
+			"user":               user,
+			"login_count":        baseline.LoginCount,
+			"avg_events_per_day": baseline.AvgEventsPerDay,
+			"last_updated":       baseline.LastUpdated,
+		})
+	}
+
+	response := gin.H{
+		"anomalies":   exportAnomalies,
+		"baselines":   profileList,
+		"export_time": time.Now().Format(time.RFC3339),
+	}
+
+	data, err := json.MarshalIndent(response, "", "  ")
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+		return
+	}
+
+	filename := fmt.Sprintf("ueba_export_%s.json", time.Now().Format("20060102_150405"))
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	c.Header("Content-Type", "application/json")
+	c.Data(http.StatusOK, "application/json", data)
+}
+
+func (h *UEBAHandler) exportCSV(c *gin.Context, anomalies []*ueba.AnomalyResult, profiles map[string]*ueba.UserBaseline) {
+	filename := fmt.Sprintf("ueba_export_%s.csv", time.Now().Format("20060102_150405"))
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+
+	w := csv.NewWriter(c.Writer)
+	defer w.Flush()
+
+	// UTF-8 BOM for Chinese character support in Excel
+	c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
+
+	// Section 1: Anomalies
+	w.Write([]string{"=== UEBA Anomalies ==="})
+	w.Write([]string{"User", "Entity", "Anomaly Type", "Severity", "Score", "Description", "Start Time", "End Time"})
+	for _, a := range anomalies {
+		w.Write([]string{
+			a.User,
+			a.Entity,
+			string(a.Type),
+			a.Severity,
+			fmt.Sprintf("%.2f", a.Score),
+			a.Description,
+			a.StartTime.Format(time.RFC3339),
+			a.EndTime.Format(time.RFC3339),
+		})
+	}
+
+	// Empty row separator
+	w.Write([]string{""})
+
+	// Section 2: User Baselines
+	w.Write([]string{"=== User Baselines ==="})
+	w.Write([]string{"User", "Login Count", "Avg Events/Day", "Last Updated"})
+	for user, baseline := range profiles {
+		w.Write([]string{
+			user,
+			fmt.Sprintf("%d", baseline.LoginCount),
+			fmt.Sprintf("%.2f", baseline.AvgEventsPerDay),
+			baseline.LastUpdated.Format(time.RFC3339),
+		})
+	}
 }
 
 // GetAnomalyDetails godoc
@@ -356,5 +500,6 @@ func SetupUEBARoutes(r *gin.Engine, uebaHandler *UEBAHandler) {
 		ueba.GET("/baseline", uebaHandler.GetBaseline)
 		ueba.POST("/baseline/learn", uebaHandler.LearnBaseline)
 		ueba.DELETE("/baseline", uebaHandler.ClearBaseline)
+		ueba.GET("/export", uebaHandler.Export)
 	}
 }

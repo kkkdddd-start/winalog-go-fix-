@@ -62,6 +62,8 @@ function UEBA() {
   const [endDate, setEndDate] = useState('')
   const [error, setError] = useState('')
   const [expandedAnomaly, setExpandedAnomaly] = useState<number | null>(null)
+  const [exporting, setExporting] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
 
   const handleAnalyze = async () => {
     setLoading(true)
@@ -81,6 +83,16 @@ function UEBA() {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleExport = (format: 'csv' | 'json') => {
+    setExporting(true)
+    setShowExportMenu(false)
+    const h = useCustomDate && startDate && endDate
+      ? Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60))
+      : hours
+    window.open(`/api/ueba/export?format=${format}&hours=${h}`, '_blank')
+    setTimeout(() => setExporting(false), 1000)
   }
 
   const handleLoadProfiles = async () => {
@@ -242,6 +254,18 @@ function UEBA() {
                 </>
               )}
             </button>
+
+            <div className="export-dropdown">
+              <button className="btn-export" onClick={() => setShowExportMenu(!showExportMenu)} disabled={exporting}>
+                {exporting ? '...' : 'Export'}
+              </button>
+              {showExportMenu && (
+                <div className="export-menu">
+                  <button onClick={() => handleExport('csv')}>CSV</button>
+                  <button onClick={() => handleExport('json')}>JSON</button>
+                </div>
+              )}
+            </div>
           </div>
 
           {error && (
