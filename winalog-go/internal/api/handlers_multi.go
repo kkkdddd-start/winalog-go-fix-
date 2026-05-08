@@ -199,6 +199,7 @@ func (h *MultiHandler) GetInfo(c *gin.Context) {
 // @Produce json
 // @Param format query string false "导出格式: csv 或 json" default(csv)
 // @Param hours query int false "分析时间范围（小时）" default(24)
+// @Param deep query string false "是否包含详细证据链 (true/false)" default(false)
 // @Success 200 {string} string "导出的文件"
 // @Failure 500 {object} ErrorResponse
 // @Router /api/multi/export [get]
@@ -209,6 +210,7 @@ func (h *MultiHandler) Export(c *gin.Context) {
 	if hours <= 0 {
 		hours = 24
 	}
+	deep := c.DefaultQuery("deep", "false")
 
 	endTime := time.Now()
 	startTime := endTime.Add(-time.Duration(hours) * time.Hour)
@@ -232,17 +234,55 @@ func (h *MultiHandler) Export(c *gin.Context) {
 	}
 
 	if format == "json" {
-		h.exportJSON(c, machines, crossMachine, lateral)
+		h.exportJSON(c, machines, crossMachine, lateral, deep == "true")
 	} else {
 		h.exportCSV(c, machines, crossMachine, lateral)
 	}
 }
 
-func (h *MultiHandler) exportJSON(c *gin.Context, machines []MachineInfo, crossMachine []CrossMachineActivity, lateral []LateralMovement) {
+func (h *MultiHandler) exportJSON(c *gin.Context, machines []MachineInfo, crossMachine []CrossMachineActivity, lateral []LateralMovement, deep bool) {
+	if !deep {
+		response := gin.H{
+			"machines":          machines,
+			"cross_machine":     crossMachine,
+			"lateral_movement":  lateral,
+			"export_time":       time.Now().Format(time.RFC3339),
+		}
+
+		data, err := json.MarshalIndent(response, "", "  ")
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+			return
+		}
+
+		filename := fmt.Sprintf("multi_analysis_export_%s.json", time.Now().Format("20060102_150405"))
+		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+		c.Header("Content-Type", "application/json")
+		c.Data(http.StatusOK, "application/json", data)
+		return
+	}
+
+	// Deep Export: Include Evidence details
+	evidence := make(map[string][]interface{})
+	
+	// Collect lateral movement evidence details
+	for _, l := range lateral {
+		key := fmt.Sprintf("lateral_%s_%s", l.SourceMachine, l.TargetMachine)
+		evidence[key] = append(evidence[key], gin.H{
+			"user":       l.User,
+			"event_id":   l.EventID,
+			"timestamp":  l.Timestamp,
+			"ip_address": l.IPAddress,
+			"severity":   l.Severity,
+			"mitre":      l.MITREAttack,
+		})
+	}
+
 	response := gin.H{
 		"machines":          machines,
 		"cross_machine":     crossMachine,
 		"lateral_movement":  lateral,
+		"evidence_details":  evidence,
 		"export_time":       time.Now().Format(time.RFC3339),
 	}
 
@@ -252,7 +292,7 @@ func (h *MultiHandler) exportJSON(c *gin.Context, machines []MachineInfo, crossM
 		return
 	}
 
-	filename := fmt.Sprintf("multi_analysis_export_%s.json", time.Now().Format("20060102_150405"))
+	filename := fmt.Sprintf("multi_analysis_deep_export_%s.json", time.Now().Format("20060102_150405"))
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
 	c.Header("Content-Type", "application/json")
 	c.Data(http.StatusOK, "application/json", data)
@@ -317,10 +357,9 @@ func (h *MultiHandler) exportCSV(c *gin.Context, machines []MachineInfo, crossMa
 
 func (h *MultiHandler) getMachineContexts() ([]MachineInfo, error) {
 	rows, err := h.db.Query(`
-		SELECT machine_id, machine_name, ip_address, domain, role, os_version, last_seen
-		FROM machine_context
+		SELECT id, hostname, ip_address, domain, role, os_version, last_seen
+		FROM machine_assets
 		ORDER BY last_seen DESC
-		LIMIT 100
 	`)
 	if err != nil {
 		return nil, err
@@ -363,6 +402,10 @@ func (h *MultiHandler) analyzeCrossMachineActivity(startTime, endTime time.Time,
 		var computer, user, timestamp, ipAddress, message string
 		var eventID int64
 		if err := rows.Scan(&computer, &user, &eventID, &timestamp, &ipAddress, &message); err != nil {
+			continue
+		}
+
+		if user == "" || computer == "" {
 			continue
 		}
 
@@ -415,6 +458,17 @@ func (h *MultiHandler) analyzeCrossMachineActivity(startTime, endTime time.Time,
 }
 
 func (h *MultiHandler) detectLateralMovement(startTime, endTime time.Time, limit int) ([]LateralMovement, error) {
+	// Build IP to Hostname mapping
+	ipToHostname := make(map[string]string)
+	assets, err := h.getMachineContexts()
+	if err == nil {
+		for _, a := range assets {
+			if a.IP != "" {
+				ipToHostname[a.IP] = a.Name
+			}
+		}
+	}
+
 	rows, err := h.db.Query(`
 		SELECT computer, user, event_id, timestamp, ip_address, message
 		FROM events
@@ -433,6 +487,10 @@ func (h *MultiHandler) detectLateralMovement(startTime, endTime time.Time, limit
 		var computer, user, timestamp, ipAddress, message string
 		var eventID int64
 		if err := rows.Scan(&computer, &user, &eventID, &timestamp, &ipAddress, &message); err != nil {
+			continue
+		}
+
+		if user == "" || computer == "" {
 			continue
 		}
 
@@ -476,7 +534,11 @@ func (h *MultiHandler) detectLateralMovement(startTime, endTime time.Time, limit
 		if severity != "low" || eventID == 4624 {
 			sourceMachine := "unknown"
 			if ipAddress != "" && ipAddress != "127.0.0.1" && ipAddress != "::1" {
-				sourceMachine = ipAddress + " (external)"
+				if host, ok := ipToHostname[ipAddress]; ok {
+					sourceMachine = host
+				} else {
+					sourceMachine = ipAddress
+				}
 			} else if eventID == 4648 {
 				sourceMachine = "remote host (explicit credentials)"
 			}

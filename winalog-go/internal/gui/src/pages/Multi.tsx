@@ -1,7 +1,10 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useI18n } from '../locales/I18n'
 import { multiAPI } from '../api'
+import { DataSet } from 'vis-data/peer'
+import { Network } from 'vis-network/peer'
+import { QuestionCircleOutlined } from '@ant-design/icons'
 
 interface MachineInfo {
   id: string
@@ -54,6 +57,9 @@ const severityColors: Record<string, string> = {
 function Multi() {
   const { t } = useI18n()
   const navigate = useNavigate()
+  const networkRef = useRef<HTMLDivElement | null>(null)
+  const networkInstance = useRef<Network | null>(null)
+  
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<MultiAnalyzeResponse | null>(null)
   const [error, setError] = useState('')
@@ -65,6 +71,7 @@ function Multi() {
   const [dataLimit, setDataLimit] = useState(5000)
   const [exporting, setExporting] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const [showGuide, setShowGuide] = useState(true)
 
   const handleAnalyze = async () => {
     setLoading(true)
@@ -111,33 +118,92 @@ function Multi() {
     return labels[severity.toLowerCase()] || severity
   }
 
-  const machineGraph = useMemo(() => {
+  const getRoleIcon = (role: string) => {
+    if (role?.includes('DC') || role?.includes('Domain')) return '🌐'
+    if (role?.includes('Server')) return '🖥️'
+    if (role?.includes('Workstation')) return '💻'
+    return '🖥️'
+  }
+
+  const graphData = useMemo(() => {
     if (!result || result.machines.length === 0) return { nodes: [], edges: [] }
     
     const nodes = result.machines.map(m => ({
       id: m.id,
-      name: m.name,
-      ip: m.ip,
-      role: m.role,
-      suspicious: result.lateral_movement.some(lm => lm.source_machine === m.name || lm.target_machine === m.name),
+      label: m.name,
+      title: `${m.name}\nIP: ${m.ip || 'N/A'}\nRole: ${m.role || 'Unknown'}`,
+      group: m.role?.toLowerCase() || 'unknown',
+      shape: 'dot',
+      size: 25,
+      font: { color: '#ffffff', size: 14 },
     }))
 
-    const edges: { from: string, to: string, user: string, severity: string }[] = []
-    result.lateral_movement.forEach(lm => {
-      const sourceNode = nodes.find(n => n.name === lm.source_machine)
-      const targetNode = nodes.find(n => n.name === lm.target_machine)
-      if (sourceNode && targetNode) {
-        edges.push({
-          from: sourceNode.id,
-          to: targetNode.id,
-          user: lm.user,
-          severity: lm.severity,
-        })
+    const edges = result.lateral_movement.map((lm, i) => {
+      const sourceNode = nodes.find(n => n.label === lm.source_machine)
+      const targetNode = nodes.find(n => n.label === lm.target_machine)
+      return {
+        id: `edge-${i}`,
+        from: sourceNode?.id || lm.source_machine,
+        to: targetNode?.id || lm.target_machine,
+        label: lm.severity.toUpperCase(),
+        color: { color: getSeverityColor(lm.severity) },
+        width: 2,
+        arrows: 'to',
+        title: `User: ${lm.user}\nEvent: ${lm.event_id}\n${lm.description}`,
       }
     })
 
     return { nodes, edges }
   }, [result])
+
+  // Initialize vis-network when result changes
+  useEffect(() => {
+    if (!networkRef.current || !result || graphData.nodes.length === 0) return
+
+    // Destroy previous instance if exists
+    if (networkInstance.current) {
+      networkInstance.current.destroy()
+    }
+
+    const nodes = new DataSet(graphData.nodes)
+    const edges = new DataSet(graphData.edges)
+
+    const options = {
+      physics: {
+        enabled: true,
+        barnesHut: {
+          gravitationalConstant: -2000,
+          centralGravity: 0.3,
+          springLength: 150,
+          springConstant: 0.04,
+          damping: 0.09,
+        },
+        stabilization: { iterations: 100 },
+      },
+      groups: {
+        dc: { color: { background: '#ef4444', border: '#b91c1c' }, shape: 'hexagon', size: 35 },
+        server: { color: { background: '#f59e0b', border: '#b45309' }, shape: 'diamond', size: 30 },
+        workstation: { color: { background: '#3b82f6', border: '#1d4ed8' }, shape: 'dot', size: 25 },
+        unknown: { color: { background: '#6b7280', border: '#374151' }, shape: 'dot', size: 20 },
+      },
+      interaction: { hover: true, tooltipDelay: 100 },
+      layout: { improvedLayout: true },
+    }
+
+    networkInstance.current = new Network(networkRef.current, { nodes, edges }, options)
+    
+    // Double click event
+    networkInstance.current.on('doubleClick', (params: any) => {
+      if (params.nodes.length > 0) {
+        const nodeId = params.nodes[0]
+        const node = nodes.get(nodeId) as any
+        if (node) {
+          alert(`Machine Details:\nName: ${node.label}\nGroup: ${node.group}`)
+        }
+      }
+    })
+
+  }, [result, graphData])
 
   const formatTime = (timeStr: string) => {
     try {
@@ -147,19 +213,69 @@ function Multi() {
     }
   }
 
-  const getRoleIcon = (role: string) => {
-    if (role.includes('DC') || role.includes('Domain')) return '🌐'
-    if (role.includes('Server')) return '🖥️'
-    if (role.includes('Workstation')) return '💻'
-    return '🖥️'
-  }
-
   return (
     <div className="multi-page">
       <div className="page-header">
         <h2>{t('multi.title')}</h2>
         <p className="page-desc">{t('multi.pageDesc')}</p>
+        <button className="guide-toggle-btn" onClick={() => setShowGuide(!showGuide)}>
+          <QuestionCircleOutlined /> {showGuide ? '收起使用说明' : '使用说明'}
+        </button>
       </div>
+
+      {showGuide && (
+        <div className="guide-panel">
+          <div className="guide-header">
+            <QuestionCircleOutlined className="guide-icon" />
+            <h3>如何使用多机分析</h3>
+          </div>
+          <div className="guide-body">
+            <p className="guide-intro">多机分析模块用于检测跨多台机器的可疑用户活动、横向移动行为和机器之间的异常关联。它从日志中提取主机名、IP 和用户登录信息，构建机器拓扑图并识别攻击链路。</p>
+            <div className="guide-steps">
+              <div className="guide-step">
+                <div className="step-number">1</div>
+                <div className="step-content">
+                  <h4>准备数据</h4>
+                  <p>确保已通过 <a onClick={() => navigate('/collect')}>日志采集</a> 导入多台机器的 Windows 事件日志。至少需要包含 4624 (登录成功) 事件。</p>
+                </div>
+              </div>
+              <div className="guide-step">
+                <div className="step-number">2</div>
+                <div className="step-content">
+                  <h4>配置分析参数</h4>
+                  <p>选择时间窗口（默认 24 小时），或切换到"自定义日期"指定精确范围。数据限制控制最大处理事件数（默认 5000）。</p>
+                </div>
+              </div>
+              <div className="guide-step">
+                <div className="step-number">3</div>
+                <div className="step-content">
+                  <h4>运行分析</h4>
+                  <p>点击"运行分析"按钮。引擎将执行：机器发现 → 跨机活动检测 → 横向移动识别。</p>
+                </div>
+              </div>
+              <div className="guide-step">
+                <div className="step-number">4</div>
+                <div className="step-content">
+                  <h4>查看结果</h4>
+                  <p>三个标签页分别展示：机器概览（含拓扑图）→ 跨机活动（用户登录多台机器的异常行为）→ 横向移动（具体的机器间跳跃事件）。</p>
+                </div>
+              </div>
+            </div>
+            <div className="guide-tips">
+              <h4>💡 提示</h4>
+              <ul>
+                <li>建议在 <a onClick={() => navigate('/assets')}>机器资产</a> 页面提前录入机器信息（角色、IP 等），可提升拓扑图准确度</li>
+                <li>横向移动检测依赖 4624 事件中的 IpAddress 字段，确保日志包含此信息</li>
+                <li>发现可疑活动时，点击拓扑图中的节点可查看机器详情</li>
+                <li>分析结果可导出为 CSV 或 JSON 格式供进一步分析</li>
+              </ul>
+            </div>
+          </div>
+          <button className="guide-close" onClick={() => setShowGuide(false)}>
+            我知道了
+          </button>
+        </div>
+      )}
 
       <div className="multi-toolbar">
         <div className="toolbar-row">
@@ -328,37 +444,14 @@ function Multi() {
                 </div>
               ) : (
                 <>
-                  <div className="machine-graph">
+                  <div className="machine-graph-container">
                     <h4>🏢 {t('multi.machineRelationship')}</h4>
-                    <div className="graph-container">
-                      <div className="graph-nodes">
-                        {machineGraph.nodes.map((node, index) => {
-                          const suspicious = result.lateral_movement.some(
-                            lm => lm.source_machine === node.name || lm.target_machine === node.name
-                          )
-                          return (
-                            <div 
-                              key={node.id} 
-                              className={`graph-node ${suspicious ? 'suspicious' : ''}`}
-                              style={{
-                                top: `${20 + (index % 3) * 25}%`,
-                                left: `${20 + (index % 4) * 20}%`,
-                              }}
-                            >
-                              <span className="node-icon">{getRoleIcon(node.role)}</span>
-                              <span className="node-name">{node.name}</span>
-                              <span className="node-ip">{node.ip || 'N/A'}</span>
-                              {suspicious && <span className="node-alert">⚠️</span>}
-                            </div>
-                          )
-                        })}
-                      </div>
-                      <div className="graph-legend">
-                        <span className="legend-item">🖥️ {t('multi.server')}</span>
-                        <span className="legend-item">🌐 {t('multi.dc')}</span>
-                        <span className="legend-item">💻 {t('multi.workstation')}</span>
-                        <span className="legend-item suspicious">⚠️ {t('multi.involvedInLateral')}</span>
-                      </div>
+                    <div ref={networkRef} className="vis-network-graph" style={{ height: '600px', border: '1px solid #333', borderRadius: '8px' }}></div>
+                    <div className="graph-legend">
+                      <span className="legend-item">🌐 DC / 域控</span>
+                      <span className="legend-item">🖥️ Server / 服务器</span>
+                      <span className="legend-item">💻 Workstation / 工作站</span>
+                      <span className="legend-item">⚠️ 可疑关联</span>
                     </div>
                   </div>
 

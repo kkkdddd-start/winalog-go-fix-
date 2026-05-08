@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useI18n } from '../locales/I18n'
 import { uebaAPI } from '../api'
+import { QuestionCircleOutlined } from '@ant-design/icons'
 
 interface AnomalyResult {
   type: string
@@ -64,6 +65,7 @@ function UEBA() {
   const [expandedAnomaly, setExpandedAnomaly] = useState<number | null>(null)
   const [exporting, setExporting] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const [showGuide, setShowGuide] = useState(true)
 
   const handleAnalyze = async () => {
     setLoading(true)
@@ -102,10 +104,14 @@ function UEBA() {
       const res = await uebaAPI.profiles()
       const data = res.data
       const profilesData = data.profiles || []
-      const profilesWithRisk = profilesData.map((p: UserProfile) => ({
-        ...p,
-        risk_score: Math.random() * 100,
-      }))
+      const profilesWithRisk = profilesData.map((p: UserProfile) => {
+        let risk = 0
+        if (p.login_count > 1000) risk += 20
+        if (p.avg_events_per_day > 500) risk += 30
+        if (new Date(p.last_updated).getTime() < Date.now() - 7 * 24 * 3600000) risk += 10
+        risk += Math.min(40, p.login_count / 100)
+        return { ...p, risk_score: Math.min(100, risk) }
+      })
       setProfiles(profilesWithRisk)
     } catch (err: any) {
       setError(err.message || 'Failed to load profiles')
@@ -167,7 +173,64 @@ function UEBA() {
       <div className="page-header">
         <h2>{t('ueba.title')}</h2>
         <p className="page-desc">{t('ueba.pageDesc')}</p>
+        <button className="guide-toggle-btn" onClick={() => setShowGuide(!showGuide)}>
+          <QuestionCircleOutlined /> {showGuide ? '收起使用说明' : '使用说明'}
+        </button>
       </div>
+
+      {showGuide && (
+        <div className="guide-panel">
+          <div className="guide-header">
+            <QuestionCircleOutlined className="guide-icon" />
+            <h3>如何使用 UEBA 分析</h3>
+          </div>
+          <div className="guide-body">
+            <p className="guide-intro">UEBA（用户与实体行为分析）模块通过建立用户行为基线，自动检测偏离正常模式的可疑活动，如不可能旅行、异常时段登录、暴力破解和数据外泄等。</p>
+            <div className="guide-steps">
+              <div className="guide-step">
+                <div className="step-number">1</div>
+                <div className="step-content">
+                  <h4>导入日志数据</h4>
+                  <p>先在 <a onClick={() => navigate('/collect')}>日志采集</a> 页面导入 Windows 安全日志，确保包含 4624/4625（登录成功/失败）等认证事件。</p>
+                </div>
+              </div>
+              <div className="guide-step">
+                <div className="step-number">2</div>
+                <div className="step-content">
+                  <h4>选择分析时间</h4>
+                  <p>选择时间窗口（默认 24 小时）。短时间窗口适合检测突发攻击，长时间窗口适合发现持续性异常行为。</p>
+                </div>
+              </div>
+              <div className="guide-step">
+                <div className="step-number">3</div>
+                <div className="step-content">
+                  <h4>运行分析</h4>
+                  <p>点击"运行分析"按钮。引擎将建立用户行为基线并检测异常，输出异常类型、严重级别和风险评分。</p>
+                </div>
+              </div>
+              <div className="guide-step">
+                <div className="step-number">4</div>
+                <div className="step-content">
+                  <h4>深入调查</h4>
+                  <p>点击异常条目展开详细信息，查看关联事件 ID。可跳转到事件列表或时间线进行深度分析。切换到"用户档案"标签查看各用户的基线行为和风险评分。</p>
+                </div>
+              </div>
+            </div>
+            <div className="guide-tips">
+              <h4>💡 提示</h4>
+              <ul>
+                <li>UEBA 需要足够的历史数据来建立准确的基线，建议至少分析 7 天以上的日志</li>
+                <li>"不可能旅行"检测需要日志中包含来源 IP 信息（4624 事件的 IpAddress 字段）</li>
+                <li>用户档案标签页显示每个用户的登录频率、日均事件数和风险评分</li>
+                <li>Critical 和 High 级别的异常需要优先调查</li>
+              </ul>
+            </div>
+          </div>
+          <button className="guide-close" onClick={() => setShowGuide(false)}>
+            我知道了
+          </button>
+        </div>
+      )}
 
       <div className="tabs">
         <button

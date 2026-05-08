@@ -28,6 +28,7 @@ import Monitor from './pages/Monitor'
 import Collect from './pages/Collect'
 import Logs from './pages/Logs'
 import KnowledgeBase from './pages/KnowledgeBase'
+import MachineAssets from './pages/MachineAssets'
 import './App.css'
 
 interface NavGroupProps {
@@ -114,6 +115,7 @@ function Navigation() {
         onToggle={() => toggleGroup('dataCollection')}
       >
         <Link to="/collect">{t('nav.collect')}</Link>
+        <Link to="/assets">机器资产</Link>
         <Link to="/asset-inventory">{t('nav.assetInventory')}</Link>
         <Link to="/forensics">{t('nav.forensics')}</Link>
       </NavGroup>
@@ -191,6 +193,7 @@ function AppContent() {
           <Route path="/reports" element={<Reports />} />
           <Route path="/forensics" element={<Forensics />} />
           <Route path="/asset-inventory" element={<AssetInventory />} />
+          <Route path="/assets" element={<MachineAssets />} />
           <Route path="/rules" element={<Rules />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/metrics" element={<Metrics />} />

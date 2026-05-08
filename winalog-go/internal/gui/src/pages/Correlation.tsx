@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useI18n } from '../locales/I18n'
 import { correlationAPI, CorrelationResult } from '../api'
+import { QuestionCircleOutlined } from '@ant-design/icons'
 
 const severityColors: Record<string, string> = {
   critical: '#dc2626',
@@ -37,6 +38,7 @@ function Correlation() {
   const [expandedCard, setExpandedCard] = useState<number | null>(null)
   const [exporting, setExporting] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const [showGuide, setShowGuide] = useState(true)
 
   const timeWindows = [
     { value: '1h', label: '1h' },
@@ -155,7 +157,64 @@ function Correlation() {
       <div className="page-header">
         <h2>{t('correlation.title')}</h2>
         <p className="page-desc">{t('correlation.pageDesc')}</p>
+        <button className="guide-toggle-btn" onClick={() => setShowGuide(!showGuide)}>
+          <QuestionCircleOutlined /> {showGuide ? '收起使用说明' : '使用说明'}
+        </button>
       </div>
+
+      {showGuide && (
+        <div className="guide-panel">
+          <div className="guide-header">
+            <QuestionCircleOutlined className="guide-icon" />
+            <h3>如何使用关联分析</h3>
+          </div>
+          <div className="guide-body">
+            <p className="guide-intro">关联分析引擎会扫描已导入的日志事件，自动匹配预定义的 ATT&amp;CK 攻击模式规则，识别跨多个事件 ID 的复杂攻击链。</p>
+            <div className="guide-steps">
+              <div className="guide-step">
+                <div className="step-number">1</div>
+                <div className="step-content">
+                  <h4>导入日志</h4>
+                  <p>先在 <a onClick={() => navigate('/collect')}>日志采集</a> 页面导入 Windows 事件日志 (.evtx/.etl)，确保数据库中有事件数据。</p>
+                </div>
+              </div>
+              <div className="guide-step">
+                <div className="step-number">2</div>
+                <div className="step-content">
+                  <h4>选择时间窗口</h4>
+                  <p>选择要分析的时间范围（默认 24 小时），或切换到"自定义"指定精确的起止时间。</p>
+                </div>
+              </div>
+              <div className="guide-step">
+                <div className="step-number">3</div>
+                <div className="step-content">
+                  <h4>运行分析</h4>
+                  <p>点击"运行分析"按钮，引擎将匹配所有关联规则并返回结果。分析结果会按严重级别排序。</p>
+                </div>
+              </div>
+              <div className="guide-step">
+                <div className="step-number">4</div>
+                <div className="step-content">
+                  <h4>查看结果</h4>
+                  <p>点击结果卡片展开详细信息，查看攻击模式、时间线和受影响的事件数量。可跳转到时间线或告警页面深入分析。</p>
+                </div>
+              </div>
+            </div>
+            <div className="guide-tips">
+              <h4>💡 提示</h4>
+              <ul>
+                <li>关联分析依赖已导入的日志数据，空数据库不会产生结果</li>
+                <li>建议从短时间窗口（1h-24h）开始，逐步扩大范围</li>
+                <li>Critical 和 High 级别结果需要优先处理</li>
+                <li>分析结果可导出为 CSV 或 JSON 格式</li>
+              </ul>
+            </div>
+          </div>
+          <button className="guide-close" onClick={() => setShowGuide(false)}>
+            我知道了
+          </button>
+        </div>
+      )}
 
       <div className="correlation-toolbar">
         <div className="toolbar-section">

@@ -318,6 +318,34 @@ CREATE TABLE IF NOT EXISTS rule_states (
 	updated_at TEXT NOT NULL
 );
 
+-- UEBA baselines table (persistence for learned behavior)
+CREATE TABLE IF NOT EXISTS ueba_baselines (
+	user TEXT PRIMARY KEY,
+	baseline_json TEXT NOT NULL,
+	schema_version INTEGER DEFAULT 1,
+	events_count INTEGER DEFAULT 0,
+	learned_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Machine assets table (Hybrid asset management)
+CREATE TABLE IF NOT EXISTS machine_assets (
+	id TEXT PRIMARY KEY,            -- UUID
+	hostname TEXT NOT NULL,
+	domain TEXT DEFAULT '',
+	ip_address TEXT,
+	role TEXT DEFAULT 'workstation', -- dc, server, workstation, unknown
+	os_version TEXT,
+	importance TEXT DEFAULT 'medium', -- high, medium, low
+	source TEXT DEFAULT 'manual',   -- manual, log_discovery
+	last_seen DATETIME,
+	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+	UNIQUE(hostname, domain)        -- Composite unique key
+);
+
+CREATE INDEX IF NOT EXISTS idx_machine_assets_role ON machine_assets(role);
+CREATE INDEX IF NOT EXISTS idx_machine_assets_importance ON machine_assets(importance);
+
 -- Indexes for events table
 CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp);
 CREATE INDEX IF NOT EXISTS idx_events_event_id ON events(event_id);

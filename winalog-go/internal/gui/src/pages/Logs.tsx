@@ -13,6 +13,7 @@ function Logs() {
   const [error, setError] = useState<string | null>(null)
   const [filterType, setFilterType] = useState<string>('all')
   const [keyword, setKeyword] = useState<string>('')
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(null)
 
   useEffect(() => {
     fetchLogFiles()
@@ -298,7 +299,11 @@ function Logs() {
                         <span className="log-badge general">{log.category || 'general'}</span>
                       )}
                     </td>
-                    <td className="log-message">
+                    <td 
+                      className={`log-message ${expandedIdx === idx ? 'expanded' : ''}`}
+                      onClick={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
+                      title={log.message}
+                    >
                       {log.message}
                     </td>
                     <td className="log-details">
@@ -563,8 +568,10 @@ function Logs() {
         
         .logs-table {
           width: 100%;
+          min-width: 800px;
           border-collapse: collapse;
           font-size: 13px;
+          table-layout: fixed;
         }
         
         .logs-table th {
@@ -594,9 +601,25 @@ function Logs() {
           width: 80px;
         }
         
+        .log-category {
+          width: 120px;
+        }
+        
         .log-message {
           color: #e0e0e0;
           font-family: monospace;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          cursor: pointer;
+        }
+        
+        .log-message:hover {
+          color: #fff;
+        }
+        
+        .log-message.expanded {
+          white-space: normal;
           word-break: break-word;
         }
         
@@ -604,6 +627,7 @@ function Logs() {
           color: #888;
           font-size: 12px;
           font-family: monospace;
+          width: 250px;
         }
         
         .log-badge {

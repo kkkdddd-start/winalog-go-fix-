@@ -168,12 +168,14 @@ func (h *CorrelationHandler) GetInfo(c *gin.Context) {
 // @Produce json
 // @Param format query string false "导出格式: csv 或 json" default(csv)
 // @Param time_window query string false "时间窗口" default(24h)
+// @Param deep query string false "是否包含详细证据链 (true/false)" default(false)
 // @Success 200 {string} string "导出的文件"
 // @Failure 500 {object} ErrorResponse
 // @Router /api/correlation/export [get]
 func (h *CorrelationHandler) Export(c *gin.Context) {
 	format := c.DefaultQuery("format", "csv")
 	timeWindow := c.DefaultQuery("time_window", "24h")
+	deep := c.DefaultQuery("deep", "false")
 
 	startTime := time.Now().Add(-24 * time.Hour)
 	endTime := time.Now()
@@ -209,16 +211,45 @@ func (h *CorrelationHandler) Export(c *gin.Context) {
 	}
 
 	if format == "json" {
-		h.exportJSON(c, results)
+		h.exportJSON(c, results, deep == "true")
 	} else {
 		h.exportCSV(c, results)
 	}
 }
 
-func (h *CorrelationHandler) exportJSON(c *gin.Context, results []*types.CorrelationResult) {
-	response := make([]CorrelationResponse, 0, len(results))
-	for _, r := range results {
-		response = append(response, CorrelationResponse{
+// CorrelationDeepExport represents the deep export structure
+type CorrelationDeepExport struct {
+	Summary   []CorrelationResponse      `json:"summary"`
+	Evidence  map[string][]types.Event   `json:"evidence"`
+	Timestamp string                     `json:"export_time"`
+}
+
+func (h *CorrelationHandler) exportJSON(c *gin.Context, results []*types.CorrelationResult, deep bool) {
+	summary := make([]CorrelationResponse, 0, len(results))
+	
+	if !deep {
+		for _, r := range results {
+			summary = append(summary, CorrelationResponse{
+				RuleName:    r.RuleName,
+				Severity:    string(r.Severity),
+				Events:      len(r.Events),
+				StartTime:   r.StartTime,
+				EndTime:     r.EndTime,
+				Description: r.Description,
+			})
+		}
+		data, _ := json.MarshalIndent(summary, "", "  ")
+		filename := fmt.Sprintf("correlation_summary_%s.json", time.Now().Format("20060102_150405"))
+		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+		c.Header("Content-Type", "application/json")
+		c.Data(http.StatusOK, "application/json", data)
+		return
+	}
+
+	// Deep Export
+	evidenceMap := make(map[string][]types.Event)
+	for i, r := range results {
+		summary = append(summary, CorrelationResponse{
 			RuleName:    r.RuleName,
 			Severity:    string(r.Severity),
 			Events:      len(r.Events),
@@ -226,15 +257,29 @@ func (h *CorrelationHandler) exportJSON(c *gin.Context, results []*types.Correla
 			EndTime:     r.EndTime,
 			Description: r.Description,
 		})
+		
+		// Map events by EventID for easier lookup
+		var evts []types.Event
+		for _, e := range r.Events {
+			evts = append(evts, *e)
+		}
+		key := fmt.Sprintf("%s_%d", r.RuleName, i)
+		evidenceMap[key] = evts
 	}
 
-	data, err := json.MarshalIndent(response, "", "  ")
+	deepExport := CorrelationDeepExport{
+		Summary:   summary,
+		Evidence:  evidenceMap,
+		Timestamp: time.Now().Format(time.RFC3339),
+	}
+
+	data, err := json.MarshalIndent(deepExport, "", "  ")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
 		return
 	}
 
-	filename := fmt.Sprintf("correlation_export_%s.json", time.Now().Format("20060102_150405"))
+	filename := fmt.Sprintf("correlation_deep_export_%s.json", time.Now().Format("20060102_150405"))
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
 	c.Header("Content-Type", "application/json")
 	c.Data(http.StatusOK, "application/json", data)

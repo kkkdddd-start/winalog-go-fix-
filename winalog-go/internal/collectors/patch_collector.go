@@ -67,7 +67,9 @@ func (c *PatchCollector) collectPatches() ([]*types.PatchInfo, error) {
 func (c *PatchCollector) collectViaPowerShell() ([]*types.PatchInfo, error) {
 	script := `$ErrorActionPreference = 'SilentlyContinue'
 Get-CimInstance -ClassName Win32_QuickFixEngineering |
-    Select-Object HotFixID, Description, InstalledOn, InstalledBy |
+    Select-Object HotFixID, Description, 
+        @{Name='InstalledOn';Expression={if ($_.InstalledOn) { $_.InstalledOn.ToString('yyyy-MM-dd') } else { '' }}},
+        InstalledBy |
     ConvertTo-Json -Compress`
 
 	result := utils.RunPowerShellWithTimeout(script, 30*time.Second)
@@ -92,17 +94,10 @@ Get-CimInstance -ClassName Win32_QuickFixEngineering |
 
 	var patches []*types.PatchInfo
 	for _, item := range psItems {
-		installedOn := item.InstalledOn
-		if t, err := time.Parse("1/2/2006 3:04:05 PM", installedOn); err == nil {
-			installedOn = t.Format("2006-01-02")
-		} else if t, err := time.Parse("2006/1/2", installedOn); err == nil {
-			installedOn = t.Format("2006-01-02")
-		}
-
 		patches = append(patches, &types.PatchInfo{
 			KBID:        item.HotFixID,
 			Description: item.Description,
-			InstalledOn: installedOn,
+			InstalledOn: item.InstalledOn,
 			InstalledBy: item.InstalledBy,
 		})
 	}

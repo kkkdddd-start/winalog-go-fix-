@@ -87,6 +87,7 @@ func (e *Engine) detectImpossibleTravel(events []*types.Event) []*AnomalyResult 
 			IP:       ip,
 			Computer: event.Computer,
 			Time:     event.Timestamp,
+			EventID:  event.ID,
 		}
 		userLocations[user] = append(userLocations[user], loc)
 	}
@@ -119,7 +120,7 @@ func (e *Engine) detectImpossibleTravel(events []*types.Event) []*AnomalyResult 
 						"time_diff_hrs": timeDiff,
 						"distance_km":   distance,
 					},
-					EventIDs: []int64{int64(prev.Time.Unix()), int64(curr.Time.Unix())},
+					EventIDs: []int64{prev.EventID, curr.EventID},
 				})
 			}
 		}

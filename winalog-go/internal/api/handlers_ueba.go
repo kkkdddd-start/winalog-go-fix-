@@ -46,6 +46,12 @@ func NewUEBAHandler(db *storage.DB) *UEBAHandler {
 		MinEventsForBaseline: 10,
 	})
 
+	// Load existing baselines from database on startup
+	if err := engine.LoadBaselines(db); err != nil {
+		// Log error but don't fail startup; baselines will be rebuilt
+		fmt.Printf("Warning: Failed to load UEBA baselines: %v\n", err)
+	}
+
 	return &UEBAHandler{
 		db:     db,
 		engine: engine,
@@ -438,6 +444,12 @@ func (h *UEBAHandler) LearnBaseline(c *gin.Context) {
 	if err := h.engine.Learn(events); err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: "failed to learn baseline"})
 		return
+	}
+
+	// Persist baselines to database
+	if err := h.engine.SaveBaselines(h.db); err != nil {
+		// Log warning but don't fail the request; baselines are in memory
+		fmt.Printf("Warning: Failed to persist UEBA baselines: %v\n", err)
 	}
 
 	c.JSON(http.StatusOK, gin.H{

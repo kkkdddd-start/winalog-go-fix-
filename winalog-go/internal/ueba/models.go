@@ -38,6 +38,7 @@ type LoginLocation struct {
 	IP       string
 	Computer string
 	Time     time.Time
+	EventID  int64
 }
 
 type BehaviorProfile struct {

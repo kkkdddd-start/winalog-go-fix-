@@ -294,22 +294,18 @@ func (e *Engine) analyzeRule(rule *rules.CorrelationRule) []*types.CorrelationRe
 }
 
 func (e *Engine) findFullChain(baseEvent *types.Event, chainEvents []*types.Event, patterns []*rules.Pattern, patternIndex int, rule *rules.CorrelationRule, seenChains map[string]bool, results *[]*types.CorrelationResult) {
-	if chainEvents == nil {
-		chainEvents = []*types.Event{baseEvent}
-	} else {
-		chainEvents = append(chainEvents, baseEvent)
-	}
+	currentChain := make([]*types.Event, len(chainEvents)+1)
+	copy(currentChain, chainEvents)
+	currentChain[len(chainEvents)] = baseEvent
 
 	if patternIndex == len(patterns)-1 {
-		chainKey := e.chainKey(chainEvents)
+		chainKey := e.chainKey(currentChain)
 		if seenChains[chainKey] {
 			return
 		}
 		seenChains[chainKey] = true
 
-		chainEventsCopy := make([]*types.Event, len(chainEvents))
-		copy(chainEventsCopy, chainEvents)
-		result := e.chain.Build(baseEvent, chainEventsCopy[1:], rule)
+		result := e.chain.Build(baseEvent, currentChain[:len(currentChain)-1], rule)
 		if result != nil {
 			*results = append(*results, result)
 		}
@@ -336,10 +332,7 @@ func (e *Engine) findFullChain(baseEvent *types.Event, chainEvents []*types.Even
 	}
 
 	for _, nextEvent := range nextEvents {
-		if !e.matcher.CheckOrderedSequence(chainEvents, nextPattern) {
-			continue
-		}
-		e.findFullChain(nextEvent, chainEvents, patterns, patternIndex+1, rule, seenChains, results)
+		e.findFullChain(nextEvent, currentChain, patterns, patternIndex+1, rule, seenChains, results)
 	}
 }
 

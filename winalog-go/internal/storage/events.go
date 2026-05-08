@@ -11,6 +11,21 @@ import (
 	"github.com/kkkdddd-start/winalog-go/internal/types"
 )
 
+// Declarative XML Extractors for Machine Context Enrichment
+// Maps EventID -> (XPath-like key -> Target Column)
+var xmlExtractors = map[int32]map[string]string{
+	4624: {
+		"//Data[@Name='IpAddress']":     "ip_address",
+		"//Data[@Name='TargetUserName']": "username",
+	},
+	4625: {
+		"//Data[@Name='IpAddress']":     "ip_address",
+	},
+	5140: {
+		"//Data[@Name='IpAddress']":     "ip_address",
+	},
+}
+
 var allowedSortFields = map[string]bool{
 	"timestamp":   true,
 	"event_id":    true,
@@ -186,41 +201,97 @@ func (r *EventRepo) updateMachineContexts(events []*types.Event) error {
 		return nil
 	}
 
-	computerMap := make(map[string]bool)
-	for _, e := range events {
-		if e.Computer != "" {
-			computerMap[e.Computer] = true
-		}
+	// Collect machine contexts and extract metadata
+	type MachineInfo struct {
+		IP string
+		OS string
 	}
-
-	if len(computerMap) == 0 {
-		return nil
+	
+	machineMap := make(map[string]*MachineInfo)
+	
+	for _, e := range events {
+		if e.Computer == "" {
+			continue
+		}
+		
+		info, exists := machineMap[e.Computer]
+		if !exists {
+			info = &MachineInfo{}
+			machineMap[e.Computer] = info
+		}
+		
+		// Extract IP from XML if not already found
+		if info.IP == "" && e.RawXML != nil && xmlExtractors[e.EventID] != nil {
+			for xpathKey, targetCol := range xmlExtractors[e.EventID] {
+				if targetCol == "ip_address" {
+					val := extractXMLValue(*e.RawXML, xpathKey)
+					if val != "" && val != "-" && val != "::1" && val != "127.0.0.1" {
+						info.IP = val
+					}
+				}
+			}
+		}
 	}
 
 	now := time.Now().Format(time.RFC3339)
 
-	for computer := range computerMap {
-		query := `
-			INSERT INTO machine_context (machine_id, machine_name, ip_address, domain, role, os_version, first_seen, last_seen)
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-			ON CONFLICT(machine_id) DO UPDATE SET
-				last_seen = excluded.last_seen`
-		_, err := r.db.Exec(query,
-			computer,
-			computer,
-			"",
-			"",
-			"",
-			"",
-			now,
-			now,
-		)
-		if err != nil {
-			return fmt.Errorf("failed to update machine context for %s: %w", computer, err)
+	for hostname, info := range machineMap {
+		// Check if asset exists
+		var existingIP string
+		err := r.db.QueryRow(`SELECT ip_address FROM machine_assets WHERE hostname = ?`, hostname).Scan(&existingIP)
+		
+		ip := info.IP
+		if err == nil && existingIP != "" {
+			ip = existingIP // Keep existing IP if already populated
+		}
+		
+		if err == sql.ErrNoRows {
+			// Insert new
+			_, err := r.db.Exec(`
+				INSERT INTO machine_assets (id, hostname, ip_address, domain, role, source, last_seen, created_at)
+				VALUES (?, ?, ?, '', 'unknown', 'log_discovery', ?, ?)
+			`, hostname, hostname, ip, now, now)
+			if err != nil {
+				return fmt.Errorf("failed to insert machine asset %s: %w", hostname, err)
+			}
+		} else if err == nil && ip != "" {
+			// Update if IP found and not present
+			r.db.Exec(`
+				UPDATE machine_assets SET ip_address = ?, last_seen = ? WHERE hostname = ? AND (ip_address = '' OR ip_address IS NULL)
+			`, ip, now, hostname)
+		} else if err == nil {
+			// Just update last_seen
+			r.db.Exec(`
+				UPDATE machine_assets SET last_seen = ? WHERE hostname = ?
+			`, now, hostname)
 		}
 	}
 
 	return nil
+}
+
+// extractXMLValue performs a simple extraction from Event XML based on a key pattern
+func extractXMLValue(xmlData string, key string) string {
+	if xmlData == "" || key == "" {
+		return ""
+	}
+	
+	// Simplistic extraction for known Windows Event XML patterns
+	// Looking for: <Data Name='Key'>Value</Data>
+	searchKey := fmt.Sprintf("<Data Name='%s'>", key[strings.LastIndex(key, "=")+2:len(key)-1]) // Extract name from XPath-like string
+	
+	idx := strings.Index(xmlData, searchKey)
+	if idx == -1 {
+		return ""
+	}
+	
+	start := idx + len(searchKey)
+	endIdx := strings.Index(xmlData[start:], "</Data>")
+	if endIdx == -1 {
+		return ""
+	}
+	
+	return strings.TrimSpace(xmlData[start : start+endIdx])
 }
 
 func (r *EventRepo) GetByID(id int64) (*types.Event, error) {

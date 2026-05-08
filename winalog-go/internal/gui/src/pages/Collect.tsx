@@ -22,7 +22,7 @@ import {
   FileOutlined,
   DeleteOutlined,
   WarningOutlined,
-  InfoCircleOutlined
+  InfoCircleOutlined,
 } from '@ant-design/icons'
 
 const { TextArea } = Input

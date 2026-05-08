@@ -820,3 +820,21 @@ export const logsAPI = {
   getLogFileContent: (filename: string) =>
     api.get(`/logs/files/${filename}`),
 }
+
+export const assetsAPI = {
+  list: (params?: { keyword?: string, role?: string, source?: string }) => {
+    const searchParams = new URLSearchParams()
+    if (params?.keyword) searchParams.append('keyword', params.keyword)
+    if (params?.role) searchParams.append('role', params.role)
+    if (params?.source) searchParams.append('source', params.source)
+    return api.get(`/assets?${searchParams.toString()}`)
+  },
+  import: (formData: FormData) =>
+    api.post('/assets/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    }),
+  sync: () =>
+    api.post('/assets/sync'),
+  delete: (id: string) =>
+    api.delete(`/assets/${id}`),
+}

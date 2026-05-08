@@ -48,6 +48,7 @@ type Server struct {
 	uiEng          *UIHandler
 	logsEng        *LogsHandler
 	monitorEng     *monitorApi.MonitorHandler
+	assetEng       *AssetHandler
 }
 
 func NewServer(db *storage.DB, cfg *config.Config, configPath, addr string) *Server {
@@ -115,6 +116,8 @@ func (s *Server) setupHandlers() {
 	s.uiEng = NewUIHandler(s.db)
 	s.logsEng = NewLogsHandler()
 
+	s.assetEng = NewAssetHandler(s.db)
+
 	monitorEngine, err := monitor.NewMonitorEngine("monitor-config.json")
 	if err == nil {
 		s.monitorEng = monitorApi.NewMonitorHandler(monitorEngine)
@@ -144,6 +147,7 @@ func (s *Server) setupRoutes() {
 	SetupPolicyRoutes(s.engine, s.policyEng)
 	SetupUIRoutes(s.engine, s.uiEng)
 	SetupLogsRoutes(s.engine, s.logsEng)
+	SetupAssetRoutes(s.engine, s.assetEng)
 	if s.monitorEng != nil {
 		monitorApi.SetupMonitorRoutes(s.engine, s.monitorEng)
 	}
