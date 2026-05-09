@@ -330,8 +330,8 @@ export const forensicsAPI = {
     api.get(`/forensics/evidence/${id}/export?format=${format}`, { responseType: 'blob' }),
   chainOfCustody: () =>
     api.get('/forensics/chain-of-custody'),
-  memoryDump: (pid?: number) =>
-    api.get(`/forensics/memory-dump${pid ? `?pid=${pid}` : ''}`),
+  memoryDump: (params?: { pid?: number; output_path?: string }) =>
+    api.post('/forensics/memory-dump', params || {}),
 }
 
 export interface TimelineEntry {

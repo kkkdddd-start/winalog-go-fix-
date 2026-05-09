@@ -20,6 +20,33 @@ import (
 
 const lateralMovementWindow = 30 * time.Minute
 
+var skippedUsers = map[string]struct{}{
+	"system":               {},
+	"local service":        {},
+	"network service":      {},
+	"anonymous logon":      {},
+	"window manager\\dwm-0": {},
+	"window manager\\dwm-1": {},
+	"iis apppool":          {},
+}
+
+func isSkippedUser(user string) bool {
+	lower := strings.ToLower(user)
+	if _, ok := skippedUsers[lower]; ok {
+		return true
+	}
+	if strings.HasPrefix(lower, "iis apppool\\") {
+		return true
+	}
+	if strings.HasPrefix(lower, "nt authority\\") {
+		return true
+	}
+	if strings.HasPrefix(lower, "window manager\\") {
+		return true
+	}
+	return false
+}
+
 type LoginEvent struct {
 	Computer   string
 	User       string
@@ -52,6 +79,8 @@ type CrossMachineActivity struct {
 	Suspicious     bool     `json:"suspicious"`
 	Severity       string   `json:"severity"`
 	Recommendation string   `json:"recommendation"`
+	TimeSpan       string   `json:"time_span,omitempty"`
+	AvgInterval    string   `json:"avg_interval,omitempty"`
 }
 
 type LateralMovement struct {
@@ -95,10 +124,11 @@ type MultiAnalyzeResponse struct {
 }
 
 type MultiAnalyzeRequest struct {
-	Hours     int    `json:"hours"`
-	StartTime string `json:"start_time"`
-	EndTime   string `json:"end_time"`
-	Limit     int    `json:"limit"`
+	Hours                int    `json:"hours"`
+	StartTime            string `json:"start_time"`
+	EndTime              string `json:"end_time"`
+	Limit                int    `json:"limit"`
+	LateralWindowMinutes int    `json:"lateral_window_minutes"`
 }
 
 func NewMultiHandler(db *storage.DB) *MultiHandler {
@@ -122,6 +152,16 @@ func (h *MultiHandler) Analyze(c *gin.Context) {
 	limit := req.Limit
 	if limit <= 0 {
 		limit = 5000
+	}
+
+	lateralWindow := lateralMovementWindow
+	if req.LateralWindowMinutes > 0 {
+		lateralWindow = time.Duration(req.LateralWindowMinutes) * time.Minute
+		if lateralWindow < 5*time.Minute {
+			lateralWindow = 5 * time.Minute
+		} else if lateralWindow > 4*time.Hour {
+			lateralWindow = 4 * time.Hour
+		}
 	}
 
 	endTime := time.Now()
@@ -150,7 +190,7 @@ func (h *MultiHandler) Analyze(c *gin.Context) {
 		return
 	}
 
-	lateralEvents, lateralChains, err := h.detectLateralMovement(startTime, endTime, limit)
+	lateralEvents, lateralChains, err := h.detectLateralMovement(startTime, endTime, limit, lateralWindow)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
 		return
@@ -180,7 +220,7 @@ func (h *MultiHandler) Analyze(c *gin.Context) {
 func (h *MultiHandler) Lateral(c *gin.Context) {
 	endTime := time.Now()
 	startTime := endTime.Add(-24 * time.Hour)
-	lateralEvents, lateralChains, err := h.detectLateralMovement(startTime, endTime, 1000)
+	lateralEvents, lateralChains, err := h.detectLateralMovement(startTime, endTime, 1000, lateralMovementWindow)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
 		return
@@ -235,7 +275,7 @@ func (h *MultiHandler) Export(c *gin.Context) {
 		return
 	}
 
-	lateralEvents, lateralChains, err := h.detectLateralMovement(startTime, endTime, 5000)
+	lateralEvents, lateralChains, err := h.detectLateralMovement(startTime, endTime, 5000, lateralMovementWindow)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
 		return
@@ -313,10 +353,11 @@ func (h *MultiHandler) exportCSV(c *gin.Context, machines []MachineInfo, crossMa
 
 	c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
 
-	if err := w.Write([]string{"=== Machine Inventory ==="}); err != nil {
-		log.Printf("CSV write error: %v", err)
-		return
-	}
+	w.Write([]string{"# WinLog Multi-Machine Analysis Export"})
+	w.Write([]string{"# Generated: " + time.Now().Format(time.RFC3339)})
+	w.Write([]string{""})
+
+	w.Write([]string{"# === Machine Inventory ==="})
 	w.Write([]string{"ID", "Name", "IP", "Domain", "Role", "OS Version", "Last Seen"})
 	for _, m := range machines {
 		w.Write([]string{m.ID, m.Name, m.IP, m.Domain, m.Role, m.OSVersion, m.LastSeen})
@@ -324,8 +365,8 @@ func (h *MultiHandler) exportCSV(c *gin.Context, machines []MachineInfo, crossMa
 
 	w.Write([]string{""})
 
-	w.Write([]string{"=== Cross-Machine Activity ==="})
-	w.Write([]string{"User", "Machine Count", "Machines", "Source IPs", "Login Count", "Suspicious", "Severity", "Recommendation"})
+	w.Write([]string{"# === Cross-Machine Activity ==="})
+	w.Write([]string{"User", "Machine Count", "Machines", "Source IPs", "Login Count", "Time Span", "Avg Interval", "Suspicious", "Severity", "Recommendation"})
 	for _, a := range crossMachine {
 		w.Write([]string{
 			a.User,
@@ -333,6 +374,8 @@ func (h *MultiHandler) exportCSV(c *gin.Context, machines []MachineInfo, crossMa
 			strings.Join(a.Machines, "; "),
 			strings.Join(a.SourceIPs, "; "),
 			strconv.Itoa(a.LoginCount),
+			a.TimeSpan,
+			a.AvgInterval,
 			strconv.FormatBool(a.Suspicious),
 			a.Severity,
 			a.Recommendation,
@@ -341,7 +384,7 @@ func (h *MultiHandler) exportCSV(c *gin.Context, machines []MachineInfo, crossMa
 
 	w.Write([]string{""})
 
-	w.Write([]string{"=== Lateral Movement Chains ==="})
+	w.Write([]string{"# === Lateral Movement Chains ==="})
 	w.Write([]string{"User", "Machine Count", "Duration", "Severity", "Description", "MITRE ATT&CK", "Steps"})
 	for _, chain := range lateralChains {
 		steps := make([]string, 0, len(chain.Steps))
@@ -361,7 +404,7 @@ func (h *MultiHandler) exportCSV(c *gin.Context, machines []MachineInfo, crossMa
 
 	if deep {
 		w.Write([]string{""})
-		w.Write([]string{"=== Lateral Movement Evidence Details ==="})
+		w.Write([]string{"# === Lateral Movement Evidence Details ==="})
 		w.Write([]string{"Chain User", "Step Time", "Machine", "Event ID", "IP Address", "Description"})
 		for _, chain := range lateralChains {
 			for _, step := range chain.Steps {
@@ -377,7 +420,7 @@ func (h *MultiHandler) exportCSV(c *gin.Context, machines []MachineInfo, crossMa
 		}
 	} else {
 		w.Write([]string{""})
-		w.Write([]string{"=== Lateral Movement Events ==="})
+		w.Write([]string{"# === Lateral Movement Events ==="})
 		w.Write([]string{"Source Machine", "Target Machine", "User", "Event ID", "Timestamp", "IP Address", "Severity", "Description", "MITRE ATT&CK"})
 		for _, l := range lateral {
 			w.Write([]string{
@@ -455,9 +498,10 @@ func (h *MultiHandler) analyzeCrossMachineActivity(startTime, endTime time.Time,
 	defer rows.Close()
 
 	type userActivity struct {
-		machines  map[string]int
-		sourceIPs map[string]struct{}
+		machines    map[string]int
+		sourceIPs   map[string]struct{}
 		totalLogins int
+		timestamps  []time.Time
 	}
 	userData := make(map[string]*userActivity)
 
@@ -478,7 +522,10 @@ func (h *MultiHandler) analyzeCrossMachineActivity(startTime, endTime time.Time,
 		}
 
 		computer = strings.ToLower(computer)
-		user = strings.ToLower(user)
+		user = normalizeUser(user)
+		if user == "" || isSkippedUser(user) {
+			continue
+		}
 
 		if userData[user] == nil {
 			userData[user] = &userActivity{
@@ -491,6 +538,18 @@ func (h *MultiHandler) analyzeCrossMachineActivity(startTime, endTime time.Time,
 		ua.totalLogins++
 		if ipAddress != "" && ipAddress != "127.0.0.1" && ipAddress != "::1" {
 			ua.sourceIPs[ipAddress] = struct{}{}
+		}
+
+		var pt time.Time
+		if t, err := time.Parse(time.RFC3339, timestamp); err == nil {
+			pt = t
+		} else if t, err := time.Parse("2006-01-02 15:04:05", timestamp); err == nil {
+			pt = t
+		} else if t, err := time.Parse("2006/01/02 15:04:05", timestamp); err == nil {
+			pt = t
+		}
+		if !pt.IsZero() {
+			ua.timestamps = append(ua.timestamps, pt)
 		}
 	}
 
@@ -540,6 +599,33 @@ func (h *MultiHandler) analyzeCrossMachineActivity(startTime, endTime time.Time,
 			recommendation = "Critical: All logins from single source IP - possible jump server attack"
 		}
 
+		timeSpan := ""
+		avgInterval := ""
+		if len(ua.timestamps) >= 2 {
+			sort.Slice(ua.timestamps, func(i, j int) bool {
+				return ua.timestamps[i].Before(ua.timestamps[j])
+			})
+			span := ua.timestamps[len(ua.timestamps)-1].Sub(ua.timestamps[0])
+			timeSpan = span.String()
+
+			var totalInterval time.Duration
+			for i := 1; i < len(ua.timestamps); i++ {
+				totalInterval += ua.timestamps[i].Sub(ua.timestamps[i-1])
+			}
+			avg := totalInterval / time.Duration(len(ua.timestamps)-1)
+			avgInterval = avg.Round(time.Second).String()
+
+			if span <= 30*time.Minute && len(ua.machines) >= 3 {
+				severity = "high"
+				suspicious = true
+				recommendation = "Critical: Rapid cross-machine login detected within 30 minutes"
+			} else if span <= 1*time.Hour && len(ua.machines) >= 2 {
+				severity = "medium"
+				suspicious = true
+				recommendation = "Review: User accessed multiple machines within 1 hour"
+			}
+		}
+
 		activities = append(activities, CrossMachineActivity{
 			User:           user,
 			MachineCount:   len(ua.machines),
@@ -549,6 +635,8 @@ func (h *MultiHandler) analyzeCrossMachineActivity(startTime, endTime time.Time,
 			Suspicious:     suspicious,
 			Severity:       severity,
 			Recommendation: recommendation,
+			TimeSpan:       timeSpan,
+			AvgInterval:    avgInterval,
 		})
 	}
 
@@ -558,7 +646,7 @@ func (h *MultiHandler) analyzeCrossMachineActivity(startTime, endTime time.Time,
 	return activities, nil
 }
 
-func (h *MultiHandler) detectLateralMovement(startTime, endTime time.Time, limit int) ([]LateralMovement, []LateralMovementChain, error) {
+func (h *MultiHandler) detectLateralMovement(startTime, endTime time.Time, limit int, lateralWindow time.Duration) ([]LateralMovement, []LateralMovementChain, error) {
 	assets, err := h.getMachineContexts()
 	if err != nil {
 		log.Printf("detectLateralMovement: failed to get machine contexts: %v", err)
@@ -566,11 +654,13 @@ func (h *MultiHandler) detectLateralMovement(startTime, endTime time.Time, limit
 	}
 
 	ipToHosts := make(map[string][]string)
+	knownHosts := make(map[string]struct{})
 	ipCollisionWarnings := make(map[string][]string)
 	for _, a := range assets {
 		if a.IP != "" {
 			ip := a.IP
 			host := a.Name
+			knownHosts[host] = struct{}{}
 			if existing, ok := ipToHosts[ip]; ok {
 				if !slices.Contains(existing, host) {
 					ipToHosts[ip] = append(existing, host)
@@ -627,7 +717,21 @@ func (h *MultiHandler) detectLateralMovement(startTime, endTime time.Time, limit
 		}
 
 		computer = strings.ToLower(computer)
-		user = strings.ToLower(user)
+		user = normalizeUser(user)
+		if isSkippedUser(user) {
+			continue
+		}
+
+		if len(knownHosts) > 0 {
+			if _, ok := knownHosts[computer]; !ok {
+				if isFQDN, baseHost := normalizeHostname(computer); isFQDN {
+					computer = baseHost
+					if _, ok := knownHosts[computer]; !ok {
+						log.Printf("detectLateralMovement: computer %q not found in machine_assets", computer)
+					}
+				}
+			}
+		}
 
 		var pt time.Time
 		if t, err := time.Parse(time.RFC3339, timestamp); err == nil {
@@ -691,7 +795,7 @@ func (h *MultiHandler) detectLateralMovement(startTime, endTime time.Time, limit
 				}
 			}
 
-			if prevMachine != currMachine && timeDiff <= lateralMovementWindow {
+			if prevMachine != currMachine && timeDiff <= lateralWindow {
 				currentChain = append(currentChain, curr)
 			} else {
 				if len(currentChain) >= 2 {
@@ -802,7 +906,10 @@ func buildLateralChain(user string, events []LoginEvent, ipToHosts map[string][]
 		}
 	}
 	if hasPrivEsc || hasCredUse {
-		severity = "high"
+		switch severity {
+		case "low", "medium":
+			severity = "high"
+		}
 	}
 
 	var mitreSet []string
@@ -827,6 +934,37 @@ func buildLateralChain(user string, events []LoginEvent, ipToHosts map[string][]
 		Description: fmt.Sprintf("User %s accessed %d machines in %s", user, len(uniqueMachines), duration),
 		MITREAttack: mitreSet,
 	}
+}
+
+func normalizeUser(user string) string {
+	user = strings.TrimSpace(user)
+	if user == "" {
+		return ""
+	}
+
+	if idx := strings.Index(user, "@"); idx > 0 {
+		name := strings.ToLower(user[:idx])
+		domain := strings.ToLower(user[idx+1:])
+		if strings.Contains(domain, ".") {
+			return fmt.Sprintf("%s@%s", name, domain)
+		}
+		return fmt.Sprintf("%s\\%s", domain, name)
+	}
+
+	if idx := strings.LastIndex(user, "\\"); idx > 0 {
+		domain := strings.ToLower(user[:idx])
+		name := strings.ToLower(user[idx+1:])
+		return fmt.Sprintf("%s\\%s", domain, name)
+	}
+
+	return strings.ToLower(user)
+}
+
+func normalizeHostname(hostname string) (bool, string) {
+	if idx := strings.Index(hostname, "."); idx > 0 {
+		return true, hostname[:idx]
+	}
+	return false, hostname
 }
 
 var eventDescriptions = map[int64]string{

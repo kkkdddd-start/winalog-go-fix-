@@ -7,6 +7,7 @@ interface HashResult {
   expected: string
   actual: string
   path: string
+  size?: number
 }
 
 interface EvidenceItem {
@@ -15,6 +16,18 @@ interface EvidenceItem {
   operator: string
   action: string
   file_count: number
+}
+
+interface EvidenceDetail {
+  id: number
+  file_path?: string
+  file_hash?: string
+  collected_at?: string
+  collector?: string
+  timestamp?: string
+  input_hash?: string
+  output_hash?: string
+  previous_hash?: string
 }
 
 interface ChainOfCustodyEntry {
@@ -31,7 +44,8 @@ interface ChainOfCustodyEntry {
 function Forensics() {
   const { t } = useI18n()
   const [collecting, setCollecting] = useState(false)
-  const [hashInput, setHashInput] = useState('')
+  const [expectedHash, setExpectedHash] = useState('')
+  const [calculatedHash, setCalculatedHash] = useState('')
   const [filePath, setFilePath] = useState('')
   const [hashResult, setHashResult] = useState<HashResult | null>(null)
   const [verifying, setVerifying] = useState(false)
@@ -41,6 +55,10 @@ function Forensics() {
   const [selectedTypes, setSelectedTypes] = useState<string[]>(['eventlogs', 'registry', 'prefetch'])
   const [chainOfCustody, setChainOfCustody] = useState<ChainOfCustodyEntry[]>([])
   const [showChainModal, setShowChainModal] = useState(false)
+  const [showDetailModal, setShowDetailModal] = useState(false)
+  const [selectedEvidence, setSelectedEvidence] = useState<EvidenceDetail[] | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [collectError, setCollectError] = useState('')
 
   useEffect(() => {
     fetchEvidence()
@@ -73,7 +91,7 @@ function Forensics() {
     setCalculatingHash(true)
     try {
       const res = await forensicsAPI.calculateHash(filePath)
-      setHashInput(res.data.sha256 || '')
+      setCalculatedHash(res.data.sha256 || '')
     } catch (error: any) {
       console.error('Failed to calculate hash:', error)
       alert('Failed to calculate hash: ' + (error.response?.data?.error || error.message))
@@ -85,6 +103,7 @@ function Forensics() {
   const handleCollect = async () => {
     setCollecting(true)
     setCollectStatus('starting')
+    setCollectError('')
     
     try {
       const collectFlags: Record<string, { collect_registry?: boolean; collect_prefetch?: boolean; collect_shimcache?: boolean; collect_amcache?: boolean; collect_userassist?: boolean; collect_tasks?: boolean; collect_logs?: boolean }> = {
@@ -98,6 +117,11 @@ function Forensics() {
       }
       
       for (const type of selectedTypes) {
+        if (type === 'memory') {
+          setCollectStatus('collecting:memory')
+          await forensicsAPI.memoryDump()
+          continue
+        }
         setCollectStatus(`collecting:${type}`)
         const flags = collectFlags[type] || {}
         await forensicsAPI.collect({
@@ -109,33 +133,35 @@ function Forensics() {
       fetchEvidence()
       fetchChainOfCustody()
       setCollectStatus('completed')
-    } catch (error) {
+    } catch (error: any) {
       console.error('Collection failed:', error)
       setCollectStatus('error')
+      setCollectError(error.response?.data?.error || 'Collection failed')
     } finally {
       setCollecting(false)
     }
   }
 
   const handleVerify = async () => {
-    if (!hashInput.trim() || !filePath.trim()) return
+    if (!expectedHash.trim() || !filePath.trim()) return
     
     setVerifying(true)
     setHashResult(null)
     try {
-      const res = await forensicsAPI.verifyHash(filePath, hashInput)
+      const res = await forensicsAPI.verifyHash(filePath, expectedHash)
       setHashResult({
         verified: res.data.match || false,
-        expected: hashInput,
-        actual: res.data.hash || hashInput,
-        path: filePath
+        expected: expectedHash,
+        actual: res.data.sha256 || expectedHash,
+        path: filePath,
+        size: res.data.size,
       })
     } catch (error: any) {
       setHashResult({
         verified: false,
-        expected: hashInput,
+        expected: expectedHash,
         actual: error.response?.data?.error || 'Hash verification failed',
-        path: filePath
+        path: filePath,
       })
     } finally {
       setVerifying(false)
@@ -151,20 +177,20 @@ function Forensics() {
   }
 
   const handleViewEvidence = async (item: EvidenceItem) => {
+    setDetailLoading(true)
     try {
       const res = await forensicsAPI.getEvidence(item.evidence_id)
-      if (res.data.content) {
-        const newWindow = window.open('', '_blank')
-        if (newWindow) {
-          newWindow.document.write(`<pre>${JSON.stringify(res.data, null, 2)}</pre>`)
-          newWindow.document.close()
-        }
+      if (res.data && res.data.files) {
+        setSelectedEvidence(res.data.files)
+        setShowDetailModal(true)
       } else {
         alert('Evidence content not available')
       }
     } catch (error) {
       console.error('Failed to view evidence:', error)
       alert('Failed to view evidence')
+    } finally {
+      setDetailLoading(false)
     }
   }
 
@@ -242,11 +268,11 @@ function Forensics() {
           </div>
 
           {collectStatus && (
-            <div className={`collect-status ${collectStatus}`}>
-              {collectStatus === 'starting' && '📡 Initializing collection...'}
-              {collectStatus.startsWith('collecting:') && `🔍 Collecting ${collectStatus.split(':')[1]}...`}
-              {collectStatus === 'completed' && '✅ Collection completed'}
-              {collectStatus === 'error' && '❌ Collection failed'}
+            <div className={`collect-status ${collectStatus === 'error' ? 'error' : collectStatus === 'completed' ? 'completed' : 'collecting'}`}>
+              {collectStatus === 'starting' && 'Initializing collection...'}
+              {collectStatus.startsWith('collecting:') && `Collecting ${collectStatus.split(':')[1]}...`}
+              {collectStatus === 'completed' && 'Collection completed'}
+              {collectStatus === 'error' && `Collection failed: ${collectError}`}
             </div>
           )}
 
@@ -286,10 +312,22 @@ function Forensics() {
               <input
                 type="text"
                 placeholder="e3b0c44298fc1c149afbf4c8996fb924..."
-                value={hashInput}
-                onChange={e => setHashInput(e.target.value)}
+                value={expectedHash}
+                onChange={e => setExpectedHash(e.target.value)}
               />
             </div>
+            
+            {calculatedHash && (
+              <div className="form-group">
+                <label>计算结果 SHA256</label>
+                <input
+                  type="text"
+                  value={calculatedHash}
+                  readOnly
+                  className="read-only"
+                />
+              </div>
+            )}
             
             <button 
               className="btn-secondary" 
@@ -301,7 +339,7 @@ function Forensics() {
             <button 
               className="btn-secondary" 
               onClick={handleVerify}
-              disabled={verifying || !hashInput.trim() || !filePath.trim()}
+              disabled={verifying || !expectedHash.trim() || !filePath.trim()}
             >
               {verifying ? 'Verifying...' : t('forensics.verify')}
             </button>
@@ -341,11 +379,11 @@ function Forensics() {
             <table>
               <thead>
                 <tr>
-                  <th>类型</th>
+                  <th>操作类型</th>
                   <th>采集时间</th>
-                  <th>路径</th>
-                  <th>大小</th>
-                  <th>哈希</th>
+                  <th>证据 ID</th>
+                  <th>文件数</th>
+                  <th>操作人</th>
                   <th>操作</th>
                 </tr>
               </thead>
@@ -356,7 +394,7 @@ function Forensics() {
                     <td>{new Date(item.timestamp).toLocaleString()}</td>
                     <td><code className="evidence-path">{item.evidence_id}</code></td>
                     <td>{item.file_count || 0} files</td>
-                    <td><code className="evidence-hash">{item.operator || 'N/A'}</code></td>
+                    <td>{item.operator || 'N/A'}</td>
                     <td>
                       <button className="btn-small" onClick={() => handleViewEvidence(item)}>查看</button>
                       <button className="btn-small" onClick={() => handleExportEvidence(item)}>导出</button>
@@ -407,6 +445,37 @@ function Forensics() {
                 <div className="empty-state">
                   <div className="empty-icon">📋</div>
                   <div className="empty-text">暂无监管链记录</div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDetailModal && selectedEvidence && (
+        <div className="modal-overlay" onClick={() => setShowDetailModal(false)}>
+          <div className="modal-content evidence-detail-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>证据详情</h3>
+              <button className="close-btn" onClick={() => setShowDetailModal(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              {selectedEvidence.length > 0 ? (
+                <div className="evidence-detail-list">
+                  {selectedEvidence.map((file, idx) => (
+                    <div key={file.id || idx} className="evidence-file-item">
+                      <div className="file-name">{file.file_path || 'N/A'}</div>
+                      <div className="file-meta">
+                        {file.file_hash && <span>Hash: {file.file_hash.substring(0, 16)}...</span>}
+                        {file.collected_at && <span>Collected: {new Date(file.collected_at).toLocaleString()}</span>}
+                        {file.collector && <span>Collector: {file.collector}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state">
+                  <div className="empty-text">无详细证据信息</div>
                 </div>
               )}
             </div>
@@ -515,7 +584,7 @@ function Forensics() {
           font-size: 0.9rem;
         }
         
-        .collect-status.starting, .collect-status.completed {
+        .collect-status.completed {
           background: rgba(34, 197, 94, 0.1);
           border: 1px solid rgba(34, 197, 94, 0.3);
           color: #22c55e;
@@ -584,6 +653,12 @@ function Forensics() {
         .form-group input:focus {
           outline: none;
           border-color: #00d9ff;
+        }
+        
+        .form-group input.read-only {
+          background: rgba(0, 217, 255, 0.05);
+          border-color: rgba(0, 217, 255, 0.2);
+          color: #00d9ff;
         }
         
         .hash-result {
@@ -787,6 +862,45 @@ function Forensics() {
 
         .chain-user {
           color: #00d9ff;
+        }
+
+        .evidence-detail-modal {
+          max-width: 800px;
+          max-height: 80vh;
+          overflow-y: auto;
+        }
+
+        .evidence-detail-list {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .evidence-file-item {
+          background: rgba(0, 0, 0, 0.2);
+          border: 1px solid #333;
+          border-radius: 8px;
+          padding: 12px 16px;
+        }
+
+        .file-name {
+          color: #10b981;
+          font-family: monospace;
+          font-size: 0.9rem;
+          margin-bottom: 8px;
+          word-break: break-all;
+        }
+
+        .file-meta {
+          display: flex;
+          gap: 16px;
+          flex-wrap: wrap;
+          color: #888;
+          font-size: 0.8rem;
+        }
+
+        .file-meta span {
+          font-family: monospace;
         }
       `}</style>
     </div>

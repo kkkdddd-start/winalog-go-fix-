@@ -1,8 +1,12 @@
 package api
 
 import (
+	"crypto/rand"
 	"database/sql"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -43,6 +47,11 @@ type CollectRequest struct {
 	CollectLogs       bool   `json:"collect_logs"`
 }
 
+type MemoryDumpRequest struct {
+	PID        uint32 `json:"pid"`
+	OutputPath string `json:"output_path"`
+}
+
 type HashResponse struct {
 	Status   string `json:"status,omitempty"`
 	Error    string `json:"error,omitempty"`
@@ -73,27 +82,18 @@ type CollectResponse struct {
 	Message     string    `json:"message"`
 }
 
-// NewForensicsHandler godoc
-// @Summary 创建取证处理器
-// @Description 初始化ForensicsHandler
-// @Tags forensics
-// @Param db query string true "数据库实例"
-// @Router /api/forensics [get]
 func NewForensicsHandler(db *storage.DB) *ForensicsHandler {
 	return &ForensicsHandler{db: db}
 }
 
-// CalculateHash godoc
-// @Summary 计算文件哈希值
-// @Description 计算指定文件的SHA256、MD5、SHA1哈希值
-// @Tags forensics
-// @Accept json
-// @Produce json
-// @Param request body HashRequest true "文件路径请求"
-// @Success 200 {object} HashResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /api/forensics/hash [post]
+func sanitizePath(path string) (string, error) {
+	cleaned := filepath.Clean(path)
+	if strings.Contains(cleaned, "..") {
+		return "", fmt.Errorf("path traversal is not allowed")
+	}
+	return cleaned, nil
+}
+
 func (h *ForensicsHandler) CalculateHash(c *gin.Context) {
 	if runtime.GOOS != "windows" {
 		c.JSON(http.StatusNotImplemented, ErrorResponse{
@@ -112,7 +112,15 @@ func (h *ForensicsHandler) CalculateHash(c *gin.Context) {
 		return
 	}
 
-	result, err := forensics.CalculateFileHash(req.Path)
+	safePath, err := sanitizePath(req.Path)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: err.Error(),
+		})
+		return
+	}
+
+	result, err := forensics.CalculateFileHash(safePath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error: err.Error(),
@@ -129,17 +137,6 @@ func (h *ForensicsHandler) CalculateHash(c *gin.Context) {
 	})
 }
 
-// VerifyHash godoc
-// @Summary 验证文件哈希值
-// @Description 验证文件哈希与预期值是否匹配
-// @Tags forensics
-// @Produce json
-// @Param path query string true "文件路径"
-// @Param expected query string true "预期哈希值"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /api/forensics/verify-hash [get]
 func (h *ForensicsHandler) VerifyHash(c *gin.Context) {
 	path := c.Query("path")
 	expected := c.Query("expected")
@@ -152,7 +149,15 @@ func (h *ForensicsHandler) VerifyHash(c *gin.Context) {
 		return
 	}
 
-	match, result, err := forensics.VerifyFileHash(path, expected)
+	safePath, err := sanitizePath(path)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: err.Error(),
+		})
+		return
+	}
+
+	match, result, err := forensics.VerifyFileHash(safePath, expected)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error: err.Error(),
@@ -171,16 +176,6 @@ func (h *ForensicsHandler) VerifyHash(c *gin.Context) {
 	})
 }
 
-// VerifySignature godoc
-// @Summary 验证文件签名
-// @Description 验证Windows可执行文件的数字签名信息
-// @Tags forensics
-// @Produce json
-// @Param path query string true "文件路径"
-// @Success 200 {object} SignatureResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /api/forensics/signature [get]
 func (h *ForensicsHandler) VerifySignature(c *gin.Context) {
 	if runtime.GOOS != "windows" {
 		c.JSON(http.StatusNotImplemented, ErrorResponse{
@@ -200,7 +195,15 @@ func (h *ForensicsHandler) VerifySignature(c *gin.Context) {
 		return
 	}
 
-	result, err := forensics.VerifySignature(path)
+	safePath, err := sanitizePath(path)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: err.Error(),
+		})
+		return
+	}
+
+	result, err := forensics.VerifySignature(safePath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error: err.Error(),
@@ -218,16 +221,6 @@ func (h *ForensicsHandler) VerifySignature(c *gin.Context) {
 	})
 }
 
-// IsSigned godoc
-// @Summary 检查文件是否签名
-// @Description 检查文件是否有有效的数字签名
-// @Tags forensics
-// @Produce json
-// @Param path query string true "文件路径"
-// @Success 200 {object} map[string]interface{} "is_signed": bool, "details": object
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /api/forensics/is-signed [get]
 func (h *ForensicsHandler) IsSigned(c *gin.Context) {
 	path := c.Query("path")
 
@@ -239,7 +232,15 @@ func (h *ForensicsHandler) IsSigned(c *gin.Context) {
 		return
 	}
 
-	signed, result, err := forensics.IsSigned(path)
+	safePath, err := sanitizePath(path)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: err.Error(),
+		})
+		return
+	}
+
+	signed, result, err := forensics.IsSigned(safePath)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
 			Error: err.Error(),
@@ -253,17 +254,6 @@ func (h *ForensicsHandler) IsSigned(c *gin.Context) {
 	})
 }
 
-// CollectEvidence godoc
-// @Summary 收集取证证据
-// @Description 收集系统取证证据包括注册表、Prefetch、ShimCache等
-// @Tags forensics
-// @Accept json
-// @Produce json
-// @Param request body CollectRequest true "取证收集请求"
-// @Success 200 {object} CollectResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /api/forensics/collect [post]
 func (h *ForensicsHandler) CollectEvidence(c *gin.Context) {
 	if runtime.GOOS != "windows" {
 		c.JSON(http.StatusNotImplemented, ErrorResponse{
@@ -282,11 +272,20 @@ func (h *ForensicsHandler) CollectEvidence(c *gin.Context) {
 		return
 	}
 
-	evidenceID := fmt.Sprintf("ev_%d", time.Now().UnixNano())
+	evidenceID := generateEvidenceID()
 
 	outputPath := req.OutputPath
 	if outputPath == "" {
 		outputPath = filepath.Join(os.TempDir(), fmt.Sprintf("evidence_%s.zip", evidenceID))
+	} else {
+		cleaned := filepath.Clean(outputPath)
+		if strings.Contains(cleaned, "..") {
+			c.JSON(http.StatusBadRequest, ErrorResponse{
+				Error: "invalid output path: path traversal not allowed",
+			})
+			return
+		}
+		outputPath = cleaned
 	}
 
 	collector := forensics.NewEvidenceCollector(evidenceID, outputPath)
@@ -321,43 +320,37 @@ func (h *ForensicsHandler) CollectEvidence(c *gin.Context) {
 }
 
 func (h *ForensicsHandler) saveEvidenceManifest(manifest *forensics.EvidenceManifest) error {
-	var errs []string
+	tx, err := h.db.Begin()
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback()
 
-	_, err := h.db.Exec(`
+	_, err = tx.Exec(`
 		INSERT OR REPLACE INTO evidence_chain (evidence_id, timestamp, operator, action, input_hash, output_hash, previous_hash)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`, manifest.ID, manifest.CreatedAt.Format(time.RFC3339),
 		manifest.CollectedBy, "manifest_created", "", manifest.Hash, "")
 	if err != nil {
-		errs = append(errs, fmt.Sprintf("evidence_chain: %v", err))
+		return fmt.Errorf("evidence_chain: %w", err)
 	}
 
 	for _, f := range manifest.Files {
-		_, err := h.db.Exec(`
+		_, err := tx.Exec(`
 			INSERT INTO evidence_file (file_path, file_hash, evidence_id, collected_at, collector)
 			VALUES (?, ?, ?, ?, ?)
 		`, f.FilePath, f.FileHash, manifest.ID, f.CollectedAt.Format(time.RFC3339), f.Collector)
 		if err != nil {
-			errs = append(errs, fmt.Sprintf("evidence_file %s: %v", f.FilePath, err))
+			log.Printf("saveEvidenceManifest: failed to insert evidence_file %s: %v", f.FilePath, err)
 		}
 	}
 
-	if len(errs) > 0 {
-		return fmt.Errorf("save errors: %s", strings.Join(errs, "; "))
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit transaction: %w", err)
 	}
 	return nil
 }
 
-// ListEvidence godoc
-// @Summary 列出证据列表
-// @Description 返回所有已收集的证据记录
-// @Tags forensics
-// @Produce json
-// @Param limit query int false "返回记录数量限制" default(50)
-// @Param offset query int false "偏移量" default(0)
-// @Success 200 {object} map[string]interface{}
-// @Failure 500 {object} ErrorResponse
-// @Router /api/forensics/evidence [get]
 func (h *ForensicsHandler) ListEvidence(c *gin.Context) {
 	if runtime.GOOS != "windows" {
 		c.JSON(http.StatusNotImplemented, ErrorResponse{
@@ -405,11 +398,16 @@ func (h *ForensicsHandler) ListEvidence(c *gin.Context) {
 	defer rows.Close()
 
 	evidenceList := make([]map[string]interface{}, 0)
+	var scanErrors int
 	for rows.Next() {
 		var evidenceID, timestamp, operator, action sql.NullString
 		var fileCount int
 
 		if err := rows.Scan(&evidenceID, &timestamp, &operator, &action, &fileCount); err != nil {
+			scanErrors++
+			if scanErrors <= 5 {
+				log.Printf("ListEvidence: scan error on row %d: %v", scanErrors, err)
+			}
 			continue
 		}
 
@@ -421,6 +419,17 @@ func (h *ForensicsHandler) ListEvidence(c *gin.Context) {
 			"file_count":  fileCount,
 		}
 		evidenceList = append(evidenceList, item)
+	}
+
+	if err := rows.Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error: fmt.Sprintf("query iteration failed: %v", err),
+		})
+		return
+	}
+
+	if scanErrors > 5 {
+		log.Printf("ListEvidence: total %d rows skipped due to scan errors", scanErrors)
 	}
 
 	var total int
@@ -436,17 +445,6 @@ func (h *ForensicsHandler) ListEvidence(c *gin.Context) {
 	})
 }
 
-// GetEvidence godoc
-// @Summary 获取证据详情
-// @Description 根据证据ID返回证据的完整信息
-// @Tags forensics
-// @Produce json
-// @Param id path string true "证据ID"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /api/forensics/evidence/{id} [get]
 func (h *ForensicsHandler) GetEvidence(c *gin.Context) {
 	if runtime.GOOS != "windows" {
 		c.JSON(http.StatusNotImplemented, ErrorResponse{
@@ -480,11 +478,16 @@ func (h *ForensicsHandler) GetEvidence(c *gin.Context) {
 	defer chainRows.Close()
 
 	chain := make([]map[string]interface{}, 0)
+	var scanErrors int
 	for chainRows.Next() {
 		var id int64
 		var evID, timestamp, operator, action, inputHash, outputHash, previousHash sql.NullString
 
 		if err := chainRows.Scan(&id, &evID, &timestamp, &operator, &action, &inputHash, &outputHash, &previousHash); err != nil {
+			scanErrors++
+			if scanErrors <= 5 {
+				log.Printf("GetEvidence chain: scan error on row %d: %v", scanErrors, err)
+			}
 			continue
 		}
 
@@ -505,6 +508,13 @@ func (h *ForensicsHandler) GetEvidence(c *gin.Context) {
 			entry["previous_hash"] = previousHash.String
 		}
 		chain = append(chain, entry)
+	}
+
+	if err := chainRows.Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error: fmt.Sprintf("chain query iteration failed: %v", err),
+		})
+		return
 	}
 
 	if len(chain) == 0 {
@@ -536,6 +546,10 @@ func (h *ForensicsHandler) GetEvidence(c *gin.Context) {
 		var filePath, fileHash, collectedAt, collector sql.NullString
 
 		if err := fileRows.Scan(&id, &filePath, &fileHash, &collectedAt, &collector); err != nil {
+			scanErrors++
+			if scanErrors <= 5 {
+				log.Printf("GetEvidence files: scan error on row %d: %v", scanErrors, err)
+			}
 			continue
 		}
 
@@ -546,6 +560,17 @@ func (h *ForensicsHandler) GetEvidence(c *gin.Context) {
 			"collected_at": collectedAt.String,
 			"collector":    collector.String,
 		})
+	}
+
+	if err := fileRows.Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error: fmt.Sprintf("files query iteration failed: %v", err),
+		})
+		return
+	}
+
+	if scanErrors > 5 {
+		log.Printf("GetEvidence: total %d rows skipped due to scan errors", scanErrors)
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -560,97 +585,45 @@ func (h *ForensicsHandler) GetEvidence(c *gin.Context) {
 	})
 }
 
-// GenerateManifest godoc
-// @Summary 生成证据清单
-// @Description 为证据收集生成哈希清单
-// @Tags forensics
-// @Produce json
-// @Success 200 {object} object
-// @Router /api/forensics/manifest [post]
-func (h *ForensicsHandler) GenerateManifest(c *gin.Context) {
-	manifest := forensics.GenerateManifest(nil, "web-ui", "unknown")
-	c.JSON(http.StatusOK, manifest)
-}
-
-// ChainOfCustody godoc
-// @Summary 获取证据保管链
-// @Description 返回证据的完整保管链记录
-// @Tags forensics
-// @Produce json
-// @Param evidence_id query string false "证据ID，默认为所有证据"
-// @Success 200 {object} map[string]interface{}
-// @Failure 500 {object} ErrorResponse
-// @Router /api/forensics/chain-of-custody [get]
-func (h *ForensicsHandler) ChainOfCustody(c *gin.Context) {
-	evidenceID := c.Query("evidence_id")
-
-	if evidenceID == "" {
-		rows, err := h.db.Query(`
-			SELECT id, evidence_id, timestamp, operator, action, input_hash, output_hash, previous_hash
-			FROM evidence_chain
-			ORDER BY timestamp DESC
-			LIMIT 100
-		`)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, ErrorResponse{
-				Error: err.Error(),
-			})
-			return
-		}
-		defer rows.Close()
-
-		chain := []map[string]interface{}{}
-		for rows.Next() {
-			var id int64
-			var evidenceID, timestamp, operator, action, inputHash, outputHash, previousHash sql.NullString
-			if err := rows.Scan(&id, &evidenceID, &timestamp, &operator, &action, &inputHash, &outputHash, &previousHash); err != nil {
-				continue
-			}
-			entry := map[string]interface{}{
-				"id":          id,
-				"evidence_id": evidenceID.String,
-				"timestamp":   timestamp.String,
-				"operator":    operator.String,
-				"action":      action.String,
-			}
-			if inputHash.Valid {
-				entry["input_hash"] = inputHash.String
-			}
-			if outputHash.Valid {
-				entry["output_hash"] = outputHash.String
-			}
-			if previousHash.Valid {
-				entry["previous_hash"] = previousHash.String
-			}
-			chain = append(chain, entry)
-		}
-
-		c.JSON(http.StatusOK, gin.H{
-			"chain": chain,
-			"total": len(chain),
+func (h *ForensicsHandler) ExportEvidence(c *gin.Context) {
+	if runtime.GOOS != "windows" {
+		c.JSON(http.StatusNotImplemented, ErrorResponse{
+			Error: "evidence export is only supported on Windows",
+			Code:  types.ErrCodeNotSupported,
 		})
 		return
 	}
 
-	rows, err := h.db.Query(`
+	evidenceID := c.Param("id")
+	if evidenceID == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: "evidence ID is required",
+			Code:  types.ErrCodeInvalidRequest,
+		})
+		return
+	}
+
+	format := c.DefaultQuery("format", "json")
+
+	chainRows, err := h.db.Query(`
 		SELECT id, evidence_id, timestamp, operator, action, input_hash, output_hash, previous_hash
 		FROM evidence_chain
 		WHERE evidence_id = ?
-		ORDER BY timestamp DESC
+		ORDER BY timestamp ASC
 	`, evidenceID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, ErrorResponse{
-			Error: err.Error(),
+			Error: fmt.Sprintf("query failed: %v", err),
 		})
 		return
 	}
-	defer rows.Close()
+	defer chainRows.Close()
 
-	chain := []map[string]interface{}{}
-	for rows.Next() {
+	chain := make([]map[string]interface{}, 0)
+	for chainRows.Next() {
 		var id int64
 		var evID, timestamp, operator, action, inputHash, outputHash, previousHash sql.NullString
-		if err := rows.Scan(&id, &evID, &timestamp, &operator, &action, &inputHash, &outputHash, &previousHash); err != nil {
+		if err := chainRows.Scan(&id, &evID, &timestamp, &operator, &action, &inputHash, &outputHash, &previousHash); err != nil {
 			continue
 		}
 		entry := map[string]interface{}{
@@ -671,25 +644,172 @@ func (h *ForensicsHandler) ChainOfCustody(c *gin.Context) {
 		}
 		chain = append(chain, entry)
 	}
+	if err := chainRows.Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error: fmt.Sprintf("chain query iteration failed: %v", err),
+		})
+		return
+	}
 
+	fileRows, err := h.db.Query(`
+		SELECT id, file_path, file_hash, collected_at, collector
+		FROM evidence_file
+		WHERE evidence_id = ?
+		ORDER BY collected_at ASC
+	`, evidenceID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error: fmt.Sprintf("query failed: %v", err),
+		})
+		return
+	}
+	defer fileRows.Close()
+
+	files := make([]map[string]interface{}, 0)
+	for fileRows.Next() {
+		var id int64
+		var filePath, fileHash, collectedAt, collector sql.NullString
+		if err := fileRows.Scan(&id, &filePath, &fileHash, &collectedAt, &collector); err != nil {
+			continue
+		}
+		files = append(files, map[string]interface{}{
+			"id":           id,
+			"file_path":    filePath.String,
+			"file_hash":    fileHash.String,
+			"collected_at": collectedAt.String,
+			"collector":    collector.String,
+		})
+	}
+	if err := fileRows.Err(); err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error: fmt.Sprintf("files query iteration failed: %v", err),
+		})
+		return
+	}
+
+	response := gin.H{
+		"id":      evidenceID,
+		"chain":   chain,
+		"files":   files,
+		"summary": map[string]interface{}{
+			"chain_length": len(chain),
+			"file_count":   len(files),
+		},
+		"export_time": time.Now().Format(time.RFC3339),
+	}
+
+	if format == "json" {
+		data, err := jsonMarshalIndent(response)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, ErrorResponse{Error: err.Error()})
+			return
+		}
+		filename := fmt.Sprintf("evidence_%s.json", evidenceID)
+		c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+		c.Header("Content-Type", "application/json")
+		c.Data(http.StatusOK, "application/json", data)
+	} else {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: "unsupported format, only json is supported",
+		})
+	}
+}
+
+func (h *ForensicsHandler) GenerateManifest(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
-		"chain":       chain,
-		"total":       len(chain),
-		"evidence_id": evidenceID,
+		"message": "Use POST /api/forensics/collect to generate a real evidence manifest",
 	})
 }
 
-// MemoryDump godoc
-// @Summary 内存转储
-// @Description 对指定进程或整个系统进行内存转储
-// @Tags forensics
-// @Produce json
-// @Param pid query string false "进程ID，不提供则转储系统内存"
-// @Param output query string false "输出目录路径"
-// @Success 200 {object} map[string]interface{}
-// @Failure 400 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
-// @Router /api/forensics/memory-dump [get]
+func buildChainEntries(rows *sql.Rows) ([]map[string]interface{}, error) {
+	chain := []map[string]interface{}{}
+	var scanErrors int
+	for rows.Next() {
+		var id int64
+		var evidenceID, timestamp, operator, action, inputHash, outputHash, previousHash sql.NullString
+		if err := rows.Scan(&id, &evidenceID, &timestamp, &operator, &action, &inputHash, &outputHash, &previousHash); err != nil {
+			scanErrors++
+			if scanErrors <= 5 {
+				log.Printf("buildChainEntries: scan error on row %d: %v", scanErrors, err)
+			}
+			continue
+		}
+		entry := map[string]interface{}{
+			"id":          id,
+			"evidence_id": evidenceID.String,
+			"timestamp":   timestamp.String,
+			"operator":    operator.String,
+			"action":      action.String,
+		}
+		if inputHash.Valid {
+			entry["input_hash"] = inputHash.String
+		}
+		if outputHash.Valid {
+			entry["output_hash"] = outputHash.String
+		}
+		if previousHash.Valid {
+			entry["previous_hash"] = previousHash.String
+		}
+		chain = append(chain, entry)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if scanErrors > 5 {
+		log.Printf("buildChainEntries: total %d rows skipped due to scan errors", scanErrors)
+	}
+	return chain, nil
+}
+
+func (h *ForensicsHandler) ChainOfCustody(c *gin.Context) {
+	evidenceID := c.Query("evidence_id")
+
+	var rows *sql.Rows
+	var err error
+
+	if evidenceID == "" {
+		rows, err = h.db.Query(`
+			SELECT id, evidence_id, timestamp, operator, action, input_hash, output_hash, previous_hash
+			FROM evidence_chain
+			ORDER BY timestamp DESC
+			LIMIT 100
+		`)
+	} else {
+		rows, err = h.db.Query(`
+			SELECT id, evidence_id, timestamp, operator, action, input_hash, output_hash, previous_hash
+			FROM evidence_chain
+			WHERE evidence_id = ?
+			ORDER BY timestamp DESC
+		`, evidenceID)
+	}
+
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error: err.Error(),
+		})
+		return
+	}
+	defer rows.Close()
+
+	chain, err := buildChainEntries(rows)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, ErrorResponse{
+			Error: fmt.Sprintf("chain query iteration failed: %v", err),
+		})
+		return
+	}
+
+	resp := gin.H{
+		"chain": chain,
+		"total": len(chain),
+	}
+	if evidenceID != "" {
+		resp["evidence_id"] = evidenceID
+	}
+
+	c.JSON(http.StatusOK, resp)
+}
+
 func (h *ForensicsHandler) MemoryDump(c *gin.Context) {
 	if runtime.GOOS != "windows" {
 		c.JSON(http.StatusNotImplemented, ErrorResponse{
@@ -699,34 +819,45 @@ func (h *ForensicsHandler) MemoryDump(c *gin.Context) {
 		return
 	}
 
-	pidStr := c.Query("pid")
-	outputPath := c.Query("output")
+	var req MemoryDumpRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{
+			Error: err.Error(),
+		})
+		return
+	}
 
+	outputPath := req.OutputPath
 	if outputPath == "" {
-		outputPath = filepath.Join(os.TempDir(), "winalog_memory")
+		if runtime.GOOS == "windows" {
+			outputPath = filepath.Join(os.Getenv("TEMP"), "winalog_memory")
+		} else {
+			outputPath = filepath.Join(os.TempDir(), "winalog_memory")
+		}
 		if err := os.MkdirAll(outputPath, 0755); err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create output directory"})
 			return
 		}
+	} else {
+		cleaned := filepath.Clean(outputPath)
+		if strings.Contains(cleaned, "..") {
+			c.JSON(http.StatusBadRequest, ErrorResponse{
+				Error: "invalid output path: path traversal not allowed",
+			})
+			return
+		}
+		outputPath = cleaned
 	}
 
 	collector := forensics.NewMemoryCollector(outputPath)
 
-	if pidStr != "" {
-		var pid uint32
-		if _, err := fmt.Sscanf(pidStr, "%d", &pid); err != nil {
-			c.JSON(http.StatusBadRequest, ErrorResponse{
-				Error: "invalid PID format",
-			})
-			return
-		}
-
-		result, err := collector.CollectProcessMemory(pid)
+	if req.PID > 0 {
+		result, err := collector.CollectProcessMemory(req.PID)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"status":  "error",
 				"message": err.Error(),
-				"pid":     pid,
+				"pid":     req.PID,
 			})
 			return
 		}
@@ -753,20 +884,16 @@ func (h *ForensicsHandler) MemoryDump(c *gin.Context) {
 	})
 }
 
-// SetupForensicsRoutes godoc
-// @Summary 设置取证路由
-// @Description 配置取证分析相关的API路由
-// @Tags forensics
-// @Router /api/forensics/hash [post]
-// @Router /api/forensics/verify-hash [get]
-// @Router /api/forensics/signature [get]
-// @Router /api/forensics/is-signed [get]
-// @Router /api/forensics/collect [post]
-// @Router /api/forensics/evidence [get]
-// @Router /api/forensics/evidence/{id} [get]
-// @Router /api/forensics/manifest [post]
-// @Router /api/forensics/chain-of-custody [get]
-// @Router /api/forensics/memory-dump [get]
+func generateEvidenceID() string {
+	b := make([]byte, 8)
+	rand.Read(b)
+	return fmt.Sprintf("ev_%s_%s", time.Now().Format("20060102150405"), hex.EncodeToString(b))
+}
+
+func jsonMarshalIndent(v interface{}) ([]byte, error) {
+	return json.MarshalIndent(v, "", "  ")
+}
+
 func SetupForensicsRoutes(r *gin.Engine, forensicsHandler *ForensicsHandler) {
 	forensicsGroup := r.Group("/api/forensics")
 	{
@@ -777,8 +904,9 @@ func SetupForensicsRoutes(r *gin.Engine, forensicsHandler *ForensicsHandler) {
 		forensicsGroup.POST("/collect", forensicsHandler.CollectEvidence)
 		forensicsGroup.GET("/evidence", forensicsHandler.ListEvidence)
 		forensicsGroup.GET("/evidence/:id", forensicsHandler.GetEvidence)
+		forensicsGroup.GET("/evidence/:id/export", forensicsHandler.ExportEvidence)
 		forensicsGroup.POST("/manifest", forensicsHandler.GenerateManifest)
 		forensicsGroup.GET("/chain-of-custody", forensicsHandler.ChainOfCustody)
-		forensicsGroup.GET("/memory-dump", forensicsHandler.MemoryDump)
+		forensicsGroup.POST("/memory-dump", forensicsHandler.MemoryDump)
 	}
 }
