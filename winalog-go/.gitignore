@@ -6,3 +6,8 @@ dist/
 logs/
 vendor/
 .git/
+
+# 测试和构建产物归档
+_tests/
+_build/
+docs/_archive/

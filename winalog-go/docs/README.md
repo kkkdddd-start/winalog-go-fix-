@@ -1,140 +1,169 @@
-# WinLogAnalyzer-Go 开发文档包
+# WinLogAnalyzer-Go 文档导航
 
-**版本**: v2.4.0  
-**更新日期**: 2026-04-13
+欢迎使用 WinLogAnalyzer-Go 文档！本文档库包含用户指南、开发文档和参考资料。
 
 ---
 
-## 文档清单
+## 📖 按读者分类
 
-| 文件 | 大小 | 用途 |
+### 👤 用户文档
+
+面向**终端用户**，包含安装、配置和使用说明。
+
+| 文档 | 说明 | 位置 |
 |------|------|------|
-| `design.md` | ~90KB | **核心设计文档** - 架构设计、目录结构、核心类型、CLI、API、TUI、Web UI、告警引擎详细设计 |
-| `FEATURES.md` | 43KB | **功能详细清单** - 所有模块的详细功能设计需求 (~450+ 功能) |
-| `MODULES_COMPARISON.md` | 33KB | **模块对比** - Python vs Go 功能对照表 |
-| `requirements.md` | 7KB | **需求文档** - 产品需求、用户故事 |
-| `INDEX.md` | 5KB | **索引目录** - 文档导航索引 |
-| `ISSUES_FIX.md` | 25KB | **问题修复清单** - 设计问题及修复方案 (v2.3.0 → v2.4.0) |
+| 🚀 **快速开始** | 5 分钟上手指南 | [docs/user/QUICKSTART.md](user/QUICKSTART.md) |
+| 📚 **用户指南** | 完整使用说明 | [docs/user/USER_GUIDE.md](user/USER_GUIDE.md) |
+| ❓ **常见问题** | FAQ | [docs/user/FAQ.md](user/FAQ.md) |
+| 🛡️ **安全配置** | 安全相关说明 | [SECURITY.md](../SECURITY.md) |
+
+### 👨‍💻 开发文档
+
+面向**开发者**，包含架构、API 和构建指南。
+
+| 文档 | 说明 | 位置 |
+|------|------|------|
+| 🏗️ **架构设计** | 系统架构和模块设计 | [docs/developer/ARCHITECTURE.md](developer/ARCHITECTURE.md) |
+| 📡 **API 参考** | REST API 完整文档 | [docs/developer/API.md](developer/API.md) |
+| 🔧 **构建指南** | 编译和部署说明 | [docs/developer/BUILD.md](developer/BUILD.md) |
+| 🛡️ **安全开发** | 安全最佳实践 | [docs/developer/SECURITY_GUIDE.md](developer/SECURITY_GUIDE.md) |
+| 📝 **贡献指南** | 如何贡献代码 | [CONTRIBUTING.md](../CONTRIBUTING.md) |
+
+### 📋 参考资料
+
+面向**所有读者**，包含功能清单和技术参考。
+
+| 文档 | 说明 | 位置 |
+|------|------|------|
+| 📋 **功能清单** | 完整功能列表 | [docs/reference/FEATURES.md](reference/FEATURES.md) |
+| 📐 **设计决策** | 核心设计文档 | [docs/reference/design.md](reference/design.md) |
+| 📝 **事件 ID 参考** | Windows 事件 ID 大全 | [docs/guides/WINDOWS_EVENT_ID.md](guides/WINDOWS_EVENT_ID.md) |
+| 📝 **事件 ID 补充** | 补充事件 ID | [docs/guides/WINDOWS_EVENT_ID_SUPPLEMENT.md](guides/WINDOWS_EVENT_ID_SUPPLEMENT.md) |
 
 ---
 
-## 使用指南
+## 🎯 按任务分类
 
-### 1. 设计阶段
-- 先阅读 `INDEX.md` 了解文档结构
-- 阅读 `design.md` 了解整体架构
-- 阅读 `MODULES_COMPARISON.md` 了解 Python 到 Go 的映射
-- 参考 `ISSUES_FIX.md` 了解已知问题和修复方案
+### 我想安装和启动
 
-### 2. 开发阶段
-- 参考 `FEATURES.md` 实现各模块功能
-- 每个功能包含：
-  - 功能需求代码示例
-  - 数据结构定义
-  - API 接口设计
-  - 处理流程说明
+1. 阅读 [快速开始](user/QUICKSTART.md)
+2. 下载对应平台的二进制文件
+3. 运行 `winalog serve`
+4. 访问 http://127.0.0.1:8080
 
-### 3. 对照参考
-- `MODULES_COMPARISON.md` 可快速查找 Python 原型
-- `requirements.md` 确保需求完整性
+### 我想导入日志
+
+1. 阅读 [用户指南 - 日志导入](user/USER_GUIDE.md#日志导入)
+2. 使用 `winalog import security.evtx`
+3. 或使用 Web UI 导入
+
+### 我想搜索事件
+
+1. 阅读 [用户指南 - 事件搜索](user/USER_GUIDE.md#事件搜索)
+2. 使用 `winalog search --event-id 4624`
+3. 或使用 Web UI 搜索功能
+
+### 我想查看告警
+
+1. 阅读 [用户指南 - 告警管理](user/USER_GUIDE.md#告警管理)
+2. 使用 `winalog alert list`
+3. 或使用 Web UI 仪表板
+
+### 我想开发新功能
+
+1. 阅读 [架构设计](developer/ARCHITECTURE.md)
+2. 阅读 [API 参考](developer/API.md)
+3. 阅读 [贡献指南](../CONTRIBUTING.md)
+4. 创建功能分支并开发
+
+### 我想排查问题
+
+1. 阅读 [常见问题](user/FAQ.md)
+2. 查看日志文件 `logs/winalog.log`
+3. 运行 `winalog db status` 检查数据库
 
 ---
 
-## 目录结构参考
-
-根据 design.md v2.4.0，Go 项目结构为：
+## 📚 文档结构
 
 ```
-winalog-go/
-├── cmd/winalog/           # CLI 命令
-│   └── commands/          # 19 个子命令
-├── internal/
-│   ├── engine/           # 核心引擎
-│   ├── parsers/          # 解析器 (EVTX/ETL/CSV/IIS/Sysmon)
-│   ├── collectors/       # 采集器
-│   │   ├── live/         # 实时采集 (4 个文件)
-│   │   └── persistence/  # 持久化检测 (6 个文件)
-│   ├── alerts/           # 告警引擎 (7 个模块) ✅ 完整
-│   ├── correlation/       # 关联引擎
-│   ├── rules/            # 规则系统 (60+ 规则)
-│   ├── analyzers/        # 分析器
-│   ├── storage/          # 存储 (5 个文件) ✅ 完整
-│   ├── reports/          # 报告 (4 个文件) ✅ 完整
-│   ├── exporters/        # 导出器
-│   ├── timeline/         # 时间线
-│   ├── multi/            # 多机分析
-│   ├── forensics/        # 取证
-│   ├── observability/     # 可观测性
-│   ├── api/              # HTTP API (详细设计) ✅ 完整
-│   ├── tui/              # TUI 界面
-│   └── gui/              # Web UI
-└── pkg/                  # 公共包
+docs/
+├── README.md                      # 本文档 (导航)
+│
+├── user/                          # 用户文档
+│   ├── QUICKSTART.md              # 快速开始
+│   ├── USER_GUIDE.md              # 用户指南
+│   └── FAQ.md                     # 常见问题
+│
+├── developer/                     # 开发文档
+│   ├── ARCHITECTURE.md            # 架构设计
+│   ├── API.md                     # API 参考
+│   ├── BUILD.md                   # 构建指南
+│   └── SECURITY_GUIDE.md          # 安全开发
+│
+├── reference/                     # 参考资料
+│   ├── FEATURES.md                # 功能清单
+│   ├── design.md                  # 设计决策
+│   └── requirements.md            # 需求文档
+│
+├── guides/                        # 指南
+│   ├── WINDOWS_EVENT_ID.md        # Windows 事件 ID
+│   └── WINDOWS_EVENT_ID_SUPPLEMENT.md  # 补充事件 ID
+│
+├── cli/                           # CLI 文档
+│   └── COMMANDS.md                # CLI 命令说明
+│
+└── _archive/                      # 归档内容 (历史参考)
+    ├── plans/                     # 历史计划文档
+    ├── reports/                   # 历史测试报告
+    └── modules-zh/                # 中文模块文档
 ```
 
 ---
 
-## 开发优先级建议
+## 🔄 文档更新
 
-### Phase 1: 核心模块 (MVP)
-1. **解析器** (`parsers/`) - EVTX 解析是基础
-2. **存储** (`storage/`) - SQLite 数据库
-3. **采集器** (`collectors/`) - 一键采集
-4. **CLI** (`cmd/winalog/`) - 命令行接口
+### 更新频率
 
-### Phase 2: 分析功能
-5. **告警引擎** (`alerts/`) - 规则评估、去重、统计、趋势、升级、抑制 ✅ 7 个模块完整
-6. **关联引擎** (`correlation/`) - 事件链
-7. **规则系统** (`rules/`) - 60+ 规则
-8. **分析器** (`analyzers/`) - 暴力破解、登录分析
+- **用户文档**: 每次功能更新时
+- **开发文档**: 架构变更时
+- **CHANGELOG**: 每次发布时
 
-### Phase 3: UI 界面
-9. **TUI** (`tui/`) - Bubble Tea 终端界面
-10. **API** (`api/`) - HTTP API ✅ 详细设计
-11. **Web UI** (`gui/`) - React 前端
+### 如何贡献文档
 
-### Phase 4: 增强功能
-12. **取证** (`forensics/`)
-13. **报告** (`reports/`)
-14. **多机分析** (`multi/`)
-15. **可选功能** (`OPTIONAL_FEATURES.md`)
+1. 找到相关文档文件
+2. 进行修改
+3. 提交 PR，说明更改内容
+4. 更新 `CHANGELOG.md` (如适用)
+
+### 文档版本
+
+| 版本 | 日期 | 说明 |
+|------|------|------|
+| v2.5.0 | 2026-05-09 | 当前版本，安全加固 |
+| v2.4.0 | 2026-04-17 | 功能完整性增强 |
+| v2.3.0 | 2026-04-13 | 核心架构完善 |
 
 ---
 
-## 关键设计决策
+## 📞 反馈
 
-### 1. 类型系统
-统一使用 `types/` 下的类型定义，避免 Python 中的类型混乱问题
+如发现文档错误或有改进建议：
 
-### 2. 并发模型
-使用 Go goroutine + channel 实现事件管道，避免 Python GIL 问题
-
-### 3. 数据库
-使用 Pure Go SQLite (modernc.org/sqlite)，无 CGO 依赖，单二进制部署
-
-### 4. 前端策略
-- TUI: Bubble Tea (P0 - 必做)
-- Web UI: React + Vite + Gin API (P1)
+1. 提交 [GitHub Issue](https://github.com/kkkdddd-start/winalog-go-fix-/issues)
+2. 标注为 `documentation` 标签
+3. 说明具体问题和建议
 
 ---
 
-## v2.4.0 更新内容
+## 🔗 相关链接
 
-| 问题 | 修复 |
-|------|------|
-| 目录结构不完整 | 补充缺失文件 (dll_info.go, user_info.go, stats.go 等) |
-| 告警引擎不完整 | 添加 evaluator/stats/trend/upgrade/suppress 5 个模块 |
-| API Handler 缺失 | 添加详细 Handler 设计 |
-| 数据类型不一致 | 统一 Alert 结构，添加 FalsePositive 字段 |
-| 章节编号错误 | 重编号 9-19 章 |
-| 错误码缺失 | 扩展错误码定义 |
-| 配置结构不完整 | 添加 AlertConfig, SearchConfig 等 |
-| 依赖选择不一致 | 更新 requirements.md 使用 modernc.org/sqlite |
+- **项目主页**: https://github.com/kkkdddd-start/winalog-go-fix-
+- **更新日志**: [CHANGELOG.md](../CHANGELOG.md)
+- **安全策略**: [SECURITY.md](../SECURITY.md)
+- **贡献指南**: [CONTRIBUTING.md](../CONTRIBUTING.md)
 
 ---
 
-## 文档更新记录
-
-| 版本 | 日期 | 更新内容 |
-|------|------|----------|
-| v1.0 | 2026-04-13 | 初始打包 |
-| v2.4.0 | 2026-04-13 | 修复设计问题：目录结构、告警引擎、API Handler、数据类型等 |
+**最后更新**: 2026-05-09  
+**文档版本**: v2.5.0
