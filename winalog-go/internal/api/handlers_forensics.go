@@ -320,11 +320,11 @@ func (h *ForensicsHandler) CollectEvidence(c *gin.Context) {
 }
 
 func (h *ForensicsHandler) saveEvidenceManifest(manifest *forensics.EvidenceManifest) error {
-	tx, err := h.db.Begin()
+	tx, cleanup, err := h.db.Begin()
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer cleanup()
 
 	_, err = tx.Exec(`
 		INSERT OR REPLACE INTO evidence_chain (evidence_id, timestamp, operator, action, input_hash, output_hash, previous_hash)
@@ -346,6 +346,7 @@ func (h *ForensicsHandler) saveEvidenceManifest(manifest *forensics.EvidenceMani
 	}
 
 	if err := tx.Commit(); err != nil {
+		cleanup()
 		return fmt.Errorf("commit transaction: %w", err)
 	}
 	return nil
