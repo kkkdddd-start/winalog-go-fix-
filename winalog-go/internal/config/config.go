@@ -323,9 +323,12 @@ func DefaultConfig() *Config {
 			Port: 8080,
 			Mode: "debug",
 			CORS: CORSConfig{
-				AllowedOrigins: []string{"*"},
-				AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-				AllowedHeaders: []string{"*"},
+				AllowedOrigins: []string{
+					"http://127.0.0.1:8080",
+					"http://localhost:8080",
+				},
+				AllowedMethods: []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
+				AllowedHeaders: []string{"Content-Type", "Content-Length", "Accept-Encoding", "X-CSRF-Token", "Authorization", "accept", "origin", "Cache-Control", "X-Requested-With"},
 			},
 			RequestTimeout: 10 * time.Minute,
 		},

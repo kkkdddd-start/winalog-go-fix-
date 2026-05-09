@@ -18,9 +18,9 @@ function Settings() {
     enableLiveCollection: false,
     enableAutoUpdate: false,
     apiPort: 8080,
-    apiHost: '0.0.0.0',
+    apiHost: '127.0.0.1',
     corsEnabled: true,
-    corsAllowedOrigins: '*',
+    corsAllowedOrigins: 'http://127.0.0.1:8080,http://localhost:8080',
     maxImportFileSizeMB: 1024,
     exportDirectory: './exports',
     parserWorkers: 4,
@@ -42,9 +42,9 @@ function Settings() {
         enableLiveCollection: data.enable_live_collection ?? false,
         enableAutoUpdate: data.enable_auto_update ?? false,
         apiPort: data.api_port || 8080,
-        apiHost: data.api_host || '0.0.0.0',
+        apiHost: data.api_host || '127.0.0.1',
         corsEnabled: data.cors_enabled ?? true,
-        corsAllowedOrigins: data.cors_allowed_origins || '*',
+        corsAllowedOrigins: data.cors_allowed_origins || 'http://127.0.0.1:8080,http://localhost:8080',
         maxImportFileSizeMB: data.max_import_file_size_mb || 1024,
         exportDirectory: data.export_directory || './exports',
         parserWorkers: data.parser_workers || 4,
@@ -76,6 +76,28 @@ function Settings() {
         memory_limit: settings.memoryLimit,
         request_timeout: settings.requestTimeout,
       })
+      
+      // 检查是否需要重启提示
+      if (settings.apiHost !== '127.0.0.1' || settings.apiPort !== 8080) {
+        const needsRestart = window.confirm(
+          '⚠️ API 监听地址/端口已修改！\\n\\n' +
+          '此修改需要重启服务才能生效。\\n\\n' +
+          '如果当前正在使用 Web UI，修改后可能会导致连接中断。\\n\\n' +
+          '是否继续？'
+        )
+        if (!needsRestart) {
+          // 用户取消，回滚设置
+          settingsAPI.get().then(res => {
+            const data = res.data
+            setSettings(prev => ({
+              ...prev,
+              apiHost: data.api_host || '127.0.0.1',
+              apiPort: data.api_port || 8080,
+            }))
+          })
+        }
+      }
+      
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
     } catch (err: any) {
@@ -264,7 +286,13 @@ function Settings() {
               <div className="setting-card">
                 <div className="setting-info">
                   <label>{t('settings.apiHost')}</label>
-                  <p>{t('settings.apiHostDesc')}</p>
+                  <p>
+                    {t('settings.apiHostDesc')}
+                    <br />
+                    <span className="hint-text">
+                      💡 127.0.0.1 (仅本地访问) | 0.0.0.0 (允许外部访问)
+                    </span>
+                  </p>
                   <span className="restart-hint">⚠ {t('settings.requiresRestart')}</span>
                 </div>
                 <input
@@ -272,6 +300,8 @@ function Settings() {
                   value={settings.apiHost}
                   onChange={e => handleChange('apiHost', e.target.value)}
                   className="text-input"
+                  placeholder="127.0.0.1"
+                  style={{ width: '200px' }}
                 />
               </div>
 
@@ -310,7 +340,13 @@ function Settings() {
                 <div className="setting-card">
                   <div className="setting-info">
                     <label>CORS 允许的来源</label>
-                    <p>Comma-separated list of allowed origins (e.g. http://localhost:3000,http://example.com)</p>
+                    <p>
+                      用逗号分隔的允许来源列表
+                      <br />
+                      <span className="hint-text">
+                        💡 示例：http://127.0.0.1:8080,http://localhost:8080
+                      </span>
+                    </p>
                   </div>
                   <input
                     type="text"
@@ -318,6 +354,7 @@ function Settings() {
                     onChange={e => handleChange('corsAllowedOrigins', e.target.value)}
                     className="text-input"
                     style={{ width: '350px' }}
+                    placeholder="http://127.0.0.1:8080,http://localhost:8080"
                   />
                 </div>
               )}
