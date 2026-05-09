@@ -14,7 +14,6 @@
 |------|------|------|
 | 🚀 **快速开始** | 5 分钟上手指南 | [docs/user/QUICKSTART.md](user/QUICKSTART.md) |
 | 📚 **用户指南** | 完整使用说明 | [docs/user/USER_GUIDE.md](user/USER_GUIDE.md) |
-| ❓ **常见问题** | FAQ | [docs/user/FAQ.md](user/FAQ.md) |
 | 🛡️ **安全配置** | 安全相关说明 | [SECURITY.md](../SECURITY.md) |
 
 ### 👨‍💻 开发文档
@@ -26,8 +25,8 @@
 | 🏗️ **架构设计** | 系统架构和模块设计 | [docs/developer/ARCHITECTURE.md](developer/ARCHITECTURE.md) |
 | 📡 **API 参考** | REST API 完整文档 | [docs/developer/API.md](developer/API.md) |
 | 🔧 **构建指南** | 编译和部署说明 | [docs/developer/BUILD.md](developer/BUILD.md) |
-| 🛡️ **安全开发** | 安全最佳实践 | [docs/developer/SECURITY_GUIDE.md](developer/SECURITY_GUIDE.md) |
-| 📝 **贡献指南** | 如何贡献代码 | [CONTRIBUTING.md](../CONTRIBUTING.md) |
+| 📝 **开发指南** | 开发流程和约定 | [docs/developer/DEVELOPER_GUIDE.md](developer/DEVELOPER_GUIDE.md) |
+| 🛡️ **贡献指南** | 如何贡献代码 | [CONTRIBUTING.md](../CONTRIBUTING.md) |
 
 ### 📋 参考资料
 
@@ -37,8 +36,9 @@
 |------|------|------|
 | 📋 **功能清单** | 完整功能列表 | [docs/reference/FEATURES.md](reference/FEATURES.md) |
 | 📐 **设计决策** | 核心设计文档 | [docs/reference/design.md](reference/design.md) |
-| 📝 **事件 ID 参考** | Windows 事件 ID 大全 | [docs/guides/WINDOWS_EVENT_ID.md](guides/WINDOWS_EVENT_ID.md) |
-| 📝 **事件 ID 补充** | 补充事件 ID | [docs/guides/WINDOWS_EVENT_ID_SUPPLEMENT.md](guides/WINDOWS_EVENT_ID_SUPPLEMENT.md) |
+| 📝 **需求文档** | 功能需求规格 | [docs/reference/requirements.md](reference/requirements.md) |
+| 📝 **Windows 事件 ID** | 事件 ID 参考大全 | [docs/reference/WINDOWS_EVENT_ID.md](reference/WINDOWS_EVENT_ID.md) |
+| 📝 **事件 ID 补充** | 补充事件 ID | [docs/reference/WINDOWS_EVENT_ID_SUPPLEMENT.md](reference/WINDOWS_EVENT_ID_SUPPLEMENT.md) |
 
 ---
 
@@ -78,9 +78,9 @@
 
 ### 我想排查问题
 
-1. 阅读 [常见问题](user/FAQ.md)
-2. 查看日志文件 `logs/winalog.log`
-3. 运行 `winalog db status` 检查数据库
+1. 查看日志文件 `logs/winalog.log`
+2. 运行 `winalog db status` 检查数据库
+3. 阅读 [安全配置](../SECURITY.md) 检查配置
 
 ---
 
@@ -92,31 +92,28 @@ docs/
 │
 ├── user/                          # 用户文档
 │   ├── QUICKSTART.md              # 快速开始
-│   ├── USER_GUIDE.md              # 用户指南
-│   └── FAQ.md                     # 常见问题
+│   └── USER_GUIDE.md              # 用户指南
 │
 ├── developer/                     # 开发文档
 │   ├── ARCHITECTURE.md            # 架构设计
 │   ├── API.md                     # API 参考
 │   ├── BUILD.md                   # 构建指南
-│   └── SECURITY_GUIDE.md          # 安全开发
+│   └── DEVELOPER_GUIDE.md         # 开发指南
 │
 ├── reference/                     # 参考资料
 │   ├── FEATURES.md                # 功能清单
 │   ├── design.md                  # 设计决策
-│   └── requirements.md            # 需求文档
-│
-├── guides/                        # 指南
+│   ├── requirements.md            # 需求文档
 │   ├── WINDOWS_EVENT_ID.md        # Windows 事件 ID
-│   └── WINDOWS_EVENT_ID_SUPPLEMENT.md  # 补充事件 ID
-│
-├── cli/                           # CLI 文档
-│   └── COMMANDS.md                # CLI 命令说明
+│   └── WINDOWS_EVENT_ID_SUPPLEMENT.md  # 事件 ID 补充
 │
 └── _archive/                      # 归档内容 (历史参考)
     ├── plans/                     # 历史计划文档
     ├── reports/                   # 历史测试报告
-    └── modules-zh/                # 中文模块文档
+    ├── modules-zh/                # 中文模块文档
+    ├── old-tests/                 # 旧测试文档
+    ├── implementation-progress/   # 实施进度记录
+    └── comparisons/               # 对比文档
 ```
 
 ---
