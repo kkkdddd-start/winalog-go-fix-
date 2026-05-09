@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useI18n } from '../locales/I18n'
 import { timelineAPI, TimelineEntry, TimelineResponse } from '../api'
+import { safeGetItem, safeSetJSON } from '../utils/storage'
 
 function Timeline() {
   const { t } = useI18n()
@@ -29,29 +30,25 @@ function Timeline() {
   const STORAGE_KEY = 'winalog-timeline-settings'
 
   const loadSettings = () => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY)
-      if (saved) {
+    const saved = safeGetItem(STORAGE_KEY, '')
+    if (saved) {
+      try {
         const settings = JSON.parse(saved)
         if (settings.eventIds) setEventIds(settings.eventIds)
         if (settings.sortOrder) setSortOrder(settings.sortOrder)
         if (settings.alertStatus) setAlertStatus(settings.alertStatus)
+      } catch (e) {
+        console.error('Failed to parse timeline settings:', e)
       }
-    } catch (e) {
-      console.error('Failed to load timeline settings:', e)
     }
   }
 
   const saveSettings = (ids: string, order: string, status: string) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        eventIds: ids,
-        sortOrder: order,
-        alertStatus: status
-      }))
-    } catch (e) {
-      console.error('Failed to save timeline settings:', e)
-    }
+    safeSetJSON(STORAGE_KEY, {
+      eventIds: ids,
+      sortOrder: order,
+      alertStatus: status
+    })
   }
 
   useEffect(() => {

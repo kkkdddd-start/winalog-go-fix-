@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from 'react'
 import { zh, en, Locale, TranslationKeys } from './index'
+import { safeGetItem, safeSetItem } from '../utils/storage'
 
 type TranslationObject = typeof zh
 
@@ -29,13 +30,13 @@ function getNestedValue(obj: any, path: string): string {
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(() => {
-    const saved = localStorage.getItem('locale')
+    const saved = safeGetItem('locale', 'zh')
     return (saved === 'en' || saved === 'zh') ? saved : 'zh'
   })
 
   const setLocale = useCallback((newLocale: Locale) => {
     setLocaleState(newLocale)
-    localStorage.setItem('locale', newLocale)
+    safeSetItem('locale', newLocale)
   }, [])
 
   const toggleLocale = useCallback(() => {

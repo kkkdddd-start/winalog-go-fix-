@@ -57,7 +57,6 @@ function Forensics() {
   const [showChainModal, setShowChainModal] = useState(false)
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [selectedEvidence, setSelectedEvidence] = useState<EvidenceDetail[] | null>(null)
-  const [detailLoading, setDetailLoading] = useState(false)
   const [collectError, setCollectError] = useState('')
 
   useEffect(() => {
@@ -177,7 +176,6 @@ function Forensics() {
   }
 
   const handleViewEvidence = async (item: EvidenceItem) => {
-    setDetailLoading(true)
     try {
       const res = await forensicsAPI.getEvidence(item.evidence_id)
       if (res.data && res.data.files) {
@@ -189,8 +187,6 @@ function Forensics() {
     } catch (error) {
       console.error('Failed to view evidence:', error)
       alert('Failed to view evidence')
-    } finally {
-      setDetailLoading(false)
     }
   }
 

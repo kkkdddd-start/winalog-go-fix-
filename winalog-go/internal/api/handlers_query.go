@@ -1,9 +1,11 @@
 package api
 
 import (
+	"context"
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/kkkdddd-start/winalog-go/internal/storage"
@@ -106,16 +108,30 @@ func validateSQL(sql string) error {
 		req.Limit = 1000
 	}
 
+	// 创建带超时的 context
+	timeout := 5 * time.Minute
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
 	// Get total count by wrapping the query
 	total := 0
 	countSQL := "SELECT COUNT(*) FROM (" + req.SQL + ") AS subquery"
-	if err := h.db.QueryRow(countSQL).Scan(&total); err != nil {
+	if err := h.db.QueryRowWithContext(ctx, countSQL).Scan(&total); err != nil {
 		// Fallback: if count query fails, just use the result count
 		total = -1
 	}
 
-	rows, err := h.db.Query(req.SQL)
+	rows, err := h.db.QueryWithContext(ctx, req.SQL)
 	if err != nil {
+		// 检查是否是超时错误
+		if ctx.Err() == context.DeadlineExceeded {
+			c.JSON(http.StatusGatewayTimeout, ErrorResponse{
+				Error: "query execution timeout (exceeded " + timeout.String() + ")",
+				Code:  types.ErrCodeInternalError,
+			})
+			return
+		}
+		
 		c.JSON(http.StatusBadRequest, ErrorResponse{
 			Error: "query failed: " + err.Error(),
 			Code:  types.ErrCodeInvalidQuery,

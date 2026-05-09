@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useI18n } from '../locales/I18n'
 import { Line } from 'react-chartjs-2'
 import { persistenceAPI, reportsAPI } from '../api'
+import { safeGetItem, safeSetJSON } from '../utils/storage'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -89,7 +90,7 @@ interface DetectorRule {
 function Persistence() {
   const { t } = useI18n()
   const [detections, setDetections] = useState<Detection[]>(() => {
-    const saved = localStorage.getItem('persistence_detections')
+    const saved = safeGetItem('persistence_detections', '')
     if (saved) {
       try {
         return JSON.parse(saved)
@@ -340,14 +341,9 @@ function Persistence() {
       const data = response.data
       const dets = data.detections || []
       setDetections(dets)
-      try {
-        // 只保留最近 500 条，防止 localStorage 超限
-        const toSave = dets.slice(-500)
-        localStorage.setItem('persistence_detections', JSON.stringify(toSave))
-      } catch (e) {
-        console.warn('Failed to save detections to localStorage:', e)
-        localStorage.removeItem('persistence_detections')
-      }
+      // 只保留最近 500 条，防止存储超限
+      const toSave = dets.slice(-500)
+      safeSetJSON('persistence_detections', toSave)
       setStats(calculateStats(dets))
     } catch (err: any) {
       const msg = err.response?.status === 404
