@@ -59,18 +59,24 @@ function Dashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    Promise.all([
+    Promise.allSettled([
       alertsAPI.stats(),
       timelineAPI.get(24),
       dashboardAPI.getCollectionStats(),
     ])
       .then(([statsRes, timelineRes, collectionRes]) => {
-        setStats(statsRes.data)
+        if (statsRes.status === 'fulfilled' && statsRes.value.data) {
+          setStats(statsRes.value.data)
+        } else {
+          setStats({ total: 0, by_severity: {}, by_status: {} })
+        }
 
         const hours = 24
         const labels: string[] = []
         const events: number[] = []
         const alerts: number[] = []
+
+        const timelineData = timelineRes.status === 'fulfilled' && timelineRes.value.data?.entries ? timelineRes.value.data.entries : []
 
         for (let i = hours - 1; i >= 0; i--) {
           const date = new Date()
@@ -82,12 +88,12 @@ function Dashboard() {
           const hourEnd = new Date(date)
           hourEnd.setMinutes(59, 59, 999)
 
-          const hourEvents = timelineRes.data.entries?.filter((e: any) => {
+          const hourEvents = timelineData.filter((e: any) => {
             const eventTime = new Date(e.timestamp)
             return e.type === 'event' && eventTime >= hourStart && eventTime <= hourEnd
           }).length || 0
 
-          const hourAlerts = timelineRes.data.entries?.filter((e: any) => {
+          const hourAlerts = timelineData.filter((e: any) => {
             const eventTime = new Date(e.timestamp)
             return e.type === 'alert' && eventTime >= hourStart && eventTime <= hourEnd
           }).length || 0
@@ -97,13 +103,13 @@ function Dashboard() {
         }
 
         setTrendData({ labels, events, alerts })
-        setCollectionStats(collectionRes.data)
-        setLoading(false)
-      })
-      .catch(() => {
-        setStats({ total: 0, by_severity: {}, by_status: {} })
-        setTrendData({ labels: [], events: [], alerts: [] })
-        setCollectionStats({ total_events: 0, total_size: 'N/A', sources: {}, last_import: 'N/A' })
+
+        if (collectionRes.status === 'fulfilled' && collectionRes.value.data) {
+          setCollectionStats(collectionRes.value.data)
+        } else {
+          setCollectionStats({ total_events: 0, total_size: 'N/A', sources: {}, last_import: 'N/A' })
+        }
+
         setLoading(false)
       })
   }, [])

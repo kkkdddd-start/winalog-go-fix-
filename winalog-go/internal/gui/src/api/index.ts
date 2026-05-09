@@ -84,7 +84,7 @@ export interface ExportParams {
 
 export const alertsAPI = {
   list: (page = 1, pageSize = 100, severity?: string) =>
-    api.get(`/alerts?page=${page}&page_size=${pageSize}${severity ? `&severity=${severity}` : ''}`),
+    api.get(`/alerts?page=${page}&page_size=${pageSize}${severity ? `&severity=${encodeURIComponent(severity)}` : ''}`),
   get: (id: number) =>
     api.get(`/alerts/${id}`),
   stats: () =>
@@ -234,7 +234,7 @@ export const systemAPI = {
   getProcesses: (limit = 100, enabled = true) =>
     api.get(`/system/processes?limit=${limit}&enabled=${enabled}`),
   getNetwork: (limit = 100, enabled = true, protocol?: string) =>
-    api.get(`/system/network?limit=${limit}&enabled=${enabled}${protocol ? `&protocol=${protocol}` : ''}`),
+    api.get(`/system/network?limit=${limit}&enabled=${enabled}${protocol ? `&protocol=${encodeURIComponent(protocol)}` : ''}`),
   getEnvVariables: () =>
     api.get('/system/env'),
   getLoadedDLLs: (limit = 100, enabled = true) =>
@@ -305,11 +305,11 @@ export const forensicsAPI = {
   calculateHash: (path: string) =>
     api.post('/forensics/hash', { path }),
   verifyHash: (path: string, expected: string) =>
-    api.get(`/forensics/verify-hash?path=${path}&expected=${expected}`),
+    api.get(`/forensics/verify-hash?path=${encodeURIComponent(path)}&expected=${encodeURIComponent(expected)}`),
   verifySignature: (path: string) =>
-    api.get(`/forensics/signature?path=${path}`),
+    api.get(`/forensics/signature?path=${encodeURIComponent(path)}`),
   isSigned: (path: string) =>
-    api.get(`/forensics/is-signed?path=${path}`),
+    api.get(`/forensics/is-signed?path=${encodeURIComponent(path)}`),
   collect: (params: {
     type: string
     output_path?: string

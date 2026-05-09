@@ -54,6 +54,7 @@ func validateSQL(sql string) error {
 		return types.NewValidationError("sql", "Multiple statements are not allowed", nil)
 	}
 
+	// 白名单：只允许 SELECT、EXPLAIN、WITH 开头的查询
 	allowed := false
 	for prefix := range sqlAllowedPrefixes {
 		if strings.HasPrefix(upperSQL, prefix) {
@@ -64,14 +65,6 @@ func validateSQL(sql string) error {
 
 	if !allowed {
 		return types.NewValidationError("sql", "Only SELECT, EXPLAIN, and WITH queries are allowed", nil)
-	}
-
-	// 禁止写操作关键字
-	dangerousKeywords := []string{"INSERT", "UPDATE", "DELETE", "DROP", "ALTER", "CREATE", "TRUNCATE", "ATTACH", "DETACH", "PRAGMA"}
-	for _, kw := range dangerousKeywords {
-		if strings.Contains(upperSQL, kw) {
-			return types.NewValidationError("sql", "Statement contains prohibited keyword: "+kw, nil)
-		}
 	}
 
 	return nil

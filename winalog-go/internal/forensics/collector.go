@@ -1,6 +1,8 @@
 package forensics
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -65,12 +67,14 @@ func (c *EvidenceCollector) collectRegistry(tempDir string) {
 	for _, path := range paths {
 		if _, err := os.Stat(path); err == nil {
 			if data, err := os.ReadFile(path); err == nil {
-				c.files = append(c.files, &EvidenceFile{
-					FilePath:    path,
-					FileHash:    fmt.Sprintf("%x", data),
-					Collector:   "registry",
-					CollectedAt: time.Now(),
-				})
+			hashBytes := sha256.Sum256(data)
+			c.files = append(c.files, &EvidenceFile{
+				FilePath:    path,
+				FileHash:    hex.EncodeToString(hashBytes[:]),
+				Size:        int64(len(data)),
+				Collector:   "registry",
+				CollectedAt: time.Now(),
+			})
 			}
 		}
 	}
