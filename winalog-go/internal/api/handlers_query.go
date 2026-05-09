@@ -56,6 +56,27 @@ func validateSQL(sql string) error {
 		return types.NewValidationError("sql", "Multiple statements are not allowed", nil)
 	}
 
+	// 禁止 SQL 注释 (防止绕过)
+	if strings.Contains(upperSQL, "--") ||
+	   strings.Contains(upperSQL, "/*") ||
+	   strings.Contains(upperSQL, "#") {
+		return types.NewValidationError("sql", "SQL comments are not allowed", nil)
+	}
+
+	// 禁止高危操作 (防止 UNION、文件读写等注入)
+	highRiskPatterns := []string{
+		"UNION",
+		"INTO OUTFILE",
+		"INTO DUMPFILE",
+		"LOAD_FILE",
+	}
+
+	for _, pattern := range highRiskPatterns {
+		if strings.Contains(upperSQL, pattern) {
+			return types.NewValidationError("sql", "Prohibited pattern: "+pattern, nil)
+		}
+	}
+
 	// 白名单：只允许 SELECT、EXPLAIN、WITH 开头的查询
 	allowed := false
 	for prefix := range sqlAllowedPrefixes {
