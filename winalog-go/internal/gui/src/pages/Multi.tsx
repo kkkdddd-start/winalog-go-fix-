@@ -20,6 +20,7 @@ interface CrossMachineActivity {
   user: string
   machine_count: number
   machines: string[]
+  source_ips: string[]
   login_count: number
   suspicious: boolean
   severity: string
@@ -38,10 +39,29 @@ interface LateralMovement {
   mitre_attack: string[]
 }
 
+interface MovementStep {
+  timestamp: string
+  machine: string
+  event_id: number
+  ip_address: string
+  description: string
+}
+
+interface LateralMovementChain {
+  user: string
+  steps: MovementStep[]
+  duration: string
+  machine_count: number
+  severity: string
+  description: string
+  mitre_attack: string[]
+}
+
 interface MultiAnalyzeResponse {
   machines: MachineInfo[]
   cross_machine_activity: CrossMachineActivity[]
   lateral_movement: LateralMovement[]
+  lateral_movement_chains: LateralMovementChain[]
   summary: string
   suspicious_count: number
   analysis_id: string
@@ -94,13 +114,20 @@ function Multi() {
     }
   }
 
-  const handleExport = (format: 'csv' | 'json') => {
+  const handleExport = (format: 'csv' | 'json', deep = false) => {
     setExporting(true)
     setShowExportMenu(false)
     const h = useCustomDate && startDate && endDate
       ? Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60))
       : hours
-    window.open(`/api/multi/export?format=${format}&hours=${h}`, '_blank')
+
+    const form = document.createElement('form')
+    form.method = 'POST'
+    form.action = `/api/multi/export?format=${format}&hours=${h}&deep=${deep}`
+    form.target = '_blank'
+    document.body.appendChild(form)
+    form.submit()
+    document.body.removeChild(form)
     setTimeout(() => setExporting(false), 1000)
   }
 
@@ -372,7 +399,9 @@ function Multi() {
           {showExportMenu && (
             <div className="export-menu">
               <button onClick={() => handleExport('csv')}>CSV</button>
+              <button onClick={() => handleExport('csv', true)}>CSV (Deep)</button>
               <button onClick={() => handleExport('json')}>JSON</button>
+              <button onClick={() => handleExport('json', true)}>JSON (Deep)</button>
             </div>
           )}
         </div>
@@ -539,6 +568,12 @@ function Multi() {
                         <p className="login-count">
                           {t('multi.totalLogins')}: {activity.login_count}
                         </p>
+                        {activity.source_ips && activity.source_ips.length > 0 && (
+                          <div className="source-ips">
+                            <span className="rec-icon">🌐</span>
+                            <span>{activity.source_ips.join(', ')}</span>
+                          </div>
+                        )}
                         <div className="recommendation">
                           <span className="rec-icon">💡</span>
                           <span>{activity.recommendation}</span>
@@ -553,7 +588,7 @@ function Multi() {
 
           {activeTab === 'lateral' && (
             <div className="tab-content">
-              {result.lateral_movement.length === 0 ? (
+              {result.lateral_movement.length === 0 && (!result.lateral_movement_chains || result.lateral_movement_chains.length === 0) ? (
                 <div className="empty-state">
                   <div className="empty-icon">✅</div>
                   <h3>{t('multi.noLateralMovement')}</h3>
@@ -561,13 +596,62 @@ function Multi() {
                 </div>
               ) : (
                 <>
-                  <div className="lateral-summary">
-                    <div className="lateral-stat">
-                      <span className="stat-icon">🔄</span>
-                      <span className="stat-text">{result.lateral_movement.length} {t('multi.lateralMovementsDetected')}</span>
-                    </div>
-                  </div>
-                  <div className="lateral-table">
+                  {result.lateral_movement_chains && result.lateral_movement_chains.length > 0 && (
+                    <>
+                      <div className="lateral-summary">
+                        <div className="lateral-stat">
+                          <span className="stat-icon">🔗</span>
+                          <span className="stat-text">{result.lateral_movement_chains.length} lateral movement chain(s) detected</span>
+                        </div>
+                      </div>
+                      <div className="chain-list">
+                        {result.lateral_movement_chains.map((chain, index) => (
+                          <div key={index} className={`chain-card chain-${chain.severity}`}>
+                            <div className="chain-header">
+                              <div className="chain-user">
+                                <span className="user-icon">👤</span>
+                                <span>{chain.user}</span>
+                              </div>
+                              <div className="chain-meta">
+                                <span className="chain-machines">{chain.machine_count} machine(s)</span>
+                                <span className="chain-duration">{chain.duration || 'N/A'}</span>
+                                <span
+                                  className="severity-badge"
+                                  style={{ backgroundColor: getSeverityColor(chain.severity) }}
+                                >
+                                  {getSeverityLabel(chain.severity)}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="chain-steps">
+                              {chain.steps.map((step, i) => (
+                                <div key={i} className="chain-step">
+                                  <span className="step-time">{formatTime(step.timestamp)}</span>
+                                  <span className="step-desc">{step.description}</span>
+                                  <span className="step-ip">{step.ip_address || 'local'}</span>
+                                  <span className="step-event">Event {step.event_id}</span>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="chain-mitre">
+                              {chain.mitre_attack.map((m, i) => (
+                                <span key={i} className="mitre-tag">{m}</span>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                  {result.lateral_movement.length > 0 && (
+                    <>
+                      <div className="lateral-summary">
+                        <div className="lateral-stat">
+                          <span className="stat-icon">🔄</span>
+                          <span className="stat-text">{result.lateral_movement.length} individual event(s)</span>
+                        </div>
+                      </div>
+                      <div className="lateral-table">
                     <table>
                       <thead>
                         <tr>
@@ -614,8 +698,10 @@ function Multi() {
                   </div>
                 </>
               )}
-            </div>
-          )}
+              </>
+            )}
+          </div>
+        )}
         </>
       )}
 

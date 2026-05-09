@@ -4899,6 +4899,18 @@ button:disabled {
   margin: 0;
 }
 
+.source-ips {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(139, 92, 246, 0.08);
+  border-radius: 8px;
+  color: #a78bfa;
+  font-size: 0.85rem;
+  font-family: 'Courier New', monospace;
+}
+
 .recommendation {
   display: flex;
   align-items: flex-start;
@@ -4952,6 +4964,114 @@ button:disabled {
 
 .lateral-table tr.danger-row {
   background: rgba(220, 38, 38, 0.05);
+}
+
+/* Lateral Movement Chains */
+.chain-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.chain-card {
+  background: linear-gradient(135deg, rgba(22, 33, 62, 0.5) 0%, rgba(26, 26, 46, 0.5) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 20px;
+}
+
+.chain-card.chain-critical {
+  border-color: rgba(220, 38, 38, 0.5);
+  background: rgba(220, 38, 38, 0.05);
+}
+
+.chain-card.chain-high {
+  border-color: rgba(234, 88, 12, 0.4);
+  background: rgba(234, 88, 12, 0.05);
+}
+
+.chain-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.chain-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #e6edf3;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.chain-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chain-machines {
+  color: #00d9ff;
+  font-size: 0.85rem;
+}
+
+.chain-duration {
+  color: #8b949e;
+  font-size: 0.85rem;
+  font-family: monospace;
+}
+
+.chain-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.chain-step {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+.step-time {
+  color: #888;
+  font-family: monospace;
+  white-space: nowrap;
+}
+
+.step-desc {
+  color: #c9d1d9;
+  flex: 1;
+}
+
+.step-ip {
+  color: #00d9ff;
+  font-family: monospace;
+  font-size: 0.8rem;
+}
+
+.step-event {
+  color: #f59e0b;
+  font-size: 0.8rem;
+  background: rgba(245, 158, 11, 0.1);
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.chain-mitre {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
 .time-cell {
