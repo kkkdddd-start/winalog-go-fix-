@@ -121,6 +121,7 @@ func runDetectorsWithProgress(ctx context.Context) *persistence.DetectionResult 
 					fmt.Sscanf(idxStr, "%d", &completedCount)
 				}
 				fmt.Printf("\r[%s] Running %s (%d/%d)...", getSpinner(), currentDetector, completedCount, totalDetectors)
+				os.Stdout.Sync()
 			} else if progress == "complete" {
 				fmt.Println()
 			}

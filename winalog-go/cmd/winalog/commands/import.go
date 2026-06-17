@@ -32,7 +32,7 @@ Examples:
   winalog import security.evtx
   winalog import --log-name Security security.evtx system.evtx
   winalog import --incremental --workers 4 ./logs/`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MinimumNArgs(1),
 	RunE: runImport,
 }
 
@@ -113,6 +113,7 @@ func runImport(cmd *cobra.Command, args []string) error {
 		fmt.Printf("\r[%d/%d] %s: %d events",
 			progress.CurrentFile, progress.TotalFiles,
 			progress.CurrentFileName, progress.EventsImported)
+		os.Stdout.Sync()
 	})
 
 	if err != nil {

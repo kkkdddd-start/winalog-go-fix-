@@ -462,6 +462,7 @@ func runAlertRun(cmd *cobra.Command, args []string) error {
 		totalEvents += len(events)
 		offset += batchSize
 		fmt.Printf("\rProcessed %d events, generated %d alerts...", totalEvents, totalAlerts)
+		os.Stdout.Sync()
 
 		if len(events) < batchSize {
 			break

@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -33,9 +32,8 @@ type LiveEventRow struct {
 }
 
 type DB struct {
-	conn  *sql.DB
-	path  string
-	rwMu  sync.RWMutex
+	conn *sql.DB
+	path string
 }
 
 func NewDB(path string) (*DB, error) {
@@ -51,7 +49,9 @@ func NewDB(path string) (*DB, error) {
 		}
 	}
 
-	dsn := absPath + "?_journal_mode=WAL&_busy_timeout=120000&_synchronous=NORMAL&_cache_size=-64000"
+	// Use _pragma=NAME(VALUE) format for modernc.org/sqlite connection-level PRAGMAs.
+	// Note: _journal_mode=WAL style params are silently ignored by this driver.
+	dsn := absPath + "?_pragma=busy_timeout(120000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=cache_size(-64000)"
 	conn, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
@@ -97,45 +97,32 @@ func (d *DB) Path() string {
 }
 
 func (d *DB) Exec(query string, args ...interface{}) (sql.Result, error) {
-	d.rwMu.Lock()
-	defer d.rwMu.Unlock()
 	return d.conn.Exec(query, args...)
 }
 
 func (d *DB) Query(query string, args ...interface{}) (*sql.Rows, error) {
-	d.rwMu.RLock()
-	defer d.rwMu.RUnlock()
 	return d.conn.Query(query, args...)
 }
 
 func (d *DB) QueryWithContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
-	d.rwMu.RLock()
-	defer d.rwMu.RUnlock()
 	return d.conn.QueryContext(ctx, query, args...)
 }
 
 func (d *DB) QueryRow(query string, args ...interface{}) *sql.Row {
-	d.rwMu.RLock()
-	defer d.rwMu.RUnlock()
 	return d.conn.QueryRow(query, args...)
 }
 
 func (d *DB) QueryRowWithContext(ctx context.Context, query string, args ...interface{}) *sql.Row {
-	d.rwMu.RLock()
-	defer d.rwMu.RUnlock()
 	return d.conn.QueryRowContext(ctx, query, args...)
 }
 
 func (d *DB) Begin() (*sql.Tx, func(), error) {
-	d.rwMu.Lock()
 	tx, err := d.conn.Begin()
 	if err != nil {
-		d.rwMu.Unlock()
 		return nil, nil, err
 	}
 	return tx, func() {
 		_ = tx.Rollback()
-		d.rwMu.Unlock()
 	}, nil
 }
 
@@ -145,8 +132,6 @@ func (d *DB) CreateTables() error {
 }
 
 func (d *DB) createTables() error {
-	d.rwMu.Lock()
-	defer d.rwMu.Unlock()
 	statements := strings.Split(SchemaSQL, ";")
 	for _, stmt := range statements {
 		stmt = strings.TrimSpace(stmt)
@@ -272,23 +257,17 @@ func (d *DB) runMigrations() error {
 }
 
 func (d *DB) Vacuum() error {
-	d.rwMu.Lock()
-	defer d.rwMu.Unlock()
 	_, err := d.conn.Exec("VACUUM")
 	return err
 }
 
 func (d *DB) Analyze() error {
-	d.rwMu.Lock()
-	defer d.rwMu.Unlock()
 	_, err := d.conn.Exec("ANALYZE")
 	return err
 }
 
 func (d *DB) GetStats() (*DBStats, error) {
 	observability.Info("Getting database stats", zap.String("module", "db"))
-	d.rwMu.RLock()
-	defer d.rwMu.RUnlock()
 	var eventCount, alertCount, importCount int64
 
 	if err := d.conn.QueryRow("SELECT COUNT(*) FROM events").Scan(&eventCount); err != nil {
@@ -325,8 +304,6 @@ func (d *DB) GetStats() (*DBStats, error) {
 }
 
 func (d *DB) GetStatsWithContext(ctx context.Context) (*DBStats, error) {
-	d.rwMu.RLock()
-	defer d.rwMu.RUnlock()
 	var eventCount, alertCount, importCount int64
 
 	if err := d.conn.QueryRowContext(ctx, "SELECT COUNT(*) FROM events").Scan(&eventCount); err != nil {
