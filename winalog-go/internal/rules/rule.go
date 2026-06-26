@@ -59,6 +59,17 @@ func (r *AlertRule) BuildMessage(event *types.Event) string {
 	}
 	msg = strings.ReplaceAll(msg, "{{.User}}", userStr)
 	msg = strings.ReplaceAll(msg, "{{.Message}}", event.Message)
+	msg = strings.ReplaceAll(msg, "{{.ServiceName}}", event.GetServiceName())
+	msg = strings.ReplaceAll(msg, "{{.TargetUserName}}", event.GetTargetUserName())
+	msg = strings.ReplaceAll(msg, "{{.TargetUser}}", event.GetTargetUserName())
+	if event.IPAddress != nil {
+		msg = strings.ReplaceAll(msg, "{{.IpAddress}}", *event.IPAddress)
+	} else {
+		msg = strings.ReplaceAll(msg, "{{.IpAddress}}", "")
+	}
+	msg = strings.ReplaceAll(msg, "{{.Count}}", "1")
+	msg = strings.ReplaceAll(msg, "{{.LogonType}}", fmt.Sprintf("%d", event.GetLogonType()))
+	msg = strings.ReplaceAll(msg, "{{.Image}}", event.GetImage())
 
 	return msg
 }

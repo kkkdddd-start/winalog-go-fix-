@@ -355,7 +355,7 @@ func TestEvaluatorEvaluateNilFilter(t *testing.T) {
 		Level:   types.EventLevelInfo,
 	}
 
-	matched, err := eval.Evaluate(rule, event)
+	matched, _, err := eval.Evaluate(rule, event)
 	if err != nil {
 		t.Fatalf("Evaluate failed: %v", err)
 	}

@@ -1924,7 +1924,7 @@ var keyMap = KeyMap{
 | Reports | `/reports` | 报告生成 |
 | Forensics | `/forensics` | 取证采集、Hash 验证 |
 | SystemInfo | `/system-info` | 系统信息采集 |
-| Rules | `/rules` | 规则管理、编辑器 |
+| Rules | `/rules` | 规则管理、编辑器、白名单说明（`false_positive_notes`） |
 | Settings | `/settings` | 配置管理 |
 | Metrics | `/metrics` | Prometheus 指标 |
 | Collect | `/collect` | 一键采集 |

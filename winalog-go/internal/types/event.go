@@ -255,7 +255,7 @@ func (e *Event) GetTargetUserName() string {
 	if e.User != nil {
 		return *e.User
 	}
-	return ""
+	return e.getMessageValue("TargetUserName")
 }
 
 func (e *Event) GetSubjectUserName() string {
@@ -282,7 +282,7 @@ func (e *Event) GetProcessName() string {
 			return s
 		}
 	}
-	return ""
+	return e.getMessageValue("ProcessName")
 }
 
 func (e *Event) GetCommandLine() string {
@@ -291,7 +291,24 @@ func (e *Event) GetCommandLine() string {
 			return s
 		}
 	}
-	return ""
+	return e.getMessageValue("CommandLine")
+}
+
+func (e *Event) GetImage() string {
+	if v := e.GetExtractedField("Image"); v != nil {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	if v := e.GetExtractedField("NewProcessName"); v != nil {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	if v := e.getMessageValue("Image"); v != "" {
+		return v
+	}
+	return e.getMessageValue("NewProcessName")
 }
 
 func (e *Event) GetServiceName() string {
@@ -300,7 +317,7 @@ func (e *Event) GetServiceName() string {
 			return s
 		}
 	}
-	return ""
+	return e.getMessageValue("ServiceName")
 }
 
 func (e *Event) GetDestPort() int {
@@ -313,6 +330,41 @@ func (e *Event) GetDestPort() int {
 		}
 	}
 	return 0
+}
+
+// getMessageValue extracts a named value from the event message text.
+// Handles patterns like "Key=Value" and "Key: Value" separated by "; \r\n\t".
+// Used as a fallback when ExtractedFields (from XML parsing) is not available,
+// such as when events are loaded from the database for batch analysis.
+func (e *Event) getMessageValue(key string) string {
+	msg := e.Message
+	if msg == "" {
+		return ""
+	}
+
+	// Try "key=value" pattern first (e.g. "ServiceName=KslD; StartType=...")
+	idx := strings.Index(msg, key+"=")
+	if idx >= 0 {
+		valuePart := msg[idx+len(key)+1:]
+		endIdx := strings.IndexAny(valuePart, ";\r\n\t")
+		if endIdx > 0 {
+			return strings.TrimSpace(valuePart[:endIdx])
+		}
+		return strings.TrimSpace(valuePart)
+	}
+
+	// Try "key: value" pattern (e.g. "TargetUserName: administrator\r\n")
+	idx = strings.Index(msg, key+":")
+	if idx >= 0 {
+		valuePart := msg[idx+len(key)+1:]
+		endIdx := strings.IndexAny(valuePart, "\r\n\t")
+		if endIdx > 0 {
+			return strings.TrimSpace(valuePart[:endIdx])
+		}
+		return strings.TrimSpace(valuePart)
+	}
+
+	return ""
 }
 
 func (e *Event) ParseRawXML() error {

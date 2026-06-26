@@ -120,7 +120,7 @@ func (e *Engine) Evaluate(ctx context.Context, event *types.Event) ([]*types.Ale
 			continue
 		}
 
-		matched, err := e.evaluator.Evaluate(rule, event)
+		matched, count, err := e.evaluator.Evaluate(rule, event)
 		if err != nil {
 			observability.Error("evaluator error",
 				zap.String("module", "alerts"),
@@ -134,7 +134,7 @@ func (e *Engine) Evaluate(ctx context.Context, event *types.Event) ([]*types.Ale
 				continue
 			}
 
-			alert := e.createAlert(rule, event)
+			alert := e.createAlert(rule, event, count)
 			alerts = append(alerts, alert)
 
 			e.dedup.Mark(rule.Name, event)
@@ -194,7 +194,7 @@ func (e *Engine) EvaluateBatch(ctx context.Context, events []*types.Event) ([]*t
 						continue
 					}
 
-					matched, err := e.evaluator.Evaluate(rule, evt)
+					matched, count, err := e.evaluator.Evaluate(rule, evt)
 					if err != nil {
 						observability.Error("evaluator error",
 							zap.String("module", "alerts"),
@@ -210,7 +210,7 @@ func (e *Engine) EvaluateBatch(ctx context.Context, events []*types.Event) ([]*t
 						continue
 					}
 
-					alert := e.createAlert(rule, evt)
+					alert := e.createAlert(rule, evt, count)
 					alertChan <- alert
 					e.dedup.Mark(rule.Name, evt)
 					e.trend.Record(alert)
@@ -232,8 +232,13 @@ func (e *Engine) EvaluateBatch(ctx context.Context, events []*types.Event) ([]*t
 	return alerts, nil
 }
 
-func (e *Engine) createAlert(rule *rules.AlertRule, event *types.Event) *types.Alert {
+func (e *Engine) createAlert(rule *rules.AlertRule, event *types.Event, count int) *types.Alert {
 	eventTime := event.Timestamp
+
+	alertCount := count
+	if alertCount <= 0 {
+		alertCount = 1
+	}
 
 	return &types.Alert{
 		RuleName:    rule.Name,
@@ -243,7 +248,7 @@ func (e *Engine) createAlert(rule *rules.AlertRule, event *types.Event) *types.A
 		EventDBIDs:  []int64{event.ID},
 		FirstSeen:   eventTime,
 		LastSeen:    eventTime,
-		Count:       1,
+		Count:       alertCount,
 		MITREAttack: []string{rule.MitreAttack},
 		LogName:     event.LogName,
 		RuleScore:   rule.Score,
@@ -495,7 +500,7 @@ func (e *Engine) EvaluateBatchWithProgress(ctx context.Context, events []*types.
 						continue
 					}
 
-					matched, err := e.evaluator.Evaluate(rule, evt)
+					matched, count, err := e.evaluator.Evaluate(rule, evt)
 					if err != nil {
 						observability.Error("evaluator error",
 							zap.String("module", "alerts"),
@@ -511,7 +516,7 @@ func (e *Engine) EvaluateBatchWithProgress(ctx context.Context, events []*types.
 						continue
 					}
 
-					alert := e.createAlert(rule, evt)
+					alert := e.createAlert(rule, evt, count)
 					alertChan <- alert
 					e.dedup.Mark(rule.Name, evt)
 					e.trend.Record(alert)

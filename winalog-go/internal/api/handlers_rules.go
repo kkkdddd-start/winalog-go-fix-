@@ -19,19 +19,20 @@ type RulesHandler struct {
 }
 
 type RuleInfo struct {
-	ID          string      `json:"id"`
-	Name        string      `json:"name"`
-	Description string      `json:"description"`
-	Enabled     bool        `json:"enabled"`
-	Severity    string      `json:"severity"`
-	Score       float64     `json:"score"`
-	MitreAttack []string    `json:"mitre_attack"`
-	Tags        []string    `json:"tags"`
-	IsCustom    bool        `json:"is_custom"`
-	EventIDs    []int32     `json:"event_ids,omitempty"`
-	Levels      []string    `json:"levels,omitempty"`
-	Filter      *FilterInfo `json:"filter,omitempty"`
-	Message     string      `json:"message,omitempty"`
+	ID                 string      `json:"id"`
+	Name               string      `json:"name"`
+	Description        string      `json:"description"`
+	Enabled            bool        `json:"enabled"`
+	Severity           string      `json:"severity"`
+	Score              float64     `json:"score"`
+	MitreAttack        []string    `json:"mitre_attack"`
+	Tags               []string    `json:"tags"`
+	IsCustom           bool        `json:"is_custom"`
+	EventIDs           []int32     `json:"event_ids,omitempty"`
+	Levels             []string    `json:"levels,omitempty"`
+	Filter             *FilterInfo `json:"filter,omitempty"`
+	Message            string      `json:"message,omitempty"`
+	FalsePositiveNotes string      `json:"false_positive_notes,omitempty"`
 }
 
 type FilterInfo struct {
@@ -165,15 +166,16 @@ func (h *RulesHandler) ListRules(c *gin.Context) {
 
 func convertToRuleInfo(rule *rules.AlertRule, isCustom bool) RuleInfo {
 	ruleInfo := RuleInfo{
-		ID:          rule.Name,
-		Name:        rule.Name,
-		Description: rule.Description,
-		Enabled:     rule.Enabled,
-		Severity:    string(rule.Severity),
-		Score:       rule.Score,
-		MitreAttack: []string{},
-		Tags:        rule.Tags,
-		IsCustom:    isCustom,
+		ID:                 rule.Name,
+		Name:               rule.Name,
+		Description:        rule.Description,
+		Enabled:            rule.Enabled,
+		Severity:           string(rule.Severity),
+		Score:              rule.Score,
+		MitreAttack:        []string{},
+		Tags:               rule.Tags,
+		IsCustom:           isCustom,
+		FalsePositiveNotes: builtin.GetFalsePositiveNotes(rule.Name),
 	}
 	if rule.Filter != nil {
 		ruleInfo.EventIDs = rule.Filter.EventIDs
@@ -279,15 +281,16 @@ func (h *RulesHandler) GetRule(c *gin.Context) {
 	for _, rule := range alertRules {
 		if rule.Name == name {
 			ruleInfo := RuleInfo{
-				ID:          rule.Name,
-				Name:        rule.Name,
-				Description: rule.Description,
-				Enabled:     rule.Enabled,
-				Severity:    string(rule.Severity),
-				Score:       rule.Score,
-				MitreAttack: []string{},
-				Tags:        rule.Tags,
-				IsCustom:    false,
+				ID:                 rule.Name,
+				Name:               rule.Name,
+				Description:        rule.Description,
+				Enabled:            rule.Enabled,
+				Severity:           string(rule.Severity),
+				Score:              rule.Score,
+				MitreAttack:        []string{},
+				Tags:               rule.Tags,
+				IsCustom:           false,
+				FalsePositiveNotes: builtin.GetFalsePositiveNotes(rule.Name),
 			}
 			if rule.MitreAttack != "" {
 				ruleInfo.MitreAttack = []string{rule.MitreAttack}

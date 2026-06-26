@@ -92,6 +92,54 @@ type RuleStats struct {
 }
 ```
 
+### None 条件（白名单排除）
+
+`Conditions` 支持三种逻辑组合：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `Any` | `[]Condition` | 任一条件匹配即通过（OR 逻辑） |
+| `All` | `[]Condition` | 所有条件必须匹配（AND 逻辑） |
+| `None` | `[]Condition` | 任一匹配即排除事件（NOT 逻辑，白名单） |
+
+`None` 是**反向匹配**：事件命中 None 中任一条件则被排除，不触发告警。
+
+```go
+// 示例：kerberoasting 规则排除机器账户
+Conditions: &rules.Conditions{
+    Any: []rules.Condition{...},   // 必须匹配 TGS 请求
+    None: []rules.Condition{{
+        Field:    "service_name",
+        Operator: "contains",
+        Value:    "$@",             // 排除 COMPUTER$@DOMAIN 格式
+    }},
+}
+```
+
+**使用原则**：
+- 排除条件必须是操作系统或安全软件独有的正常操作模式
+- 用 `contains` 匹配特征子串（不用 `regex`，性能更优）
+- 不能基于环境特定值（如特定主机名）做硬编码排除
+
+### RuleDetail 结构体
+
+```go
+type RuleDetail struct {
+    RuleID             string
+    Explanation        string  // 攻击技术说明
+    Recommendation     string  // 处置建议
+    RealCase           string  // 真实案例
+    FalsePositiveNotes string  // 白名单/误报排除说明
+}
+```
+
+`FalsePositiveNotes` 记录每条规则的误报排除逻辑：
+- 哪些条件被排除、为什么安全
+- 不可修复的已知误报及原因
+- 前端 Rules.tsx 详情弹窗中展示
+
+`GetFalsePositiveNotes()` 函数从 RuleDetail 表中读取对应规则的说明文本。
+
 ## 规则结构详解
 
 ### 严重级别

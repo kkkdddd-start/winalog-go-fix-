@@ -741,6 +741,7 @@ export interface RuleInfo {
   levels?: string[];
   filter?: FilterInfo;
   message?: string;
+  false_positive_notes?: string;
 }
 export interface FilterInfo {
   event_ids?: number /* int32 */[];

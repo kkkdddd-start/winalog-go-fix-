@@ -48,14 +48,35 @@
 
 ### 📦 Build
 
-- 交叉编译支持：
-  - Linux x64 (`winalog-linux-amd64`, 37MB)
-  - Windows x64 (`winalog-windows-amd64.exe`, 38MB)
-- 前端构建配置优化
-  - Vite `base: './'` 使用相对路径
-  - TypeScript 严格模式
+- 全平台交叉编译支持（6 个目标）：
+  - Linux: x64 / arm64
+  - macOS: x64 (Intel) / arm64 (Apple Silicon)
+  - Windows: x64 / arm64
+- 交叉编译修复：10 个 `_linux.go` 文件重命名为 `_nix.go`
+  - 修复 Go 文件名隐式 `_linux` GOOS 约束导致无法编译 macOS 版本
+  - 文件均含 `//go:build !windows` 标签，Windows 编译不受影响
 
-### 📚 Documentation
+### 🛡️ Rules
+
+- 误报削减：402 万事件全量分析，告警从 52 条降至 15 条
+  - **admin-login-unusual**: 删除宽泛的 `Admin` 子串匹配（误匹配 RestrictedAdminMode），仅保留 `Administrator` 精确匹配
+  - **kerberoasting**: 排除机器账户 `$@`（120 位随机密码无法破解），仅匹配 RC4 加密类型 0x0017/0x0018
+  - **dll-search-order-hijacking**: 添加 6 条操作系统/安全软件正常操作白名单
+  - **service-installation**: 添加 20 条 Defender/VMware/火绒/打印机/浏览器等驱动白名单
+  - **mass-privilege-assignment**: 排除 SYSTEM 账户，阈值 5→20，时间窗口 10→30min，消息添加研判提示
+  - **mimikatz-suspect**: 排除 tasklist/procexp 进程名（正常进程查看工具）
+  - **tunneling-tool-detected**: 排除 MicrosoftEdgeUpdate（Edge 浏览器更新）
+- LogNames 过滤修复：46 条规则添加 LogNames，10,093→1,547 告警
+- 模板变量渲染修复：`getMessageValue()` 消息回退解析，`BuildMessage` 14 个模板变量
+- 阈值 fired 标记修复：`eventCountEntry` 添加 `fired` 布尔字段，防止重复触发
+
+### 🖥️ Frontend
+
+- 新增 `false_positive_notes` 字段：规则详情弹窗展示白名单/误报排除说明
+- 7 条已修改规则均编写了对应的白名单说明
+- 数据流：`definitions.go` → `GetFalsePositiveNotes()` → API JSON → `Rules.tsx` 详情弹窗
+
+### 📦 Build
 
 - 文档结构化重组
   - 用户文档：`docs/user/`

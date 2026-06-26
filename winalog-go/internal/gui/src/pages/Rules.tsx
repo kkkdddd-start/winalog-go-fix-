@@ -547,6 +547,13 @@ function Rules() {
                 <p className="detail-description">{selectedRule.description}</p>
               </div>
 
+              {selectedRule.false_positive_notes && (
+                <div className="detail-section">
+                  <h4>白名单/误报排除说明</h4>
+                  <p className="detail-description" style={{ whiteSpace: 'pre-wrap' }}>{selectedRule.false_positive_notes}</p>
+                </div>
+              )}
+
               {selectedRule.mitre_attack && selectedRule.mitre_attack.length > 0 && (
                 <div className="detail-section">
                   <h4>MITRE ATT&CK</h4>

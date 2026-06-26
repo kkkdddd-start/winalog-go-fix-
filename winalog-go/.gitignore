@@ -10,3 +10,7 @@ vendor/
 # 测试和构建产物 (不提交到版本控制)
 _tests/
 _build/
+
+# 开发临时文件
+:memory:
+winalog

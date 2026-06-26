@@ -555,6 +555,7 @@ export interface RuleInfo {
   message?: string
   created_at?: string
   updated_at?: string
+  false_positive_notes?: string
 }
 
 export interface CorrelationParams {

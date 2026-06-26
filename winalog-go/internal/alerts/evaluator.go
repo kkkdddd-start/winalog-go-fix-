@@ -20,6 +20,7 @@ type eventCountEntry struct {
 	count     int
 	firstTime time.Time
 	lastTime  time.Time
+	fired     bool
 }
 
 type Evaluator struct {
@@ -88,24 +89,26 @@ func (e *Evaluator) getFilterMatcher(f *rules.Filter) *rules.FilterMatcher {
 	return matcher
 }
 
-func (e *Evaluator) Evaluate(rule *rules.AlertRule, event *types.Event) (bool, error) {
+func (e *Evaluator) Evaluate(rule *rules.AlertRule, event *types.Event) (bool, int, error) {
 	if !e.matchFilter(rule.Filter, event) {
-		return false, nil
+		return false, 0, nil
 	}
 
 	if rule.Conditions != nil {
 		if !e.matchConditions(rule.Conditions, event) {
-			return false, nil
+			return false, 0, nil
 		}
 	}
 
 	if rule.Threshold > 0 {
-		if !e.checkThreshold(rule, event) {
-			return false, nil
+		met, count := e.checkThreshold(rule, event)
+		if !met {
+			return false, count, nil
 		}
+		return true, count, nil
 	}
 
-	return true, nil
+	return true, 0, nil
 }
 
 func (e *Evaluator) matchFilter(filter *rules.Filter, event *types.Event) bool {
@@ -454,12 +457,12 @@ func (e *Evaluator) matchTimeRange(tr *types.TimeRange, event *types.Event) bool
 	return true
 }
 
-func (e *Evaluator) checkThreshold(rule *rules.AlertRule, event *types.Event) bool {
+func (e *Evaluator) checkThreshold(rule *rules.AlertRule, event *types.Event) (bool, int) {
 	if rule.Threshold <= 0 {
-		return true
+		return true, 0
 	}
 	if rule.TimeWindow <= 0 {
-		return true
+		return true, 0
 	}
 
 	aggKey := e.getAggregationKey(rule, event)
@@ -478,19 +481,39 @@ func (e *Evaluator) checkThreshold(rule *rules.AlertRule, event *types.Event) bo
 			lastTime:  now,
 		}
 		e.eventCount[key] = entry
-		return entry.count >= rule.Threshold
+		if entry.count >= rule.Threshold {
+			entry.fired = true
+			return true, entry.count
+		}
+		return false, entry.count
 	}
 
+	// Window expired: reset
 	if now.Sub(entry.firstTime) > rule.TimeWindow {
 		entry.count = 1
 		entry.firstTime = now
 		entry.lastTime = now
-	} else {
-		entry.count++
-		entry.lastTime = now
+		entry.fired = false
+		e.eventCount[key] = entry
+		return false, entry.count
 	}
 
-	return entry.count >= rule.Threshold
+	// Within window: accumulate
+	entry.count++
+	entry.lastTime = now
+
+	// Already fired for this window — suppress
+	if entry.fired {
+		return false, entry.count
+	}
+
+	// Threshold reached for the first time
+	if entry.count >= rule.Threshold {
+		entry.fired = true
+		return true, entry.count
+	}
+
+	return false, entry.count
 }
 
 func (e *Evaluator) getAggregationKey(rule *rules.AlertRule, event *types.Event) string {

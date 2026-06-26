@@ -501,9 +501,59 @@ for id in $(winalog alert list --severity critical --format json | jq -r '.[].id
 done
 ```
 
----
+### 6.x 误报排除说明（`false_positive_notes`）
 
-## 7. 威胁分析
+每条安全规则包含一个 `false_positive_notes` 字段，在 Web UI 规则详情弹窗中展示。该字段记录：
+
+- **白名单条件**：该规则排除了哪些事件/进程/账户（如 Defender 驱动、打印机服务、机器账户等）
+- **不可修复的已知误报**：某些规则因检测逻辑无法在代码层面排除的场景及原因
+- **研判提示**：供安全分析师判断告警是否为误报的参考信息
+
+当前已有 7 条规则配置了误报排除说明：
+`admin-login-unusual`、`kerberoasting`、`dll-search-order-hijacking`、`service-installation`、`mass-privilege-assignment`、`mimikatz-suspect`、`tunneling-tool-detected`
+
+详细白名单逻辑见各规则详情弹窗的「白名单/误报排除说明」区域。
+
+### 6.y 白名单管理（CLI）
+
+白名单用于抑制已知安全的重复告警，对内映射为告警抑制（suppress）机制。
+
+**添加白名单规则**：
+
+```bash
+winalog whitelist add "规则名称" \
+  --event-id 4624 \
+  --source "DESKTOP-XXX" \
+  --user "SYSTEM" \
+  --computer "DC01" \
+  --reason "正常维护操作" \
+  --scope global
+```
+
+**查看白名单列表**：
+
+```bash
+winalog whitelist list
+```
+
+**移除白名单规则**：
+
+```bash
+winalog whitelist remove "规则名称"
+```
+
+**白名单参数说明**：
+
+| 参数 | 说明 |
+|------|------|
+| `--event-id` | 指定排除的事件 ID |
+| `--source` | 排除的事件来源 |
+| `--user` | 排除的用户名 |
+| `--computer` | 排除的计算机名 |
+| `--reason` | 白名单原因说明 |
+| `--scope` | 作用范围：`global`(全局) / `rule`(仅该规则) |
+
+
 
 ### 7.1 分析器列表
 
@@ -1067,6 +1117,20 @@ winalog tui
 # 5. 按 r 标记为已解决
 # 6. 按 q 退出
 ```
+
+### 15.x Web UI 规则管理页面
+
+启动 `winalog serve` 后，浏览器访问 `http://127.0.0.1:8088`，导航至 **Rules** 页面。
+
+**页面功能**：
+- 浏览所有内置规则的列表（名称、严重级别、MITRE ATT&CK 映射、启用状态）
+- 点击规则行打开详情弹窗，查看完整信息：
+  - 规则描述
+  - **白名单/误报排除说明**（`false_positive_notes` 字段）
+  - MITRE ATT&CK 技术 ID
+  - 标签和过滤条件
+- 启用/禁用规则开关
+- 按严重级别筛选
 
 ---
 

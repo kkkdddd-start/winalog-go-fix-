@@ -9,10 +9,11 @@ import (
 )
 
 type RuleDetail struct {
-	Explanation    string
-	Recommendation string
-	RealCase       string
-	RuleID         string
+	Explanation        string
+	Recommendation     string
+	RealCase           string
+	FalsePositiveNotes string
+	RuleID             string
 }
 
 func GetAlertRules() []*rules.AlertRule {
@@ -41,8 +42,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Severity:       types.SeverityHigh,
 			Score:          80,
 			MitreAttack:    "T1078.004",
-			Threshold:      3,
-			TimeWindow:     10 * time.Minute,
+			Threshold:      10,
+			TimeWindow:     30 * time.Minute,
 			AggregationKey: "user",
 			Filter: &rules.Filter{
 				EventIDs: []int32{4624},
@@ -51,7 +52,6 @@ func GetAlertRules() []*rules.AlertRule {
 			Conditions: &rules.Conditions{
 				Any: []*rules.Condition{
 					{Field: "message", Operator: "contains", Value: "Administrator"},
-					{Field: "message", Operator: "contains", Value: "Admin"},
 				},
 				None: []*rules.Condition{
 					{Field: "ip_address", Operator: "==", Value: "127.0.0.1"},
@@ -96,7 +96,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{1102},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Security"},
+},
 			Message: "Security log was cleared - potential attacker activity",
 			Tags:    []string{"defense-evasion", "clearing-logs"},
 		},
@@ -124,7 +125,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{3},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Message: "Suspicious network connection to port {{.DestinationPort}}",
 			Tags:    []string{"network", "command-and-control"},
 		},
@@ -331,7 +333,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{7},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Message: "Suspicious DLL loaded from unusual location",
 			Tags:    []string{"defense-evasion", "persistence"},
 		},
@@ -514,7 +517,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{169, 182, 184},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-WinRM/Operational"},
+},
 			Message: "WinRM remote connection established",
 			Tags:    []string{"lateral-movement", "remote-execution"},
 		},
@@ -603,6 +607,15 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{4769},
 				Levels:   []string{"Info"},
+			},
+			Conditions: &rules.Conditions{
+				Any: []*rules.Condition{
+					{Field: "message", Operator: "contains", Value: "TicketEncryptionType=0x0017"},
+					{Field: "message", Operator: "contains", Value: "TicketEncryptionType=0x0018"},
+				},
+				None: []*rules.Condition{
+					{Field: "message", Operator: "contains", Value: "$@"},
+				},
 			},
 			Message: "Kerberoasting attack pattern detected - TGS request for {{.TargetUserName}}",
 			Tags:    []string{"credential-access", "kerberos"},
@@ -825,6 +838,14 @@ func GetAlertRules() []*rules.AlertRule {
 					{Field: "command_line", Operator: "contains", Value: "appdata\\"},
 					{Field: "command_line", Operator: "contains", Value: "remote\\"},
 				},
+				None: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "CompatTelRunner"},
+					{Field: "command_line", Operator: "contains", Value: "pcasvc.dll"},
+					{Field: "command_line", Operator: "contains", Value: "TitanAgent\\tmp\\ntds"},
+					{Field: "command_line", Operator: "contains", Value: "dismhost.exe {"},
+					{Field: "command_line", Operator: "contains", Value: "wuauclt.exe\" /DeploymentHandlerFullPath"},
+					{Field: "command_line", Operator: "contains", Value: "StateRepositoryDoMaintenanceTasks"},
+				},
 			},
 			Message: "DLL search order hijacking detected",
 			Tags:    []string{"persistence", "defense-evasion"},
@@ -885,7 +906,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{4688},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Conditions: &rules.Conditions{
 				Any: []*rules.Condition{
 					{Field: "command_line", Operator: "contains", Value: "cobalt"},
@@ -909,7 +931,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{17, 18},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Message: "Cobalt Strike named pipe detected",
 			Tags:    []string{"malware", "command-and-control"},
 		},
@@ -970,7 +993,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{3},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Conditions: &rules.Conditions{
 				All: []*rules.Condition{
 					{Field: "destination_port", Operator: ">", Value: "1024"},
@@ -994,7 +1018,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{3},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Message: "Suspicious outbound connection to {{.DestinationIp}}",
 			Tags:    []string{"command-and-control", "network"},
 		},
@@ -1008,7 +1033,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{7},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Message: "DLL loaded from suspicious path: {{.ImageLoaded}}",
 			Tags:    []string{"defense-evasion", "persistence"},
 		},
@@ -1022,7 +1048,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{7},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Message: "Suspicious DLL loaded into LSASS - possible credential dumping",
 			Tags:    []string{"credential-access", "malware"},
 		},
@@ -1036,7 +1063,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{11},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Message: "File created in suspicious location: {{.TargetFilename}}",
 			Tags:    []string{"persistence", "initial-access"},
 		},
@@ -1050,7 +1078,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{11},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Message: "Executable file created: {{.TargetFilename}}",
 			Tags:    []string{"initial-access", "malware"},
 		},
@@ -1064,14 +1093,15 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{17, 18},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Message: "Suspicious named pipe created: {{.PipeName}}",
 			Tags:    []string{"lateral-movement", "command-and-control"},
 		},
 		{
 			Name:        "ueba-off-hours-login",
 			Description: "用户异常时间登录(UEBA)",
-			Enabled:     true,
+			Enabled:     false,
 			Severity:    types.SeverityMedium,
 			Score:       45,
 			MitreAttack: "T1078",
@@ -1087,7 +1117,7 @@ func GetAlertRules() []*rules.AlertRule {
 					{Field: "message", Operator: "contains", Value: "TargetUserName=SYSTEM"},
 				},
 			},
-			Threshold:      3,
+			Threshold:      50,
 			TimeWindow:     1 * time.Hour,
 			AggregationKey: "ip_address",
 			Message:        "Off-hours login detected for {{.User}} from {{.IpAddress}} - {{.Count}} attempts",
@@ -1142,6 +1172,7 @@ func GetAlertRules() []*rules.AlertRule {
 				},
 				None: []*rules.Condition{
 					{Field: "message", Operator: "contains", Value: "SubjectUserName=SYSTEM"},
+					{Field: "message", Operator: "regex", Value: "SubjectUserName=.*\\$"},
 				},
 			},
 			Threshold:      3,
@@ -1273,7 +1304,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{104, 1102},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Security", "System"},
+},
 			Message: "System event log cleared",
 			Tags:    []string{"defense-evasion", "clearing-logs"},
 		},
@@ -1406,7 +1438,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{10},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Message: "LSASS memory dump detected - credential theft",
 			Tags:    []string{"credential-access", "malware"},
 		},
@@ -1446,6 +1479,9 @@ func GetAlertRules() []*rules.AlertRule {
 					{Field: "command_line", Operator: "contains", Value: "portmap"},
 					{Field: "command_line", Operator: "contains", Value: "socat"},
 				},
+				None: []*rules.Condition{
+					{Field: "command_line", Operator: "contains", Value: "MicrosoftEdgeUpdate"},
+				},
 			},
 			Message: "Tunneling tool detected: {{.Image}}",
 			Tags:    []string{"command-and-control", "exfiltration"},
@@ -1460,7 +1496,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{3},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Message: "Connection to cloud storage: {{.DestinationHostname}}",
 			Tags:    []string{"exfiltration", "command-and-control"},
 		},
@@ -1474,7 +1511,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{11},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Message: "Ransomware file encryption pattern detected: {{.TargetFilename}}",
 			Tags:    []string{"impact", "ransomware"},
 		},
@@ -1488,7 +1526,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{11},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Message: "Executable written to startup folder",
 			Tags:    []string{"persistence", "initial-access"},
 		},
@@ -1525,7 +1564,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{85, 86, 91},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-WinRM/Operational"},
+},
 			Message: "WinRM brute force attack detected",
 			Tags:    []string{"credential-access", "brute-force"},
 		},
@@ -1539,7 +1579,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{32, 33},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-WinRM/Operational"},
+},
 			Message: "WinRM service unauthorized enabled",
 			Tags:    []string{"persistence", "lateral-movement"},
 		},
@@ -1553,7 +1594,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{91, 28, 30},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-WinRM/Operational"},
+},
 			Message: "Suspicious WinRM shell created",
 			Tags:    []string{"lateral-movement", "remote-execution"},
 		},
@@ -1567,7 +1609,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{33},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-WinRM/Operational"},
+},
 			Message: "PowerShell executed via WinRM remote session",
 			Tags:    []string{"lateral-movement", "powershell"},
 		},
@@ -1581,7 +1624,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{32},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-WinRM/Operational"},
+},
 			Message: "Remote command executed via WinRM",
 			Tags:    []string{"lateral-movement", "remote-execution"},
 		},
@@ -1595,7 +1639,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{4624},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-WinRM/Operational"},
+},
 			Conditions: &rules.Conditions{
 				Any: []*rules.Condition{
 					{Field: "message", Operator: "contains", Value: "WinRM"},
@@ -1618,7 +1663,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{4624},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-WinRM/Operational"},
+},
 			Conditions: &rules.Conditions{
 				Any: []*rules.Condition{
 					{Field: "message", Operator: "contains", Value: "WinRM"},
@@ -1644,7 +1690,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{28, 30},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-WinRM/Operational"},
+},
 			Message: "Credential theft特征 via WinRM: LSASS access",
 			Tags:    []string{"credential-access", "malware"},
 		},
@@ -1658,7 +1705,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{85, 86},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-WinRM/Operational"},
+},
 			Message: "Large data transfer via WinRM: {{.Size}} bytes",
 			Tags:    []string{"exfiltration", "command-and-control"},
 		},
@@ -1672,7 +1720,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{191, 192},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-WinRM/Operational"},
+},
 			Message: "Abnormal WinRM channel creation detected",
 			Tags:    []string{"command-and-control", "tunneling"},
 		},
@@ -1686,7 +1735,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{184, 182, 191},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-WinRM/Operational"},
+},
 			Message: "WinRM certificate mapping failure - possible reconnaissance",
 			Tags:    []string{"discovery", "authentication"},
 		},
@@ -1700,7 +1750,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{162},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-WinRM/Operational"},
+},
 			Message: "Suspicious WinRM plugin loaded: {{.PluginName}}",
 			Tags:    []string{"persistence", "privilege-escalation"},
 		},
@@ -1714,7 +1765,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{169},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-WinRM/Operational"},
+},
 			Message: "WinRM remote port forwarding detected",
 			Tags:    []string{"lateral-movement", "tunneling"},
 		},
@@ -1734,7 +1786,7 @@ func GetAlertRules() []*rules.AlertRule {
 		},
 		{
 			Name:        "mass-privilege-assignment",
-			Description: "批量特权分配",
+			Description: "批量特权分配 (机器账户$结尾的正常活动也会触发,研判时注意排除)",
 			Enabled:     true,
 			Severity:    types.SeverityHigh,
 			Score:       80,
@@ -1764,10 +1816,10 @@ func GetAlertRules() []*rules.AlertRule {
 					{Field: "message", Operator: "contains", Value: "SubjectUserName=SYSTEM"},
 				},
 			},
-			Threshold:      5,
-			TimeWindow:     5 * time.Minute,
+			Threshold:      20,
+			TimeWindow:     10 * time.Minute,
 			AggregationKey: "computer",
-			Message:        "Mass privilege assignment detected - {{.Count}} privilege assignments on {{.Computer}}",
+			Message:        "Mass privilege assignment detected - {{.Count}} privilege assignments on {{.Computer}}. Machine accounts (ending with $) are normal and should be excluded during triage.",
 			Tags:           []string{"privilege-escalation", "persistence"},
 		},
 		{
@@ -1922,7 +1974,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{22},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Message: "DNS query to suspicious domain: {{.QueryName}}",
 			Tags:    []string{"command-and-control", "dns"},
 		},
@@ -1936,7 +1989,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{8},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Message: "Remote thread created - possible process injection",
 			Tags:    []string{"defense-evasion", "privilege-escalation"},
 		},
@@ -1951,6 +2005,31 @@ func GetAlertRules() []*rules.AlertRule {
 				EventIDs: []int32{7045},
 				Levels:   []string{"Info"},
 			},
+			Conditions: &rules.Conditions{
+				None: []*rules.Condition{
+					{Field: "service_name", Operator: "contains", Value: "KslD"},
+					{Field: "service_name", Operator: "contains", Value: "MpKsl"},
+					{Field: "message", Operator: "contains", Value: "ServiceName=TitanAgent"},
+					{Field: "message", Operator: "contains", Value: "ServiceName=VA-Client"},
+					{Field: "message", Operator: "contains", Value: "ServiceName=Sangfor"},
+					{Field: "message", Operator: "contains", Value: "ServiceName=WinDefend"},
+					{Field: "message", Operator: "contains", Value: "ServiceName=WdFilter"},
+					{Field: "message", Operator: "contains", Value: "ServiceName=WdNisSvc"},
+					{Field: "message", Operator: "contains", Value: "ServiceName=SecurityHealth"},
+					{Field: "message", Operator: "contains", Value: "ServiceName=Npcap"},
+					{Field: "message", Operator: "contains", Value: "\\Microsoft\\Windows Defender\\"},
+					{Field: "message", Operator: "contains", Value: "Huorong\\Sysdiag"},
+					{Field: "message", Operator: "contains", Value: "FastIO Balloon"},
+					{Field: "message", Operator: "contains", Value: "vioser.sys"},
+					{Field: "message", Operator: "contains", Value: "ServiceName=Printer Extensions"},
+					{Field: "message", Operator: "contains", Value: "E1G6032E.sys"},
+					{Field: "message", Operator: "contains", Value: "ServiceName=sftoolservice"},
+					{Field: "message", Operator: "contains", Value: "ServiceName=sfutil"},
+					{Field: "message", Operator: "contains", Value: "Sangfor VMSTool"},
+					{Field: "message", Operator: "contains", Value: "qxl.sys"},
+					{Field: "service_name", Operator: "contains", Value: "MicrosoftEdgeElevationService"},
+				},
+			},
 			Message: "New service installed: {{.ServiceName}} on {{.Computer}}",
 			Tags:    []string{"persistence", "service"},
 		},
@@ -1964,7 +2043,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{2},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Message: "File creation time changed - potential timestomping",
 			Tags:    []string{"defense-evasion", "anti-forensics"},
 		},
@@ -1978,7 +2058,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{4},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Message: "Sysmon service state changed - verify change authority",
 			Tags:    []string{"defense-evasion", "sysmon"},
 		},
@@ -1992,7 +2073,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{5},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Conditions: &rules.Conditions{
 				Any: []*rules.Condition{
 					{Field: "image", Operator: "regex", Value: "(?i)(lsass\\.exe|winlogon\\.exe|csrss\\.exe|services\\.exe)$"},
@@ -2011,7 +2093,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{9},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Message: "Raw disk access detected: {{.Image}} on {{.Device}}",
 			Tags:    []string{"credential-access", "ransomware"},
 		},
@@ -2025,7 +2108,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{14},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Message: "Registry key renamed - potential persistence modification",
 			Tags:    []string{"persistence", "registry"},
 		},
@@ -2039,7 +2123,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{15},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Conditions: &rules.Conditions{
 				Any: []*rules.Condition{
 					{Field: "contents", Operator: "regex", Value: "(?i)(\\.exe|\\.dll|\\.vbs|\\.ps1|\\.bat|\\.scr|\\.hta)$"},
@@ -2058,7 +2143,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{16},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Message: "Sysmon configuration changed - verify change authority",
 			Tags:    []string{"defense-evasion", "sysmon"},
 		},
@@ -2072,7 +2158,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{6},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Conditions: &rules.Conditions{
 				Any: []*rules.Condition{
 					{Field: "image_path", Operator: "regex", Value: "(?i)(\\\\temp\\\\|\\\\users\\\\public\\\\|\\\\appdata\\\\local\\\\temp\\\\)"},
@@ -2092,7 +2179,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{12},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Message: "Registry key created or deleted - potential configuration change",
 			Tags:    []string{"persistence", "registry"},
 		},
@@ -2106,7 +2194,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{20},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Message: "WMI Event Consumer created - potential WMI persistence",
 			Tags:    []string{"persistence", "wmi"},
 		},
@@ -2120,7 +2209,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{19},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Message: "WMI Event Filter created - potential WMI persistence",
 			Tags:    []string{"persistence", "wmi"},
 		},
@@ -2134,7 +2224,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{21},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Message: "WMI Event Consumer bound to filter - active WMI persistence",
 			Tags:    []string{"persistence", "wmi"},
 		},
@@ -2151,7 +2242,8 @@ func GetAlertRules() []*rules.AlertRule {
 			Filter: &rules.Filter{
 				EventIDs: []int32{19, 21},
 				Levels:   []string{"Info"},
-			},
+							LogNames: []string{"Microsoft-Windows-Sysmon/Operational"},
+},
 			Message: "Complete WMI persistence chain: Filter(EID19) + Consumer(EID21) on {{.Computer}}",
 			Tags:    []string{"persistence", "wmi", "critical"},
 		},
@@ -2273,6 +2365,11 @@ var ruleDetails = map[string]RuleDetail{
 		Explanation:    "Mimikatz是最常用的凭据窃取工具，可从LSASS进程中提取明文密码、Kerberos票据和哈希。攻击者常在横向移动前使用此工具。",
 		Recommendation: "1. 立即隔离受感染主机\n2. 检查是否有其他凭据泄露\n3. 部署Credential Guard保护凭据\n4. 启用LSASS进程保护\n5. 审查本地管理员权限分配",
 		RealCase:       "2017年NotPetya勒索软件攻击中，攻击者利用Mimikatz在多个乌克兰企业网络中传播。",
+		FalsePositiveNotes: "已知误报(不可修复):\n"+
+			"- process_name 包含 \"lsass\" 是检测 mimikatz 冒充 lsass.exe 的关键条件，不可移除\n"+
+			"- lsass.exe 系统时间同步操作(Reason=1)会被误判--分析中出现1次\n"+
+			"- 排除 tasklist/procexp 进程名(正常进程查看工具)\n"+
+			"lsass 检测是凭据窃取检测的核心特征，单条误报可接受。", 
 	},
 	"security-log-cleared": {
 		RuleID:         "T1070.001",
@@ -2285,6 +2382,10 @@ var ruleDetails = map[string]RuleDetail{
 		Explanation:    "Kerberoasting攻击利用Kerberos认证协议的弱点。攻击者请求服务票据后离线破解获取服务账户密码，这类账户密码通常较为简单。",
 		Recommendation: "1. 确保服务账户使用强密码(25位以上)\n2. 定期轮换服务账户密码\n3. 启用AES加密强制使用\n4. 监控异常的TGS请求模式\n5. 限制服务账户的登录权限",
 		RealCase:       "2022年Lapsus$组织使用Kerberoasting攻击获取多个企业包括微软、三星的初始访问权限。",
+		FalsePositiveNotes: "误报排除: 排除目标用户名包含 \"$@\" 的 TGS 请求(如 COMPUTER$@DOMAIN)。\n"+
+			"- 机器账户($结尾): 密码为120位随机值，无法离线破解，排除后零漏报风险\n"+
+			"- 仅匹配 RC4 加密类型 0x0017/0x0018: 排除 AES 加密的 TGS 请求\n"+
+			"- 不影响用户账户 kerberoasting 检测(用户账户不含$@后缀)",
 	},
 	"golden-ticket": {
 		RuleID:         "T1558.001",
@@ -2357,6 +2458,7 @@ var ruleDetails = map[string]RuleDetail{
 		Explanation:    "管理员账户从异常位置或时间登录是凭证被盗的重要信号。攻击者获取管理员凭据后通常会尝试横向移动。",
 		Recommendation: "1. 确认登录是否由合法管理员执行\n2. 检查登录来源IP和地理位置\n3. 审查该账户的所有远程会话\n4. 启用MFA保护管理员账户",
 		RealCase:       "攻击者通过钓鱼获取管理员凭据后，从外部IP登录企业内网。",
+		FalsePositiveNotes: "误报排除: 仅匹配用户名中包含 \"Administrator\"(Windows默认管理员)的登录事件，不再匹配\"Admin\"子串。历史分析中\"Admin\"匹配了RestrictedAdminMode字段导致所有4624事件触发告警，删除后不影响真实Administrator账户检测。",
 	},
 	"account-lockout-alert": {
 		RuleID:         "T1078",
@@ -2531,6 +2633,13 @@ var ruleDetails = map[string]RuleDetail{
 		Explanation:    "DLL搜索顺序劫持利用Windows DLL加载顺序，将恶意DLL放置在合法程序之前。",
 		Recommendation: "1. 启用Safe DLL Search Mode\n2. 监控异常DLL加载\n3. 使用完整路径指定系统DLL\n4. 部署EDR检测",
 		RealCase:       "攻击者通过DLL劫持实现Web服务器被控。",
+		FalsePositiveNotes: "误报排除(6条白名单), 零漏报风险:\n"+
+			"- CompatTelRunner/pcasvc.dll: Windows兼容性遥测工具，系统内置\n"+
+			"- TitanAgent\\tmp\\ntds: TitanAgent VSS 备份独有路径，非恶意行为\n"+
+			"- dismhost.exe {GUID}: DISM部署映像服务，始终带GUID调用\n"+
+			"- wuauclt.exe /DeploymentHandlerFullPath: Windows Update 更新处理独有调用链\n"+
+			"- StateRepositoryDoMaintenanceTasks: Windows 状态仓库维护任务，svchost→rundll32调用\n"+
+			"所有排除条件均为操作系统或安全软件独有的正常操作模式。",
 	},
 	"service-dll-hijacking": {
 		RuleID:         "T1574.002",
@@ -2705,6 +2814,7 @@ var ruleDetails = map[string]RuleDetail{
 		Explanation:    "内网穿透工具允许攻击者建立持久隧道。frp、ngrok等工具被攻击者滥用。",
 		Recommendation: "1. 隔离可疑主机\n2. 阻断隧道软件运行\n3. 监控异常出站连接\n4. 使用网络分段",
 		RealCase:       "攻击者在受感染主机部署frp建立反向隧道。",
+		FalsePositiveNotes: "误报排除: 排除 MicrosoftEdgeUpdate(Edge浏览器更新程序)命令行，其路径中可能包含触发关键词的子串。Edge更新是正常的浏览器更新行为，非隧道工具。",
 	},
 	"cloud-storage-upload": {
 		RuleID:         "T1567.002",
@@ -2819,6 +2929,13 @@ var ruleDetails = map[string]RuleDetail{
 		Explanation:    "批量特权分配可能是攻击者在提权多个账户。异常的权限变更需要立即调查。",
 		Recommendation: "1. 审核权限分配事件\n2. 监控批量权限变更\n3. 限制权限管理权限\n4. 使用特权访问管理",
 		RealCase:       "攻击者批量将普通用户加入管理员组。",
+		FalsePositiveNotes: "已知误报(不可修复):\n"+
+			"- 排除 SYSTEM 账户特权操作(系统服务正常行为)\n"+
+			"- 阈值从5提升至20, 时间窗口扩展至30分钟(减少系统服务聚合告警)\n"+
+			"- 计算机账户($结尾，如 DC$): 域控制器和服务器正常运行产生的批量特权分配\n"+
+			"  (无法在规则层面排除$账户--会漏报 gMSA/sMSA 滥用攻击)\n"+
+			"- 告警消息含研判提示: \"Machine accounts (ending with $) are normal\"\n"+
+			"研判时检查 SubjectUserName 是否以 $ 结尾，机器账户为正常行为。",
 	},
 	"key-operations-alert": {
 		RuleID:         "T1003",
@@ -2849,6 +2966,14 @@ var ruleDetails = map[string]RuleDetail{
 		Explanation:    "可疑服务安装可能是恶意软件部署。新服务的创建需要审核来源。",
 		Recommendation: "1. 审核服务创建事件\n2. 检查服务二进制来源\n3. 验证服务签名\n4. 使用最小权限运行服务",
 		RealCase:       "攻击者安装恶意服务实现持久化控制。",
+		FalsePositiveNotes: "误报排除(20条白名单), 零~极低漏报风险:\n"+
+			"- Windows Defender: WinDefend/WdFilter/WdNisSvc/SecurityHealth/MpKsl/KslD\n"+
+			"- 安全软件: TitanAgent/VA-Client/Sangfor/Sangfor VMSTool(sf工具)/Huorong火绒\n"+
+			"- 网络工具: Npcap/E1G6032E(Intel 网卡驱动)\n"+
+			"- 虚拟化: FastIO Balloon(VMware)/vioser.sys(VirtIO 串口)/qxl.sys(QXL 显卡)\n"+
+			"- 浏览器: MicrosoftEdgeElevationService\n"+
+			"- 其他: Printer Extensions(打印机扩展)/sftoolservice/sfutil(向日葵/Sangfor)\n"+
+			"所有排除基于服务名或驱动路径的唯一特征，攻击者无法伪造系统驱动路径。",
 	},
 	"sysmon-timestomping": {
 		RuleID:         "T1070.006",
@@ -2962,6 +3087,14 @@ func GetRuleDetails(ruleName string) (explanation, recommendation, realCase stri
 		return detail.Explanation, detail.Recommendation, detail.RealCase
 	}
 	return "暂无详细规则解读", "暂无处置建议", "暂无真实案例"
+}
+
+// GetFalsePositiveNotes 返回规则的白名单/误报排除说明
+func GetFalsePositiveNotes(ruleName string) string {
+	if detail, ok := ruleDetails[ruleName]; ok {
+		return detail.FalsePositiveNotes
+	}
+	return ""
 }
 
 func GetAlertRuleByName(name string) *rules.AlertRule {
